@@ -2,7 +2,18 @@
 
 [日本語版](README.ja.md)
 
-asobi (Japanese for “play”) is a Ruby library for making SVG pictures and looping animations. A picture is a Ruby value. Here, eight copies of a petal form a flower, and the whole flower turns once every eight seconds.
+asobi (Japanese for “play”) is a Ruby library for making SVG pictures and looping animations. A picture is a Ruby value. You can copy a petal eight times, arrange the petals into a flower and spin the whole flower.
+
+## Run your first sketch
+
+You'll need Ruby **3.2 or newer** and a browser. Run these commands in the folder where you'd like to keep your sketch.
+
+```sh
+gem install asobi
+asobi
+```
+
+asobi creates `play.rb` with the sketch below and opens the spinning flower in your browser. If `play.rb` already exists, it opens that sketch.
 
 ```ruby
 require "asobi"
@@ -13,28 +24,9 @@ show flower.spin(every: 8)
 
 <img src="docs/first-sketch.svg" width="240" alt="Eight petals, alternating crimson and navy, arranged around a common centre.">
 
-## Run your first sketch
+Change `repeat(8)` to `repeat(12)` in `play.rb` and save to add four petals. Change `every: 8` to `every: 2` to make the flower turn once every two seconds. Press Ctrl-C in the terminal to stop the preview.
 
-You'll need Ruby **3.2 or newer** and a browser. The library uses only Ruby's standard library. Run this command from the repository root.
-
-```sh
-ruby exe/asobi
-```
-
-asobi creates `play.rb` with the flower sketch above and opens a live preview in your browser. If `play.rb` already exists, it opens that sketch. Change `repeat(8)` to `repeat(12)` and save to add four petals. Change `every: 8` to `every: 2` to make the flower turn once every two seconds. Press Ctrl-C in the terminal to stop the preview.
-
-To open another sketch, pass its path, for example `ruby exe/asobi examples/flower.rb`. Add `--no-open` to open the URL printed in the terminal yourself. The server looks for a free port starting at 4567. Use `--port 5000` to start the search at 5000.
-
-### Install the command for use in other folders
-
-Build and install the gem from the repository root.
-
-```sh
-gem build asobi.gemspec --output asobi.gem
-gem install --local ./asobi.gem
-```
-
-You can now run `asobi` in a sketch folder to start with `play.rb`, or open an existing sketch with `asobi sketch.rb`. A file that contains `require "asobi"` and calls `show` also runs with `ruby sketch.rb`.
+To open another sketch, pass its path to `asobi`, for example `asobi sketch.rb`. A file that contains `require "asobi"` and calls `show` also runs with `ruby sketch.rb`. Add `--no-open` to the `asobi` command to open the URL printed in the terminal yourself. The server looks for a free port starting at 4567. Use `--port 5000` to start the search at 5000.
 
 ## Build pictures in Ruby
 
@@ -118,7 +110,7 @@ To save a particular frame, use `motion.at(1).save("frame.svg")` for the picture
 
 ## Use asobi from an existing Ruby program
 
-Load `asobi/pure` to keep shape names under `Asobi` and leave Ruby's built-in classes untouched. Save the following as `export.rb` in the repository root and run `ruby -Ilib export.rb`. It writes three navy stars to `stars.svg` in the same directory.
+Load `asobi/pure` to keep shape names under `Asobi` and leave Ruby's built-in classes untouched. Save the following as `export.rb` and run `ruby export.rb` from the same folder. It writes three navy stars to `stars.svg`.
 
 ```ruby
 require "asobi/pure"
@@ -129,7 +121,9 @@ stars.colored(:navy).save("stars.svg")
 
 ## Examples and reference
 
-Each file is a complete sketch that you can run with `ruby exe/asobi` followed by its path. [Browse all examples](examples/README.md)
+Try a sketch in your browser or look up a method in the [online guide](https://asobi.myura.me/guide.html), [playground](https://asobi.myura.me/playground.html) or [reference](https://asobi.myura.me/reference.html).
+
+Each file is a complete sketch. From a checkout of the repository, try `asobi examples/flower.rb`. [Browse all examples](examples/README.md)
 
 - Turn a number sequence into a row of stars. [Number sequence](examples/sequence.rb)
 - Layer glow, screen blending and trails. [Neon flower](examples/neon_flower.rb)
@@ -146,7 +140,7 @@ Open `_site/index.html` in a browser for English or `_site/ja/index.html` for Ja
 
 ## Development
 
-After `bundle install`, run `bundle exec rake test`. The suite checks the library and CLI, builds the site with test data, and runs the sketch examples from the gallery and both READMEs. For the design of pictures, motion and the `to_art` protocol, see the [design notes (Japanese)](DESIGN.md).
+From the repository root, use `ruby exe/asobi examples/flower.rb` to try changes to the library. After `bundle install`, run `bundle exec rake test`. The suite checks the library and CLI, builds the site with test data, and runs the sketch examples from the gallery and both READMEs. For the design of pictures, motion and the `to_art` protocol, see the [design notes (Japanese)](DESIGN.md).
 
 ## Bugs and feature ideas
 

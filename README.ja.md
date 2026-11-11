@@ -4,6 +4,17 @@
 
 asobi（遊び）は、Ruby で図形を組み合わせて、SVG の静止画やループアニメーションを作るライブラリです。たとえば花びらを8枚並べると、ひとつの花ができます。花も Ruby のオブジェクトなので、`spin` を呼ぶと花ごと回ります。
 
+## 最初のスケッチを動かす
+
+用意するのは Ruby 3.2 以上とブラウザです。スケッチを置きたいフォルダで次の2行を実行します。
+
+```sh
+gem install asobi
+asobi
+```
+
+初回は次のコードが入った `play.rb` が作られ、ブラウザで花が回り始めます。すでに同名のファイルがある場合は、そのスケッチが開きます。
+
 ```ruby
 require "asobi"
 
@@ -13,26 +24,9 @@ show flower.spin(every: 8)
 
 <img src="docs/first-sketch.svg" width="240" alt="深紅と紺の花びらが交互に8枚並んだ花。">
 
-## 最初のスケッチを動かす
+`play.rb` の `repeat(8)` を `repeat(12)` に変えて保存すると、花びらが12枚に増えます。`spin(every: 8)` の `8` を `2` に変えると、今度は2秒で1回転します。ファイルを保存するたびに表示が更新されます。終了するには、コマンドを実行したターミナルで Ctrl+C を押します。
 
-用意するのは Ruby 3.2 以上とブラウザです。リポジトリのルートで次のコマンドを実行します。ライブラリの実行に追加の gem は要りません。
-
-```sh
-ruby exe/asobi
-```
-
-初回は、上の花を描く `play.rb` が作られ、ブラウザで花が回り始めます。すでに同名のファイルがある場合は、そのスケッチが開きます。
-
-`repeat(8)` を `repeat(12)` に変えて保存すると、花びらが12枚に増えます。`spin(every: 8)` の `8` を `2` に変えると、今度は2秒で1回転します。ファイルを保存するたびに表示が更新されます。終了するには、コマンドを実行したターミナルで Ctrl+C を押します。
-
-ほかの作品を開くには、`ruby exe/asobi examples/flower.rb` のようにファイルを指定します。ブラウザを自分で開く場合は `--no-open` を付けて、ターミナルに表示された URL にアクセスしてください。`--port 5000` を付けると、5000 番から空いているポートを探します（既定は 4567 番）。
-
-別のディレクトリでも `asobi` コマンドを使いたいときは、リポジトリのルートで gem を作ってインストールします。その後は、作品を置きたいディレクトリで `asobi` を実行できます。既存のスケッチは `asobi sketch.rb` や `ruby sketch.rb` で開けます。
-
-```sh
-gem build asobi.gemspec --output asobi.gem
-gem install --local ./asobi.gem
-```
+ほかの作品を開くには、`asobi sketch.rb` のようにファイルを指定します。`require "asobi"` と `show` を書いたスケッチは `ruby sketch.rb` でも開けます。ブラウザを自分で開く場合は `asobi` コマンドに `--no-open` を付けて、ターミナルに表示された URL にアクセスしてください。`--port 5000` を付けると、5000 番から空いているポートを探します（既定は 4567 番）。
 
 ## スケッチの書き方
 
@@ -116,7 +110,7 @@ show motion
 
 ## 既存の Ruby プログラムに組み込む
 
-`require "asobi"` を使うと、`circle` などをトップレベルで呼べるようになり、数値や配列に `to_art` が加わります。既存のプログラムで Ruby の標準クラスを拡張せずに使うには、`asobi/pure` を読み込みます。次のコードをリポジトリのルートに `export.rb` として保存し、`ruby -Ilib export.rb` を実行すると、紺色の星を3つ並べた `stars.svg` ができます。
+`require "asobi"` を使うと、`circle` などをトップレベルで呼べるようになり、数値や配列に `to_art` が加わります。既存のプログラムで Ruby の標準クラスを拡張せずに使うには、`asobi/pure` を読み込みます。次のコードを `export.rb` として保存し、同じフォルダで `ruby export.rb` を実行すると、紺色の星を3つ並べた `stars.svg` ができます。
 
 ```ruby
 require "asobi/pure"
@@ -127,7 +121,9 @@ stars.colored(:navy).save("stars.svg")
 
 ## 作例とドキュメント
 
-リポジトリには、1ファイルで動くスケッチが入っています。
+ブラウザでスケッチを試すには[遊び場](https://asobi.myura.me/ja/playground.html)を開いてください。[入門ガイド](https://asobi.myura.me/ja/guide.html)と[リファレンス](https://asobi.myura.me/ja/reference.html)もオンラインで読めます。
+
+リポジトリには、1ファイルで動くスケッチが入っています。クローンしたリポジトリのルートで `asobi examples/flower.rb` を実行すると、花の作例を開けます。
 
 - 数列を形にする仕組みを試すなら [数列の星](examples/sequence.rb)
 - 発光、色の合成、残像を重ねるなら [ネオンの花](examples/neon_flower.rb)
@@ -143,7 +139,9 @@ bundle exec rake site
 
 生成された `_site/ja/index.html` をブラウザで開くと、日本語版を読めます。「遊び場」でコードを編集して実行するには、CDN から ruby.wasm を読み込むためのインターネット接続が必要です。
 
-テストは `bundle exec rake test` で実行できます。ライブラリ本体に加え、ドキュメントや作例のスケッチも検証します。ライブラリの設計については[設計書](DESIGN.md)を参照してください。
+## 開発
+
+ライブラリ本体に加えた変更は、リポジトリのルートで `ruby exe/asobi examples/flower.rb` を実行して試せます。依存関係を `bundle install` でインストールしたら、`bundle exec rake test` でテストを実行できます。ライブラリ本体に加え、ドキュメントや作例のスケッチも検証します。ライブラリの設計については[設計書](DESIGN.md)を参照してください。
 
 ## 不具合報告・機能提案
 
