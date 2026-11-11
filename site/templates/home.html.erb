@@ -7,6 +7,7 @@
     <div class="cta">
       <a class="btn primary" href="<%= href("playground") %>"><%= ui(:play) %></a>
       <a class="btn" href="<%= href("guide") %>"><%= ui(:get_started) %></a>
+      <a class="film-link" href="#film"><%= ui(:watch_film) %></a>
     </div>
     <div class="install-line"><span class="ps" aria-hidden="true">$</span><code id="install-cmd">gem install asobi</code><button type="button" class="small" data-copy="install-cmd" data-copied="<%= h(ui(:copied_short)) %>"><%= ui(:copy) %></button></div>
     <p class="install-note"><%= inline(t(home["install"])) %> <a href="<%= RUBYGEMS_URL %>"><%= ui(:view_gem) %></a></p>
@@ -29,6 +30,19 @@
   <template data-subs="<%= piece["id"] %>"><%= subtitles(piece["code"]) %></template>
 <%- end -%>
   <script type="application/json" id="stage-data"><%= script_json(pieces.map { _1.except("code") }) %></script>
+</section>
+
+<section class="band film" id="film" aria-labelledby="film-title">
+  <div>
+    <p class="label"><%= ui(:film_info) %></p>
+    <h2 id="film-title" lang="en">Your Objects</h2>
+    <p id="film-description"><%= ui(:film_description) %></p>
+  </div>
+  <video controls playsinline preload="none" width="1920" height="1080"
+         aria-labelledby="film-title" aria-describedby="film-description"
+         poster="<%= root %>assets/your-objects-poster.png" src="<%= root %>assets/your-objects.mp4">
+    <a href="<%= root %>assets/your-objects.mp4"><%= ui(:watch_film) %> (MP4)</a>
+  </video>
 </section>
 
 <section class="band" aria-labelledby="beliefs-title">

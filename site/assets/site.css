@@ -229,6 +229,7 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 .tagline { font-size: clamp(20px, 2vw, 26px); line-height: 1.4; color: #fff; max-width: 22em; margin: 0; }
 :lang(ja) .tagline { line-height: 1.6; }
 .cta { display: flex; gap: var(--s3); flex-wrap: wrap; }
+.cta .film-link { align-self: center; }
 .install-line {
   display: inline-flex; align-items: center; gap: var(--s3); align-self: flex-start;
   background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; padding: 6px 6px 6px 14px;
@@ -266,6 +267,13 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 
 /* ---- home: sections below the stage ------------------------------------------------- */
 .band { padding: var(--s9) var(--gutter) 0; max-width: calc(var(--wide) + 2 * var(--gutter)); margin: 0 auto; }
+.film { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--s6); align-items: center; scroll-margin-top: 60px; }
+.film h2 { font-size: clamp(32px, 4vw, 48px); }
+.film h2 + p { margin: var(--s3) 0 0; color: var(--ink-2); }
+.film video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--rule); }
+@media (max-width: 760px) {
+  .film { grid-template-columns: 1fr; gap: var(--s4); }
+}
 .band-head { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--s5); align-items: baseline; margin-bottom: var(--s7); }
 .band-head h2 { font-size: clamp(32px, 4vw, 44px); }
 .band-head > .label { margin: 0; padding-top: .9em; }

@@ -1,6 +1,6 @@
 # asobi
 
-[公式サイト](https://asobi.myura.me/ja/) · [RubyGems](https://rubygems.org/gems/asobi) · [English](README.md)
+[公式サイト](https://asobi.myura.me/ja/) · [紹介映像を見る（32秒）](https://asobi.myura.me/ja/#film) · [RubyGems](https://rubygems.org/gems/asobi) · [English](README.md)
 
 asobi（遊び）は、Ruby で図形を組み合わせて、SVG の静止画やループアニメーションを作るライブラリです。たとえば花びらを8枚並べると、ひとつの花ができます。花も Ruby のオブジェクトなので、`spin` を呼ぶと花ごと回ります。
 
