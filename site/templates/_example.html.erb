@@ -1,0 +1,12 @@
+<div class="example">
+  <div class="example-code">
+    <%= code_block(code) %>
+    <a class="to-play" href="<%= h(play_href(code)) %>"><%= ui(:open_in_playground) %></a>
+  </div>
+  <figure class="example-fig" style="margin:0">
+    <%= picture(code, caption ? t(caption) : label) %>
+<%- if caption -%>
+    <figcaption class="caption"><%= inline(t(caption)) %></figcaption>
+<%- end -%>
+  </figure>
+</div>

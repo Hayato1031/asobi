@@ -1,0 +1,54 @@
+tagline:
+  en: "Play with pictures in Ruby. Hold them, copy them, arrange them."
+  ja: "Ruby で、絵と遊ぶ。持って、増やして、並べる。"
+philosophy:
+  - en: "Treat objects as pictures, and pictures as objects."
+    ja: "オブジェクトを絵として扱い、絵をオブジェクトとして扱う。"
+  - en: "What matters is that it is fun to write, easy to follow, and instantly playable."
+    ja: "書く人が楽しく、わかりやすく、すぐに遊べることが大事。"
+  - en: "A picture is like a sticker: make it, copy it, arrange it, and you still have one picture."
+    ja: "絵はシールのようなもの。作って、増やして、並べても、やっぱり1枚の絵。"
+hero_code: |
+  flower = petal(40, 16).repeat(10).in_fan.colored(from: :hotpink, to: :gold, around: true)
+  comet = circle(4).colored(:white).orbit(62, every: 6).trail(12)
+  sky = flower.animate(2) { |f, t| f.rotate(t * 36) } + comet
+
+  show sky.glowing, on: :black, grain: true
+install:
+  en: "gem install asobi, then type asobi in a terminal. A sketch opens in your browser."
+  ja: "gem install asobi と打ってから、ターミナルで asobi と打ちます。ブラウザでスケッチが開きます。"
+
+# ---- optional keys read only by the site's home page (see site/build.rb) ----
+
+# After hero_code, the home stage plays these gallery pieces in turn (dark ones).
+stage: [neon_flower, aurora, through_a_heart, night_sky]
+
+# A glimpse of the gallery further down the home page.
+gallery: [paper_cutouts, tiles, rings]
+
+# "One word at a time": one piece, built up a word per step.
+steps:
+  - word: petal
+    code: |
+      show petal
+    text: { en: "A shape.", ja: "形。" }
+  - word: repeat
+    code: |
+      show petal.repeat(8)
+    text: { en: "Eight of them, all in one place.", ja: "8枚。まだ同じ場所に重なっています。" }
+  - word: in_fan
+    code: |
+      show petal.repeat(8).in_fan
+    text: { en: "Arranged in a fan.", ja: "扇に並べる。" }
+  - word: colored
+    code: |
+      show petal.repeat(8).in_fan.colored(:deeppink, :cyan)
+    text: { en: "Two colours take turns.", ja: "2色が交互に。" }
+  - word: glowing
+    code: |
+      show petal.repeat(8).in_fan.colored(:deeppink, :cyan).glowing, on: :black
+    text: { en: "It glows, on black.", ja: "黒の上で光る。" }
+  - word: spin
+    code: |
+      show petal.repeat(8).in_fan.colored(:deeppink, :cyan).glowing.spin(every: 8), on: :black
+    text: { en: "And it moves.", ja: "そして動く。" }

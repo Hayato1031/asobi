@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>asobi player fixture</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #tools { position: fixed; left: 8px; bottom: 60px; z-index: 10; display: flex; gap: 6px; font: 12px sans-serif; }
+  #tools.hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="tools">
+  <button id="swap">swap reel</button>
+  <button id="err">send error</button>
+  <button id="clear">clear error</button>
+</div>
+<script src="../../lib/asobi/web/player.js"></script>
+<script>
+  // Query: ?code=1 shows the code overlay, ?error=1 sends an error, ?swap=1 swaps reel, ?notools=1 hides buttons,
+  // ?dark=1 uses a black background.
+  var q = new URLSearchParams(location.search);
+
+  // 60 frames of a rotating ring of circles.
+  function makeReel(n, colors, bg) {
+    var frames = [];
+    for (var f = 0; f < 60; f++) {
+      var g = '<g transform="rotate(' + (f * 6) + ')">';
+      for (var i = 0; i < n; i++) {
+        var a = (i / n) * Math.PI * 2;
+        g += '<circle cx="' + (50 * Math.cos(a)).toFixed(2) + '" cy="' + (50 * Math.sin(a)).toFixed(2) +
+             '" r="14" fill="' + colors[i % colors.length] + '" fill-opacity="0.8" stroke="#333" stroke-width="2"/>';
+      }
+      frames.push(g + '</g>');
+    }
+    return { frames: frames, fps: 30, view: [-70, -70, 140, 140], background: bg, error: null,
+             code: "# " + n + " circles\n" + "n = " + n + "\nshow ring(n).spin" };
+  }
+  var bg = q.get("dark") ? "black" : "white";
+  var reelA = makeReel(6, ["tomato", "gold", "skyblue"], bg);
+  var reelB = makeReel(3, ["seagreen", "orchid"], bg);
+  var current = reelA;
+
+  var player = AsobiPlayer.mount(document.getElementById("stage"));
+  window.player = player;
+  player.update(reelA);
+
+  function sendError() {
+    player.update({ error: "play.rb:7: undefined method 'circl' for main\n  circl 40\n  ^^^^^\nDid you mean?  circle" });
+  }
+  document.getElementById("swap").onclick = function () { current = current === reelA ? reelB : reelA; player.update(current); };
+  document.getElementById("err").onclick = sendError;
+  document.getElementById("clear").onclick = function () { player.update(current); };
+
+  if (q.get("notools")) document.getElementById("tools").className = "hidden";
+  if (q.get("swap")) setTimeout(function () { current = reelB; player.update(reelB); }, 500);
+  if (q.get("error")) setTimeout(sendError, 300);
+  if (q.get("code")) setTimeout(function () {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
+  }, 300);
+</script>
+</body>
+</html>

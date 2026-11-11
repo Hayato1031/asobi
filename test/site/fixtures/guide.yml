@@ -1,0 +1,20 @@
+- id: shapes
+  title: { en: "Make a shape", ja: "形を作る" }
+  steps:
+    - text: { en: "Write `circle` and `show` it.", ja: "`circle` と書いて `show` します。" }
+      code: |
+        show circle
+      words: [circle, show]
+    - text:
+        en: |-
+          A paragraph.
+
+          Another paragraph, with `nothing_linked` code.
+        ja: "段落。"
+- id: motion
+  title: { en: "Make it move", ja: "動かす" }
+  steps:
+    - text: { en: "Add `spin`.", ja: "`spin` を足します。" }
+      code: |
+        show star.spin(every: 2)
+      words: [spin]

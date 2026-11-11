@@ -1,0 +1,11 @@
+- id: flower
+  title: { en: "Flower", ja: "花" }
+  text: { en: "Petals in a fan.", ja: "扇に並べた花びら。" }
+  code: |
+    flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
+    show flower.spin(every: 8)
+- id: words
+  title: { en: "Words & <symbols>", ja: "文字と記号" }
+  code: |
+    # 日本語のコメント & "quotes" <tags> + * / ?
+    show text("あそび & <b>", size: 20), on: :ivory

@@ -1,0 +1,99 @@
+<%- home = content.home; pieces = stage_data; first = pieces.first -%>
+<section class="stage" id="stage" aria-label="<%= h(ui(:stage_label)) %>" style="--stage-bg:<%= h(first["background"]) %>">
+  <div class="stage-copy">
+    <p class="label">Ruby · <%= ui(:creative_coding) %> · v<%= Asobi::VERSION %></p>
+    <h1 class="wordmark">asobi<span class="caret" aria-hidden="true"></span></h1>
+    <p class="tagline"><%= inline(t(home["tagline"])) %></p>
+    <div class="cta">
+      <a class="btn primary" href="<%= href("playground") %>"><%= ui(:play) %></a>
+      <a class="btn" href="<%= href("guide") %>"><%= ui(:get_started) %></a>
+    </div>
+    <div class="install-line"><span class="ps" aria-hidden="true">$</span><code id="install-cmd">gem install asobi</code><button type="button" class="small" data-copy="install-cmd" data-copied="<%= h(ui(:copied_short)) %>"><%= ui(:copy) %></button></div>
+    <p class="install-note"><%= inline(t(home["install"])) %></p>
+  </div>
+  <div class="stage-pic">
+    <%= picture(first["code"], t(home["tagline"]), css: "stage-shot", live: false, readout: false) %>
+    <span class="tick a" aria-hidden="true"></span><span class="tick b" aria-hidden="true"></span>
+    <p class="stage-meta" aria-hidden="true">
+      <span class="live"><span class="ro-dot"></span><%= ui(:live) %></span>
+      <span class="sm-file-wrap"><span class="sm-index">1/<%= pieces.size %></span> · <span class="sm-file"><%= h(first["file"]) %></span></span>
+      <span><%= ui(:frame) %> <span class="sm-fc"><%= "0" * first["frames"].to_s.size %></span>/<span class="sm-n"><%= first["frames"] %></span></span>
+      <span class="sm-every"><%= h(first["timing"]) %></span>
+    </p>
+    <div class="stage-subs">
+      <%= subtitles(first["code"]) %>
+    </div>
+  </div>
+  <p class="visually-hidden" aria-live="polite" id="stage-now"><%= ui(:now_playing) %>: <%= h(first["file"]) %></p>
+<%- pieces.each do |piece| -%>
+  <template data-subs="<%= piece["id"] %>"><%= subtitles(piece["code"]) %></template>
+<%- end -%>
+  <script type="application/json" id="stage-data"><%= script_json(pieces.map { _1.except("code") }) %></script>
+</section>
+
+<section class="band" aria-labelledby="beliefs-title">
+  <div class="band-head"><p class="label"><span class="n">01</span> / <%= ui(:philosophy) %></p><h2 id="beliefs-title" class="visually-hidden"><%= ui(:philosophy) %></h2></div>
+  <ol class="beliefs">
+<%- home["philosophy"].each_with_index do |line, i| -%>
+    <li><span class="n"><%= format("%02d", i + 1) %></span><p><%= inline(t(line)) %></p></li>
+<%- end -%>
+  </ol>
+</section>
+
+<%- unless home["steps"].empty? -%>
+<div class="wave-rule" aria-hidden="true"></div>
+<section class="band" aria-labelledby="steps-title">
+  <div class="band-head">
+    <p class="label"><span class="n">02</span> / <%= ui(:step) %></p>
+    <div><h2 id="steps-title"><%= ui(:one_word) %></h2><p><%= ui(:one_word_lead) %></p></div>
+  </div>
+  <ol class="steps">
+<%- home["steps"].each_with_index do |st, i| -%>
+    <li>
+      <div class="step-head"><span class="label"><span class="n"><%= format("%02d", i + 1) %></span></span><h3><a href="<%= h(word_href(st["word"])) %>"><%= h(st["word"]) %></a></h3></div>
+      <%= picture(st["code"], st["text"] ? t(st["text"]) : st["word"]) %>
+<%- if st["text"] -%>
+      <p><%= inline(t(st["text"])) %></p>
+<%- end -%>
+      <%= code_block(st["code"], fresh: [st["word"]]) %>
+      <a class="to-play" href="<%= h(play_href(st["code"])) %>"><%= ui(:open_in_playground) %></a>
+    </li>
+<%- end -%>
+  </ol>
+</section>
+<%- end -%>
+
+<div class="wave-rule" aria-hidden="true"></div>
+<section class="band" aria-labelledby="glimpse-title">
+  <div class="band-head">
+    <p class="label"><span class="n">03</span> / <%= ui(:examples) %></p>
+    <h2 id="glimpse-title"><%= ui(:gallery_glimpse) %></h2>
+  </div>
+  <div class="glimpse">
+<%- gallery_glimpse.each do |ex| code = AsobiSite.display_code(ex["code"]) -%>
+    <a class="card" href="<%= href("examples", ex["id"]) %>">
+      <%= picture(code, t(ex["title"])) %>
+      <h3><%= h(t(ex["title"])) %></h3>
+    </a>
+<%- end -%>
+  </div>
+  <p class="more"><a class="btn" href="<%= href("examples") %>"><%= ui(:all_examples) %></a></p>
+</section>
+
+<div class="wave-rule" aria-hidden="true"></div>
+<section class="band" aria-labelledby="words-title">
+  <div class="band-head">
+    <p class="label"><span class="n">04</span> / <%= ui(:reference) %></p>
+    <div><h2 id="words-title"><%= ui(:reference_way) %></h2><p><%= ui(:reference_way_lead, content.words.size, groups.size) %></p></div>
+  </div>
+  <div class="wordmap">
+<%- groups.each do |group, words| -%>
+    <a href="<%= href("reference", "group-#{group}") %>">
+      <span class="label"><%= ui(:words_count, words.size) %></span>
+      <h3><%= group_title(group) %></h3>
+      <span class="ws"><%= h(words.first(8).map { _1["word"] }.join("  ")) %><%= " …" if words.size > 8 %></span>
+    </a>
+<%- end -%>
+  </div>
+</section>
+<script src="<%= root %>assets/home.js" defer></script>

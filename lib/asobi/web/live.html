@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>asobi</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
+  #stage { position: fixed; inset: 0; }
+  #offline { position: fixed; left: 10px; bottom: 10px; display: none; font: 12px system-ui, sans-serif;
+             color: #fff; background: rgba(20,20,24,.7); padding: 5px 9px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="offline"></div>
+<script>/*ASOBI_PLAYER_JS*/</script>
+<script>
+  (function () {
+    var ja = /^ja/i.test(navigator.language || "");
+    var offline = document.getElementById("offline");
+    offline.textContent = ja ? "接続が切れました。再接続を待っています…" : "Disconnected. Waiting to reconnect...";
+    var player = AsobiPlayer.mount(document.getElementById("stage"));
+    var source = new EventSource("/events");
+    source.onopen = function () { offline.style.display = "none"; };
+    source.onerror = function () { offline.style.display = "block"; }; // EventSource retries by itself
+    source.onmessage = function (event) {
+      offline.style.display = "none";
+      try { player.update(JSON.parse(event.data)); } catch (e) { console.error(e); }
+    };
+  })();
+</script>
+</body>
+</html>

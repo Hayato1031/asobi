@@ -1,0 +1,150 @@
+# asobi
+
+[English](README.md)
+
+asobi（遊び）は、Ruby で図形を組み合わせて、SVG の静止画やループアニメーションを作るライブラリです。たとえば花びらを8枚並べると、ひとつの花ができます。花も Ruby のオブジェクトなので、`spin` を呼ぶと花ごと回ります。
+
+```ruby
+require "asobi"
+
+flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
+show flower.spin(every: 8)
+```
+
+<img src="docs/first-sketch.svg" width="240" alt="深紅と紺の花びらが交互に8枚並んだ花。">
+
+## 最初のスケッチを動かす
+
+用意するのは Ruby 3.2 以上とブラウザです。リポジトリのルートで次のコマンドを実行します。ライブラリの実行に追加の gem は要りません。
+
+```sh
+ruby exe/asobi
+```
+
+初回は、上の花を描く `play.rb` が作られ、ブラウザで花が回り始めます。すでに同名のファイルがある場合は、そのスケッチが開きます。
+
+`repeat(8)` を `repeat(12)` に変えて保存すると、花びらが12枚に増えます。`spin(every: 8)` の `8` を `2` に変えると、今度は2秒で1回転します。ファイルを保存するたびに表示が更新されます。終了するには、コマンドを実行したターミナルで Ctrl+C を押します。
+
+ほかの作品を開くには、`ruby exe/asobi examples/flower.rb` のようにファイルを指定します。ブラウザを自分で開く場合は `--no-open` を付けて、ターミナルに表示された URL にアクセスしてください。`--port 5000` を付けると、5000 番から空いているポートを探します（既定は 4567 番）。
+
+別のディレクトリでも `asobi` コマンドを使いたいときは、リポジトリのルートで gem を作ってインストールします。その後は、作品を置きたいディレクトリで `asobi` を実行できます。既存のスケッチは `asobi sketch.rb` や `ruby sketch.rb` で開けます。
+
+```sh
+gem build asobi.gemspec --output asobi.gem
+gem install --local ./asobi.gem
+```
+
+## スケッチの書き方
+
+この節の例を試すときは、`play.rb` の先頭にある `require "asobi"` を残し、その下を例のコードに置き換えてください。
+
+### 図形を重ねる、並べる
+
+`petal(40, 16)` は長さ40、幅16の花びらです。`in_fan` で根元を中心に放射状に並べ、`+` で金色の円を手前に重ねます。`scale(0.6)` は元の60%の大きさの花を返します。`beside` で元の花と並べると、大きな花と小さな花がひとつの絵になります。
+
+```ruby
+petals = petal(40, 16).repeat(8).in_fan.colored(:crimson, :navy)
+flower = petals + circle(5).colored(:gold)
+show flower.beside(flower.scale(0.6), gap: 12)
+```
+
+長さは絵の中での大きさを表します。表示するときは絵全体が画面に収まるように拡大・縮小されます。回転角は度で指定し、`rotate(90)` なら時計回りに4分の1回転します。
+
+### 数列を絵にする
+
+`to_art` は Ruby の値を絵に変換します。この例ではフィボナッチ数列の各項が星の大きさになり、小さな星から順に横一列に並びます。`as:` を省くと、各項を半径とする円になります。
+
+```ruby
+fib = [1, 1, 2, 3, 5, 8, 13, 21]
+show fib.to_art(as: star).colored(:gold, :orange), on: :black
+```
+
+### 自分のクラスで絵を作る
+
+自作クラスに絵を返す `to_art` を定義すると、そのインスタンスを `show` に渡せます。さらに `Asobi::Art` をインクルードすると、インスタンスに対して直接 `spin` や `beside` を呼べます。
+
+```ruby
+class Flower
+  include Asobi::Art
+
+  def initialize(count, color)
+    @count = count
+    @color = color
+  end
+
+  def to_art
+    petal.repeat(@count).in_fan.colored(@color)
+  end
+end
+
+show Flower.new(7, :coral).spin(every: 4)
+```
+
+### 動きに時間差をつける
+
+輪に並べた点を `pulse` で2倍まで膨らませ、元の大きさに戻します。直後に `one_by_one` を付けると、それぞれの点が少しずつ遅れて膨らみ、波が輪を一周します。
+
+```ruby
+dots = circle(5).repeat(24).in_ring.colored(:gold, :orange)
+show dots.pulse(every: 2, to: 2).one_by_one, on: :black
+```
+
+| やりたいこと | 主なメソッドとオプション |
+| --- | --- |
+| 形を作る | `circle`、`rect`、`star`、`text`、`path`、`wave`、`heart`、`petal` |
+| 図形を配置する | `in_row` で横一列、`in_grid` で格子状、`in_ring` で円周上、`in_spiral` でらせん状に並べる |
+| 色や質感を変える | `colored(from: :gold, to: :crimson)` でグラデーション、`glowing` で発光、`shadowed` で影、`clipped_by` で切り抜き |
+| 動きを作る | `spin` で回転、`sway` で揺れ、`orbit` で公転、`trail` で残像を付ける。独自の動きは `animate` で定義する |
+| 表示を整える | `show` の `on:` で背景色、`paper:` で用紙の寸法、`grain: true` で粒子感を指定する |
+
+## 作品の保存と録画
+
+静止画は SVG、アニメーションはブラウザでそのまま再生できる HTML に保存できます。次の例は、スケッチを実行したディレクトリに2つのファイルを書き出し、同じアニメーションをライブ表示します。
+
+```ruby
+flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
+motion = flower.spin(every: 4)
+
+flower.save("flower.svg")
+motion.save("flower.html")
+show motion
+```
+
+アニメーションの途中を静止画にするには、`motion.at(1).save("frame.svg")` のように秒数を指定します。
+
+ライブ表示中にポインターを動かすと操作ボタンが現れます。`c` キーでソースコードの表示を切り替えられます。録画に対応しているブラウザでは、`r` キーで録画を開始し、もう一度押すと動画をダウンロードできます。形式はブラウザによって MP4 または WebM です。編集中にエラーが起きたときは、直前に描けた絵とエラーメッセージが表示されます。
+
+## 既存の Ruby プログラムに組み込む
+
+`require "asobi"` を使うと、`circle` などをトップレベルで呼べるようになり、数値や配列に `to_art` が加わります。既存のプログラムで Ruby の標準クラスを拡張せずに使うには、`asobi/pure` を読み込みます。次のコードをリポジトリのルートに `export.rb` として保存し、`ruby -Ilib export.rb` を実行すると、紺色の星を3つ並べた `stars.svg` ができます。
+
+```ruby
+require "asobi/pure"
+
+stars = Asobi.art([3, 1, 4], as: Asobi.star)
+stars.colored(:navy).save("stars.svg")
+```
+
+## 作例とドキュメント
+
+リポジトリには、1ファイルで動くスケッチが入っています。
+
+- 数列を形にする仕組みを試すなら [数列の星](examples/sequence.rb)
+- 発光、色の合成、残像を重ねるなら [ネオンの花](examples/neon_flower.rb)
+- 自作クラスで複数の軌道を描くなら [惑星](examples/planets.rb)
+- ほかの作品を探すなら [作例一覧](examples/README.md)
+
+日本語のドキュメントには、入門ガイド、引数や既定値を調べるリファレンス、作例を編集して動かせる「遊び場」があります。リポジトリのルートで次のコマンドを実行して、ドキュメントを生成します。
+
+```sh
+bundle install
+bundle exec rake site
+```
+
+生成された `_site/ja/index.html` をブラウザで開くと、日本語版を読めます。「遊び場」でコードを編集して実行するには、CDN から ruby.wasm を読み込むためのインターネット接続が必要です。
+
+テストは `bundle exec rake test` で実行できます。ライブラリ本体に加え、ドキュメントや作例のスケッチも検証します。ライブラリの設計については[設計書](DESIGN.md)を参照してください。
+
+## ライセンス
+
+[MIT ライセンス](LICENSE)

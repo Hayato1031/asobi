@@ -1,0 +1,124 @@
+# The gallery. Each piece is also examples/<id>.rb.
+
+- id: flower
+  title: { en: "Flower", ja: "花" }
+  text: { en: "A petal, copied and fanned out. Two colours take turns.", ja: "花びらを増やして、扇のように回します。2色が交互に出ます。" }
+  code: |
+    flower = petal(40, 16).repeat(8).in_fan.colored(:crimson, :navy)
+    bloom = flower + circle(5).colored(:gold)
+    show bloom.spin(every: 8)
+
+- id: night_sky
+  title: { en: "Night sky", ja: "夜空" }
+  text: { en: "Stars are scattered at random, glow, and twinkle one after another. Each run is different.", ja: "星をばらまいて光らせ、1つずつ順にまたたかせます。実行するたびに違う空になります。" }
+  code: |
+    stars = star(radius: 4).repeat(40).change_each { |s, t| s.grow(to: 0.6 + t) }
+    sky = stars.colored(:gold).scattered(over: [320, 180]).glowing.fade(every: 3, to: 0.4).one_by_one
+    show sky + moon(size: 40).colored(:ivory).glowing(8).move(right: 110, up: 50), on: :midnightblue
+
+- id: dot_wave
+  title: { en: "Wave of dots", ja: "ドットの波" }
+  text: { en: "One bounce, started a little later for each dot.", ja: "ひと弾みを、ドットごとに少しずつ遅らせて始めます。" }
+  code: |
+    dots = circle(6).repeat(16).in_row(gap: 6).colored(:teal)
+    show dots.bounce(height: 30, every: 2).one_by_one
+
+- id: ring_pulse
+  title: { en: "Ring of dots", ja: "ドットの輪" }
+  text: { en: "Each dot pulses around its own centre, so the ring keeps its shape.", ja: "ドットはそれぞれの中心で脈打つので、輪の形は崩れません。" }
+  code: |
+    dots = circle(4).repeat(24).in_ring(60).colored(:crimson, :orange)
+    show dots.pulse(every: 2, to: 2).one_by_one
+
+- id: rings
+  title: { en: "Concentric rings", ja: "同心円" }
+  text: { en: "One ring, copied and shrunk a little more each time.", ja: "輪を1つ作って、少しずつ小さくしながら増やします。" }
+  code: |
+    rings = ring(80, 4).repeat(10).change_each { |r, t| r.scale(1 - t * 0.9) }
+    show rings.colored(:navy, :skyblue).pulse(every: 2, to: 1.1).one_by_one
+
+- id: sequence
+  title: { en: "A number sequence", ja: "数列を絵にする" }
+  text: { en: "The Fibonacci numbers, asked to be stars. The numbers become the sizes.", ja: "フィボナッチ数を、星として絵にします。数字が大きさになります。" }
+  code: |
+    fib = [1, 1, 2, 3, 5, 8, 13, 21]
+    show fib.to_art(as: star).colored(:gold, :orange), on: :black
+
+- id: typography
+  title: { en: "Letters", ja: "文字" }
+  text: { en: "A word split into letters. Each letter is bigger than the last.", ja: "言葉を1文字ずつに分けて、後ろへいくほど大きくします。" }
+  code: |
+    letters = "asobi".chars.to_art.change_each { |c, t| c.grow(to: 1 + t * 2) }
+    show letters.in_row(gap: 4).colored(:crimson, :navy)
+
+- id: tiles
+  title: { en: "Tiles", ja: "タイル" }
+  text: { en: "A grid of squares. Each one is turned and shrunk a little more.", ja: "正方形の格子。1つごとに少しずつ回して、小さくします。" }
+  code: |
+    tiles = square(18).repeat(36).change_each { |s, t| s.rotate(t * 90).grow(to: 1 - t * 0.5) }
+    show tiles.in_grid(6, gap: 4).colored(:tomato, :navy)
+
+- id: hearts
+  title: { en: "Bouncing hearts", ja: "弾むハート" }
+  text: { en: "Colour and bounce, both one by one.", ja: "色の移り変わりも、弾みも、1つずつずらします。" }
+  code: |
+    hearts = heart(20).repeat(5).in_row(gap: 6)
+    show hearts.shift_color(:crimson, :orchid).one_by_one.bounce(height: 24).one_by_one
+
+- id: planets
+  title: { en: "Solar system", ja: "太陽系" }
+  text: { en: "Your own class, Planet, only has to say what it looks like.", ja: "自作の Planet クラスは、自分がどんな絵かを答えるだけです。" }
+  code: |
+    class Planet
+      def initialize(size, distance, color, year)
+        @size, @distance, @color, @year = size, distance, color, year
+      end
+
+      def to_art
+        ring(@distance, 0.4).colored(:dimgray) +
+          circle(@size).colored(@color).orbit(@distance, every: @year)
+      end
+    end
+
+    sun = circle(10).colored(:gold)
+    planets = [Planet.new(3, 22, :skyblue, 3), Planet.new(5, 38, :tomato, 7), Planet.new(4, 54, :orchid, 12)]
+    show planets.reduce(sun) { |system, planet| system + planet }, on: :black
+
+- id: spiral
+  title: { en: "Sunflower spiral", ja: "ひまわりの渦" }
+  text: { en: "300 seeds at the golden angle, growing and changing colour as they go out.", ja: "黄金角で並べた300粒の種。外へ行くほど大きく、色が変わります。" }
+  code: |
+    seeds = circle(3).repeat(300).change_each { |d, t| d.grow(to: 0.4 + t).colored(hsl(20 + t * 40)) }
+    show seeds.in_spiral(5)
+
+- id: neon_flower
+  title: { en: "Neon flower", ja: "ネオンの花" }
+  text: { en: "Two bright colours on black. Glow, screen blending and a film grain make it shine.", ja: "黒い背景に明るい2色。光、スクリーン合成、粒を足すと、輝いて見えます。" }
+  code: |
+    petals = petal(50, 18).repeat(8).in_fan.colored(:deeppink, :cyan)
+    spinning = petals.animate(2) { |flower, t| flower.rotate(t * 90) }
+    show spinning.trail(4).glowing.blended(:screen), on: :black, grain: true
+
+- id: aurora
+  title: { en: "Aurora", ja: "オーロラ" }
+  text: { en: "Three wavy lines, blurred, with screen blending, drifting slowly.", ja: "波の線を3本、ぼかしてスクリーン合成し、ゆっくり漂わせます。" }
+  code: |
+    ribbon = wave(240, 30, 2).outlined(:springgreen, width: 14)
+    bands = ribbon.repeat(3).change_each { |w, t, i| w.move(down: i * 14).colored(hsl(150 + i * 50)) }
+    show bands.drift(right: 40, every: 6).blurred(4).blended(:screen), on: :midnightblue, grain: true
+
+- id: paper_cutouts
+  title: { en: "Paper cut-outs", ja: "切り絵" }
+  text: { en: "Flat shapes, each with a soft shadow, on a light page: they look like paper lying on paper.", ja: "平らな形に、やわらかい影を付けて、明るい背景に置きます。紙の上に紙を重ねたように見えます。" }
+  code: |
+    sun = circle(22).colored(:gold).move(up: 20, right: 40)
+    far = ellipse(240, 80).colored(:lightseagreen).move(down: 45, left: 30)
+    near = ellipse(220, 70).colored(:seagreen).move(down: 62, right: 40)
+    show [sun, far, near].map(&:shadowed).reduce(:+), on: :oldlace
+
+- id: through_a_heart
+  title: { en: "Through a heart", ja: "ハートの窓" }
+  text: { en: "Gradient stripes spin behind a heart-shaped window.", ja: "グラデーションのしま模様が、ハート形の窓の向こうで回ります。" }
+  code: |
+    stripes = rect(10, 90).repeat(12).in_row(gap: 4).colored(from: :crimson, to: :gold, angle: 90)
+    show stripes.spin(every: 6).clipped_by(heart(70)), on: :navy

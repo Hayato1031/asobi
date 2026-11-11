@@ -1,0 +1,40 @@
+<div class="doc">
+<aside class="side">
+  <nav aria-labelledby="toc-title" data-spy>
+    <h2 id="toc-title" class="label"><%= ui(:contents) %></h2>
+    <ol class="toc">
+<%- content.guide.each_with_index do |ch, n| -%>
+      <li><a href="#<%= h(ch["id"]) %>"><span class="num"><%= format("%02d", n + 1) %></span><%= h(t(ch["title"])) %></a></li>
+<%- end -%>
+    </ol>
+  </nav>
+</aside>
+<div class="doc-body">
+  <header class="doc-head">
+    <p class="label"><%= ui(:chapters_count, content.guide.size) %></p>
+    <h1><%= ui(:guide) %></h1>
+    <p class="lead"><%= ui(:guide_lead) %></p>
+  </header>
+<%- content.guide.each_with_index do |ch, n| -%>
+  <section class="chapter" id="<%= h(ch["id"]) %>" aria-labelledby="<%= h(ch["id"]) %>-title" data-spy-target>
+    <p class="label"><span class="n"><%= format("%02d", n + 1) %></span> / <%= format("%02d", content.guide.size) %></p>
+    <h2 id="<%= h(ch["id"]) %>-title"><%= inline(t(ch["title"])) %></h2>
+<%- ch["steps"].each do |step| -%>
+    <div class="step">
+      <%= rich(t(step["text"])) %>
+<%- if step["code"] -%>
+      <%= example(step["code"], t(ch["title"])) %>
+<%- end -%>
+<%- unless step["words"].empty? -%>
+      <p class="step-words"><span><%= ui(:in_this_step) %></span>
+<%- step["words"].each do |w| -%>
+        <a href="<%= h(word_href(w)) %>"><code><%= h(w) %></code></a>
+<%- end -%>
+      </p>
+<%- end -%>
+    </div>
+<%- end -%>
+  </section>
+<%- end -%>
+</div>
+</div>

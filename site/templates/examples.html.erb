@@ -1,0 +1,28 @@
+<div class="gallery-page">
+  <header class="doc-head">
+    <p class="label"><%= ui(:pieces_count, content.examples.size) %></p>
+    <h1><%= ui(:examples) %></h1>
+    <p class="lead"><%= ui(:examples_lead) %></p>
+  </header>
+  <div class="gallery">
+<%- content.examples.each_with_index do |ex, i| code = AsobiSite.display_code(ex["code"]) -%>
+    <article class="piece" id="<%= h(ex["id"]) %>" aria-labelledby="<%= h(ex["id"]) %>-title">
+      <div class="frame">
+        <%= picture(code, t(ex["title"])) %>
+        <div class="overlay" id="<%= h(ex["id"]) %>-code"><%= subtitles(code) %></div>
+      </div>
+      <div class="piece-head">
+        <h2 id="<%= h(ex["id"]) %>-title"><%= inline(t(ex["title"])) %></h2>
+        <span class="label"><span class="n"><%= format("%02d", i + 1) %></span> · <%= h(ex["id"]) %>.rb</span>
+      </div>
+<%- if ex["text"] -%>
+      <%= rich(t(ex["text"])) %>
+<%- end -%>
+      <div class="actions">
+        <button type="button" class="small" aria-expanded="false" aria-controls="<%= h(ex["id"]) %>-code" data-toggle-code><%= ui(:show_code) %></button>
+        <a class="to-play" href="<%= h(play_href(code)) %>"><%= ui(:open_in_playground) %></a>
+      </div>
+    </article>
+<%- end -%>
+  </div>
+</div>

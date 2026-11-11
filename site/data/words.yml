@@ -1,0 +1,1419 @@
+# The reference: every word, with its real signature and defaults.
+# Each example is a whole sketch that ends in `show`.
+
+# ---------------------------------------------------------------- shapes
+
+- word: circle
+  group: shapes
+  signature: "circle(radius: 10)"
+  summary: { en: "A filled circle.", ja: "塗りつぶした丸。" }
+  details:
+    en: |-
+      Every shape sits with its centre at the middle of the picture, and every number can be left out.
+
+      The first number can be written without its name: `circle(12)` is the same as `circle(radius: 12)`.
+
+      Lengths have no unit. Only the proportions matter, because the picture is fitted to the screen.
+    ja: |-
+      どの形も、中心が絵の真ん中にあります。数字はどれも省けます。
+
+      最初の数字は名前なしでも書けます。`circle(12)` は `circle(radius: 12)` と同じです。
+
+      長さに単位はありません。絵は画面に合わせて収まるので、大事なのは比率だけです。
+  examples:
+    - code: |
+        show circle
+      caption: { en: "No numbers: it just works.", ja: "数字なし。これだけで絵が出ます。" }
+    - code: |
+        show circle(radius: 30)
+      caption: { en: "A bigger one, with the number named.", ja: "数字に名前を付けて、大きくします。" }
+  see: [ellipse, ring, colored]
+
+- word: ellipse
+  group: shapes
+  signature: "ellipse(width: 30, height: 20)"
+  summary: { en: "A filled ellipse, wider than it is tall.", ja: "塗りつぶした楕円。" }
+  details:
+    en: "`width` and `height` are the full size, not the radius. The first two numbers can be written without names: `ellipse(40, 10)`."
+    ja: "`width`(幅)と `height`(高さ)は、半径ではなく全体の大きさです。最初の2つは名前なしでも書けます。`ellipse(40, 10)`。"
+  examples:
+    - code: |
+        show ellipse
+    - code: |
+        show ellipse(width: 12, height: 40)
+  see: [circle, rect]
+
+- word: rect
+  group: shapes
+  signature: "rect(width: 30, height: 20)"
+  summary: { en: "A filled rectangle.", ja: "塗りつぶした長方形。" }
+  details:
+    en: "For a rectangle with equal sides, `square` is shorter to write."
+    ja: "辺の長さが同じなら、`square` のほうが短く書けます。"
+  examples:
+    - code: |
+        show rect
+    - code: |
+        show rect(width: 60, height: 8)
+  see: [square, ellipse]
+
+- word: square
+  group: shapes
+  signature: "square(size: 20)"
+  summary: { en: "A filled square.", ja: "塗りつぶした正方形。" }
+  details:
+    en: "`size` is the length of one side."
+    ja: "`size` は1辺の長さです。"
+  examples:
+    - code: |
+        show square
+    - code: |
+        show square(size: 40).rotate(45)
+  see: [rect, rotate]
+
+- word: triangle
+  group: shapes
+  signature: "triangle(size: 20)"
+  summary: { en: "A filled triangle with equal sides, pointing up.", ja: "上を向いた、正三角形。" }
+  details:
+    en: "`size` is the length of one side. The triangle is centred on its bounding box, so it lines up with other shapes."
+    ja: "`size` は1辺の長さです。外側の四角の中心に置かれるので、ほかの形ときれいに揃います。"
+  examples:
+    - code: |
+        show triangle
+    - code: |
+        show triangle(size: 50).colored(:orange)
+  see: [polygon, star]
+
+- word: polygon
+  group: shapes
+  signature: "polygon(sides: 6, radius: 10)"
+  summary: { en: "A filled shape with equal sides. One corner points up.", ja: "辺の長さがそろった多角形。頂点が1つ上を向きます。" }
+  details:
+    en: "`sides` must be 3 or more. `radius` is the distance from the centre to a corner. The first two numbers can be written without names: `polygon(8, 20)`."
+    ja: "`sides`(辺の数)は3以上です。`radius` は中心から頂点までの長さです。最初の2つは名前なしでも書けます。`polygon(8, 20)`。"
+  examples:
+    - code: |
+        show polygon
+      caption: { en: "A hexagon, by default.", ja: "何も書かなければ六角形です。" }
+    - code: |
+        show polygon(sides: 8, radius: 30).colored(:teal)
+  see: [triangle, star, circle]
+
+- word: star
+  group: shapes
+  signature: "star(points: 5, radius: 10, inner: radius * 0.45)"
+  summary: { en: "A filled star.", ja: "塗りつぶした星。" }
+  details:
+    en: |-
+      `points` is how many tips it has. `radius` reaches to the tips. `inner` is how far in the notches go: a small `inner` makes a sharp star, a big one makes a fat star.
+
+      The first two numbers can be written without names: `star(8, 30)`.
+    ja: |-
+      `points` は角の数、`radius` は角の先までの長さ、`inner` はへこんだ部分までの長さです。`inner` を小さくすると鋭い星に、大きくするとふっくらした星になります。
+
+      最初の2つは名前なしでも書けます。`star(8, 30)`。
+  examples:
+    - code: |
+        show star
+    - code: |
+        show star(points: 8, radius: 30, inner: 24).colored(:gold)
+  see: [polygon, heart]
+
+- word: line
+  group: shapes
+  signature: "line(length: 20)"
+  summary: { en: "A flat black line.", ja: "横向きの黒い線。" }
+  details:
+    en: |-
+      A line has no fill, only a stroke. So `colored` changes the colour of the line, and `outlined(color, width:)` changes its colour and thickness.
+
+      To draw a line between points you choose, use `path`.
+    ja: |-
+      線には塗りがなく、線だけです。だから `colored` は線の色を変え、`outlined(色, width:)` は色と太さを変えます。
+
+      好きな点をつなぐ線を引きたいときは `path` を使います。
+  examples:
+    - code: |
+        show line
+    - code: |
+        show line(length: 80).outlined(:crimson, width: 6)
+  see: [path, outlined]
+
+- word: text
+  group: shapes
+  signature: "text(string = \"asobi\", size: 16, font: nil)"
+  summary: { en: "Letters as a picture.", ja: "文字の絵。" }
+  details:
+    en: |-
+      A text is a picture like any other: you can colour it, repeat it, turn it and arrange it. Strings and symbols become the same picture with `to_art`, so `"hello".to_art` is `text("hello")`.
+
+      `size` is the height of the letters. `font` is the name of a font, such as `"serif"`. Leave it out to use the page's usual font.
+    ja: |-
+      文字も、ほかの形と同じ絵です。色を塗ったり、増やしたり、回したり、並べたりできます。文字列やシンボルは `to_art` でも同じ絵になるので、`"hello".to_art` は `text("hello")` と同じです。
+
+      `size` は文字の大きさ、`font` はフォントの名前です(`"serif"` など)。省くと、ページの標準のフォントになります。
+  examples:
+    - code: |
+        show text
+      caption: { en: "No arguments: the word \"asobi\".", ja: "何も書かなければ \"asobi\" と出ます。" }
+    - code: |
+        show text("hello", size: 40, font: "serif").colored(:navy)
+  see: [to_art]
+
+- word: path
+  group: shapes
+  signature: "path(*points, closed: false, smooth: false)"
+  summary: { en: "Joins points, in order, with a line.", ja: "点を順につなぐ。" }
+  details:
+    en: |-
+      Each point is `[x, y]`. x grows to the right and y grows downwards, like on a screen, so `[40, -30]` is to the right and up.
+
+      An open path is a black line. With `closed: true` the last point joins the first and the shape is filled. With `smooth: true` the corners become a smooth curve.
+
+      The path is centred on its own bounding box, so it lines up with other shapes. With no points, you get a small example line.
+    ja: |-
+      点は `[x, y]` で書きます。x は右、y は下に向かって大きくなります(画面と同じです)。だから `[40, -30]` は右上です。
+
+      そのままなら黒い線です。`closed: true` にすると最後の点が最初の点につながり、塗りつぶされた形になります。`smooth: true` にすると、角が滑らかな曲線になります。
+
+      できた絵は、外側の四角の中心に置かれるので、ほかの形と揃います。点を1つも書かなければ、見本の線が出ます。
+  examples:
+    - code: |
+        show path
+    - code: |
+        show path([0, 0], [40, -60], [80, 0], [120, -60], smooth: true).outlined(:crimson, width: 3)
+    - code: |
+        show path([0, 0], [40, -60], [80, 0], closed: true).colored(:orange)
+  see: [line, arc, wave]
+
+- word: arc
+  group: shapes
+  signature: "arc(radius: 20, from: 0, to: 180)"
+  summary: { en: "A piece of a circle, drawn as a line.", ja: "円の一部を、線で描いたもの。" }
+  details:
+    en: |-
+      Angles are degrees, clockwise. 0 is straight up, so `from: 0, to: 180` is the right half.
+
+      The arc is centred on the middle of its circle, so arcs of the same circle line up.
+    ja: |-
+      角度は度で、時計回りです。0 が真上なので、`from: 0, to: 180` は右半分になります。
+
+      絵の中心は円の中心です。同じ円の弧どうしは、ぴたりと重なります。
+  examples:
+    - code: |
+        show arc
+    - code: |
+        show arc(radius: 30, from: 90, to: 360).outlined(:navy, width: 5)
+  see: [wave, path, ring]
+
+- word: wave
+  group: shapes
+  signature: "wave(length: 100, height: 10, waves: 3)"
+  summary: { en: "A smooth wavy line.", ja: "滑らかな波の線。" }
+  details:
+    en: "`waves` is how many full ups and downs fit in `length`. `height` is measured from the top of a crest to the bottom of a trough."
+    ja: "`waves` は `length` の中にいくつ波が入るか、`height` は波の山のてっぺんから谷の底までの高さです。"
+  examples:
+    - code: |
+        show wave
+    - code: |
+        show wave(length: 120, height: 20, waves: 5).outlined(:teal, width: 3)
+  see: [line, path, arc]
+
+- word: ring
+  group: shapes
+  signature: "ring(radius: 20, thickness: 4)"
+  summary: { en: "A doughnut. The hole is really a hole.", ja: "ドーナツ型。穴は本当に空いています。" }
+  details:
+    en: "`thickness` is the width of the band, measured inwards from `radius`. What is behind the ring shows through the hole."
+    ja: "`thickness` は輪の太さで、`radius` から内側へ測ります。穴の向こうにあるものは透けて見えます。"
+  examples:
+    - code: |
+        show ring
+    - code: |
+        show ring(radius: 40, thickness: 12).colored(:crimson)
+  see: [circle, arc]
+
+- word: heart
+  group: shapes
+  signature: "heart(size: 20)"
+  summary: { en: "A heart.", ja: "ハート。" }
+  details:
+    en: "`size` is the width of the whole heart."
+    ja: "`size` はハート全体の幅です。"
+  examples:
+    - code: |
+        show heart.colored(:crimson)
+    - code: |
+        show heart(size: 60).colored(:hotpink)
+  see: [star, drop]
+
+- word: petal
+  group: shapes
+  signature: "petal(length: 20, width: 10)"
+  summary: { en: "A leaf shape that starts at the centre and grows straight up.", ja: "中心から真上へ伸びる、花びらの形。" }
+  details:
+    en: |-
+      Unlike the other shapes, a petal is not centred: its base is at the centre of the picture. That is on purpose. Rotate copies of it around the centre and you get a flower:
+
+      `petal.repeat(8).in_fan`
+    ja: |-
+      ほかの形と違って、花びらは中心に置かれません。根元が絵の中心です。わざとそうしてあります。コピーを中心のまわりに回すと、花になります。
+
+      `petal.repeat(8).in_fan`
+  examples:
+    - code: |
+        show petal
+    - code: |
+        show petal(length: 40, width: 16).repeat(8).in_fan.colored(:crimson, :navy)
+      caption: { en: "A flower.", ja: "花になります。" }
+  see: [in_fan, repeat]
+
+- word: moon
+  group: shapes
+  signature: "moon(size: 20)"
+  summary: { en: "A crescent moon, opening to the right.", ja: "右に開いた三日月。" }
+  details:
+    en: "`size` is the height of the moon. Use `mirror` to open it to the left."
+    ja: "`size` は月の高さです。左向きにしたいときは `mirror` を使います。"
+  examples:
+    - code: |
+        show moon.colored(:gold)
+    - code: |
+        show moon(size: 60).mirror.colored(:ivory), on: :midnightblue
+  see: [star, mirror]
+
+- word: drop
+  group: shapes
+  signature: "drop(size: 20)"
+  summary: { en: "A water drop, with its point up.", ja: "しずく。先が上を向きます。" }
+  details:
+    en: "`size` is the height of the drop."
+    ja: "`size` はしずくの高さです。"
+  examples:
+    - code: |
+        show drop.colored(:deepskyblue)
+    - code: |
+        show drop(size: 50).colored(:steelblue).flip
+  see: [heart, circle]
+
+- word: cloud
+  group: shapes
+  signature: "cloud(size: 30)"
+  summary: { en: "A soft cloud with a flat bottom.", ja: "底が平らな、やわらかい雲。" }
+  details:
+    en: "`size` is the width of the cloud."
+    ja: "`size` は雲の幅です。"
+  examples:
+    - code: |
+        show cloud.colored(:lightsteelblue)
+    - code: |
+        show cloud(size: 80).colored(:white), on: :skyblue
+  see: [drop, circle]
+
+- word: space
+  group: shapes
+  signature: "space(width: 10, height: width)"
+  summary: { en: "Empty room. You cannot see it, but it takes up space.", ja: "見えないけれど、場所を取るもの。" }
+  details:
+    en: "Use it to push things apart in `beside`, `above` or `in_row`. `space(20)` is a 20 by 20 gap."
+    ja: "`beside`、`above`、`in_row` などで、間をあけたいときに使います。`space(20)` は 20 × 20 のすき間です。"
+  examples:
+    - code: |
+        show circle.beside(space(30)).beside(circle)
+    - code: |
+        show square.above(space(width: 10, height: 40)).above(square)
+  see: [nothing, beside]
+
+- word: nothing
+  group: shapes
+  signature: "nothing"
+  summary: { en: "The empty picture.", ja: "何もない絵。" }
+  details:
+    en: "It has no size and takes up no room. It is handy inside `change_each`, to leave some pictures out. `nil` and `0` also become nothing with `to_art`."
+    ja: "大きさがなく、場所も取りません。`change_each` の中で「この絵は消す」と言いたいときに便利です。`nil` や `0` も `to_art` で何もない絵になります。"
+  examples:
+    - code: |
+        dots = circle(8).repeat(9).in_row(gap: 4)
+        show dots.change_each { |dot, t, i| i.even? ? dot : nothing }
+  see: [space, change_each]
+
+- word: hsl
+  group: shapes
+  signature: "hsl(hue = 0, saturation = 70, lightness = 50)"
+  summary: { en: "A colour made from hue, saturation and lightness.", ja: "色相・彩度・明るさから作る色。" }
+  details:
+    en: |-
+      `hue` is an angle from 0 to 360 (0 is red, 120 is green, 240 is blue). `saturation` and `lightness` go from 0 to 100.
+
+      Use it anywhere a colour is expected. It is the easiest way to make a rainbow.
+    ja: |-
+      `hue`(色相)は 0 から 360 の角度です(0 は赤、120 は緑、240 は青)。`saturation`(彩度)と `lightness`(明るさ)は 0 から 100 です。
+
+      色を書くところなら、どこにでも使えます。虹を作るのにいちばん簡単な方法です。
+  examples:
+    - code: |
+        show circle(30).colored(hsl(200))
+    - code: |
+        dots = circle(8).repeat(12).change_each { |dot, t| dot.colored(hsl(t * 360, 80, 55)) }
+        show dots.in_ring
+      caption: { en: "t goes from 0 up to 1, so the hue goes once round.", ja: "t は 0 から 1 まで進むので、色相がちょうど一周します。" }
+  see: [gray, colored, change_each]
+
+- word: gray
+  group: shapes
+  signature: "gray(lightness = 50)"
+  summary: { en: "A gray: 0 is black and 100 is white.", ja: "灰色。0 が黒、100 が白。" }
+  details:
+    en: "Use it anywhere a colour is expected."
+    ja: "色を書くところなら、どこにでも使えます。"
+  examples:
+    - code: |
+        show circle(30).colored(gray(30))
+    - code: |
+        squares = square(24).repeat(5).change_each { |s, t| s.colored(gray(t * 100)) }
+        show squares.in_row.stroke(:black)
+      caption: { en: "Five grays from black towards white.", ja: "黒から白へ向かう5つの灰色。" }
+  see: [hsl, colored]
+
+# --------------------------------------------------------------- combine
+
+- word: "on"
+  group: combine
+  signature: "a.on(b)"
+  summary: { en: "Put a on top of b.", ja: "b の上に a を置く。" }
+  details:
+    en: |-
+      The result is again one picture. `a` is in front.
+
+      `b` can be anything that can become a picture, such as a number. If either one is a motion, the result is a motion.
+    ja: |-
+      できあがりも、1枚の絵です。a が手前になります。
+
+      b には、絵になれるものなら何でも(たとえば数字)渡せます。どちらかが動きなら、結果も動きになります。
+  examples:
+    - code: |
+        show circle(8).colored(:gold).on(circle(20).colored(:navy))
+    - code: |
+        show star(radius: 20).colored(:gold).on(30)
+      caption: { en: "30 is a picture too: a circle of radius 30.", ja: "30 も絵です。半径 30 の丸になります。" }
+  see: [under, "+"]
+
+- word: under
+  group: combine
+  signature: "a.under(b)"
+  summary: { en: "Put b on top of a.", ja: "a の上に b を置く。" }
+  details:
+    en: "The opposite of `on`: what you write later is in front. `a + b` means the same."
+    ja: "`on` の逆で、あとに書いたほうが手前になります。`a + b` と同じ意味です。"
+  examples:
+    - code: |
+        show circle(20).colored(:navy).under(circle(8).colored(:gold))
+  see: ["on", "+"]
+
+- word: "+"
+  group: combine
+  signature: "a + b"
+  summary: { en: "Put pictures on top of each other. What you write later is in front.", ja: "絵を重ねる。あとに書いたほうが手前。" }
+  details:
+    en: "The same as `a.under(b)`. It is one of the only two symbols in asobi (the other is `*`)."
+    ja: "`a.under(b)` と同じです。asobi の記号は `*` とこの `+` の2つだけです。"
+  examples:
+    - code: |
+        sun = circle(30).colored(:gold)
+        show sun + circle(14).colored(:orange) + circle(5).colored(:crimson)
+  see: ["on", under, "*"]
+
+- word: repeat
+  group: combine
+  signature: "repeat(count = 2)"
+  summary: { en: "Make copies of a picture.", ja: "絵を増やす。" }
+  details:
+    en: |-
+      The copies are all in the same place, so you cannot see the difference yet. Arrange them with `in_row`, `in_ring`, `in_fan` and the other arranging words.
+
+      The result is a group of pictures (a `Many`): one picture that is also a list. `a * 12` is the same as `a.repeat(12)`.
+    ja: |-
+      増えた絵はみんな同じ場所に重なっているので、そのままでは違いが見えません。`in_row`、`in_ring`、`in_fan` などの並べる言葉で並べます。
+
+      できあがりは「絵の集まり」(`Many`)です。1枚の絵でもあり、リストでもあります。`a * 12` は `a.repeat(12)` と同じです。
+  examples:
+    - code: |
+        show circle.repeat(5).in_row
+      caption: { en: "Five circles in a row.", ja: "丸を5つ、横に並べます。" }
+    - code: |
+        show star.repeat(times: 7).in_ring(radius: 40)
+  see: ["*", in_row, in_ring]
+
+- word: "*"
+  group: combine
+  signature: "a * count"
+  summary: { en: "Make copies of a picture, like repeat.", ja: "絵を増やす(repeat と同じ)。" }
+  details:
+    en: "`circle * 12` is `circle.repeat(12)`. It is one of the only two symbols in asobi (the other is `+`)."
+    ja: "`circle * 12` は `circle.repeat(12)` と同じです。asobi の記号は `+` とこの `*` の2つだけです。"
+  examples:
+    - code: |
+        hearts = heart * 6
+        show hearts.in_row(gap: 4).colored(:crimson)
+  see: [repeat, "+"]
+
+- word: beside
+  group: combine
+  signature: "a.beside(b, gap: 0)"
+  summary: { en: "Put b to the right of a.", ja: "a の右に b を並べる。" }
+  details:
+    en: "The result is one picture, centred as a whole. `gap` is the space between them."
+    ja: "できあがりは1枚の絵で、全体が中心にそろいます。`gap` は2つの間のすき間です。"
+  examples:
+    - code: |
+        show circle.beside(square)
+    - code: |
+        show circle.colored(:crimson).beside(square.colored(:navy), gap: 8).beside(star)
+  see: [above, in_row, space]
+
+- word: above
+  group: combine
+  signature: "a.above(b, gap: 0)"
+  summary: { en: "Put b under a, so that a is on top.", ja: "a の下に b を並べる(a が上)。" }
+  details:
+    en: "The result is one picture, centred as a whole. `gap` is the space between them."
+    ja: "できあがりは1枚の絵で、全体が中心にそろいます。`gap` は2つの間のすき間です。"
+  examples:
+    - code: |
+        show circle.above(square)
+    - code: |
+        show text("asobi", size: 24).above(wave(60, 6, 3), gap: 6)
+  see: [beside, in_column]
+
+# ---------------------------------------------------------------- change
+
+- word: move
+  group: change
+  signature: "move(right: 0, left: 0, up: 0, down: 0)"
+  summary: { en: "Move a picture.", ja: "絵を動かす(位置をずらす)。" }
+  details:
+    en: |-
+      Say where to, not how to count: `right`, `left`, `up`, `down`. You never think about which way y goes.
+
+      A picture alone on the screen is always fitted to the middle, so moving it by itself shows nothing. Moving matters when there is something else to compare with, or when you will turn it around the centre (see `rotate`).
+    ja: |-
+      数え方ではなく、行き先で書きます。`right`(右)、`left`(左)、`up`(上)、`down`(下)。y がどちら向きかを考える必要はありません。
+
+      1枚だけの絵は、いつも画面の真ん中に収まります。だから単独で動かしても見た目は変わりません。ほかの絵と並べるときや、中心のまわりで回すとき(`rotate` を見てください)に意味が出ます。
+  examples:
+    - code: |
+        show square(40).colored(:gold) + circle(8).colored(:navy).move(right: 20, up: 20)
+    - code: |
+        show circle(6).repeat(3).change_each { |dot, t, i| dot.move(right: i * 20, down: i * 10) }
+  see: [rotate, scale]
+
+- word: rotate
+  group: change
+  signature: "rotate(degrees = 45)"
+  summary: { en: "Turn a picture clockwise.", ja: "時計回りに回す。" }
+  details:
+    en: |-
+      Angles are degrees. `rotate(90)` is a quarter turn. To write a turn, use `0.25.turn`, which is 90.0.
+
+      Turning happens around the centre of the picture, the point where a fresh shape sits. So if you move a shape off the centre first and then rotate it, it swings around the centre. That is how `petal` and `in_fan` make a flower.
+    ja: |-
+      角度は度です。`rotate(90)` で4分の1回転。回転数で書きたいときは `0.25.turn` が使えます(90.0 になります)。
+
+      回るのは絵の中心のまわりです(作ったばかりの形が置かれる場所)。形を中心から外して動かしてから回すと、中心のまわりをぐるっと回ります。`petal` と `in_fan` で花ができるのは、このおかげです。
+  examples:
+    - code: |
+        show rect(50, 10).rotate(30)
+    - code: |
+        stick = rect(50, 8).repeat(6).change_each { |r, t| r.rotate(t * 180) }
+        show stick.colored(:teal).opacity(0.6)
+  see: [move, in_fan, turn]
+
+- word: scale
+  group: change
+  signature: "scale(factor = 2, width: factor, height: factor)"
+  summary: { en: "Make a picture bigger or smaller.", ja: "拡大・縮小する。" }
+  details:
+    en: |-
+      `scale(2)` makes it twice as big, `scale(0.5)` half as big. To stretch one way only, name the direction: `scale(width: 2, height: 1)`. A negative number flips the picture over.
+
+      `grow` and `shrink` say the same thing in words.
+    ja: |-
+      `scale(2)` で2倍、`scale(0.5)` で半分です。片方向だけ伸ばしたいときは方向を書きます。`scale(width: 2, height: 1)`。マイナスの数を渡すと反転します。
+
+      `grow` と `shrink` は、同じことを読みやすい言葉にしたものです。
+  examples:
+    - code: |
+        show circle.scale
+      caption: { en: "No number: twice as big.", ja: "数字なしなら2倍です。" }
+    - code: |
+        show circle(20).scale(width: 2, height: 0.5).colored(:orange)
+  see: [grow, shrink, mirror]
+
+- word: grow
+  group: change
+  signature: "grow(to: 2)"
+  summary: { en: "Make a picture bigger. A readable form of scale.", ja: "大きくする(scale の読みやすい形)。" }
+  details:
+    en: "`grow(to: 3)` makes it three times as big. `grow(3)` works too."
+    ja: "`grow(to: 3)` で3倍になります。`grow(3)` とも書けます。"
+  examples:
+    - code: |
+        show star.grow
+    - code: |
+        show star.grow(to: 3).colored(:gold)
+  see: [shrink, scale]
+
+- word: shrink
+  group: change
+  signature: "shrink(to: 0.5)"
+  summary: { en: "Make a picture smaller. A readable form of scale.", ja: "小さくする(scale の読みやすい形)。" }
+  details:
+    en: "`shrink(to: 0.25)` makes it a quarter of the size. `shrink(0.25)` works too."
+    ja: "`shrink(to: 0.25)` で4分の1になります。`shrink(0.25)` とも書けます。"
+  examples:
+    - code: |
+        show circle(30) + circle(30).shrink.colored(:crimson)
+    - code: |
+        show circle(30) + circle(30).shrink(to: 0.2).colored(:crimson)
+  see: [grow, scale]
+
+- word: mirror
+  group: change
+  signature: "mirror"
+  summary: { en: "Swap left and right.", ja: "左右を反転する。" }
+  details:
+    en: "Mirroring happens around the centre of the picture."
+    ja: "絵の中心を軸に反転します。"
+  examples:
+    - code: |
+        leaf = petal.rotate(30)
+        show leaf.beside(leaf.mirror)
+  see: [flip, scale]
+
+- word: flip
+  group: change
+  signature: "flip"
+  summary: { en: "Swap top and bottom.", ja: "上下を反転する。" }
+  details:
+    en: "Flipping happens around the centre of the picture."
+    ja: "絵の中心を軸に反転します。"
+  examples:
+    - code: |
+        show petal.beside(petal.flip)
+  see: [mirror, scale]
+
+# ----------------------------------------------------------------- color
+
+- word: colored
+  group: color
+  signature: "colored(*colors, from: nil, to: nil, angle: 0, around: false)"
+  summary: { en: "Paint a picture, with one colour, several, or a gradient.", ja: "色を塗る(1色でも、複数色でも、グラデーションでも)。" }
+  details:
+    en: |-
+      A colour is a CSS colour name as a symbol (`:crimson`, `:navy`, `:skyblue`), a string such as `"#ff0066"`, or the result of `hsl` or `gray`. With no colour at all you get `:crimson`.
+
+      Give a group of pictures several colours and they are used in turn, round and round: `petal.repeat(8).in_fan.colored(:crimson, :navy)`. A single picture takes the first colour.
+
+      Pictures are black by default, on a white page. If you paint the same picture twice, the later colour wins. A colour given to a whole group does not overwrite colours given to pictures inside it.
+
+      For a gradient, name where it starts and where it ends: `colored(from: :gold, to: :crimson)`. It runs from the top to the bottom. `angle:` turns the direction, in degrees clockwise: `angle: 90` runs from the right to the left. `around: true` runs from the centre outwards. If you leave out `from`, it starts at crimson; if you leave out `to`, it ends at navy.
+
+      On a group, the gradient flows once across the whole group, not once per picture. The colours inside the group give way to it. The gradient belongs to the picture: move it, turn it or resize it, and the gradient goes along.
+    ja: |-
+      色は、CSS の色名のシンボル(`:crimson`、`:navy`、`:skyblue`)、`"#ff0066"` のような文字列、または `hsl` や `gray` の結果で書きます。何も書かなければ `:crimson` です。
+
+      絵の集まりに色を複数渡すと、順番にぐるぐる使われます。`petal.repeat(8).in_fan.colored(:crimson, :navy)`。1枚の絵なら、最初の色が使われます。
+
+      何も塗らなければ、白い紙に黒です。同じ絵に2回塗ると、あとの色が勝ちます。集まり全体に塗った色は、中の絵に個別に塗った色を上書きしません。
+
+      グラデーションにするときは、始まりの色と終わりの色を書きます。`colored(from: :gold, to: :crimson)`。上から下へ色が変わります。`angle:` で向きを変えられます(度、時計回り)。`angle: 90` は右から左へ向かいます。`around: true` にすると、中心から外へ向かいます。`from` を省くと crimson から、`to` を省くと navy までです。
+
+      絵の集まりに使うと、グラデーションは1枚ごとではなく、集まり全体にまたがって1回流れます。中の絵の色は、グラデーションに道をゆずります。グラデーションは絵についてくるので、動かしても、回しても、大きさを変えても、いっしょに動きます。
+  examples:
+    - code: |
+        show heart.colored
+      caption: { en: "No colour: crimson.", ja: "色なしなら crimson です。" }
+    - code: |
+        show square(20).repeat(6).in_row(gap: 4).colored(:gold, :teal, :crimson)
+    - code: |
+        show circle(40).colored(from: :gold, to: :crimson)
+      caption: { en: "A gradient, top to bottom: a sunset.", ja: "上から下へのグラデーション。夕焼けです。" }
+    - code: |
+        show circle(40).colored(from: :white, to: :navy, around: true)
+      caption: { en: "around: true goes from the centre outwards.", ja: "around: true は中心から外へ向かいます。" }
+    - code: |
+        dots = circle(8).repeat(12).in_row(gap: 4)
+        show dots.colored(from: :gold, to: :crimson, angle: 90)
+      caption: { en: "Across a whole group, once. angle: 90 runs from right to left.", ja: "集まり全体に、1回だけ流れます。angle: 90 は右から左です。" }
+  see: [outlined, stroke, opacity, hsl, shadowed, glowing]
+
+- word: outlined
+  group: color
+  signature: "outlined(color = :black, width: 1)"
+  summary: { en: "Remove the fill and keep only the line.", ja: "塗りをやめて、線だけにする。" }
+  details:
+    en: "Lines have no fill, so `outlined` is also how you set the colour and thickness of a `line`, `arc`, `wave` or `path`."
+    ja: "線の形(`line`、`arc`、`wave`、`path`)に色と太さを付けるのにも、この `outlined` を使います。"
+  examples:
+    - code: |
+        show star.outlined
+    - code: |
+        show star(radius: 30).outlined(:crimson, width: 4)
+  see: [stroke, colored]
+
+- word: stroke
+  group: color
+  signature: "stroke(color = :black, width: 1)"
+  summary: { en: "Keep the fill and add a line around it.", ja: "塗りはそのままで、輪郭の線を足す。" }
+  details:
+    en: "The difference from `outlined`: `outlined` throws the fill away, `stroke` keeps it."
+    ja: "`outlined` との違い:`outlined` は塗りをなくし、`stroke` は塗りを残します。"
+  examples:
+    - code: |
+        show heart(40).colored(:hotpink).stroke
+    - code: |
+        show heart(40).colored(:hotpink).stroke(:crimson, width: 4)
+  see: [outlined, colored]
+
+- word: opacity
+  group: color
+  signature: "opacity(value = 0.5)"
+  summary: { en: "Make a picture see-through.", ja: "透明度を変える。" }
+  details:
+    en: "`0` is invisible and `1` is solid. Overlapping see-through pictures mix their colours."
+    ja: "`0` で見えなくなり、`1` で完全に不透明です。透けた絵が重なると、色が混ざります。"
+  examples:
+    - code: |
+        show circle(20).colored(:navy) + circle(20).colored(:crimson).opacity.move(right: 16)
+    - code: |
+        show circle(20).colored(:navy) + circle(20).colored(:crimson).opacity(0.2).move(right: 16)
+  see: [colored, fade, blended]
+
+# ---------------------------------------------------------------- effect
+
+- word: glowing
+  group: effect
+  signature: "glowing(size: 4, color: nil)"
+  summary: { en: "Make the edges glow.", ja: "縁をにじませて光らせる。" }
+  details:
+    en: |-
+      The glow is the picture's own colour, blurred and spread outwards. Give `color:` to glow in another colour. `size` is in the same units as the picture. You can write it without its name: `glowing(8)`.
+
+      A glow needs a dark page to show: use `on: :black` or a dark blue. On white paper there is nothing to glow against.
+
+      The glow spills outside the picture, and the picture is fitted to the screen with the spill included. All the effect words work on motions too.
+    ja: |-
+      絵自身の色がにじんで、外へ広がります。別の色で光らせたいときは `color:` を渡します。`size` は絵と同じ単位です。名前なしでも書けます。`glowing(8)`。
+
+      光は暗い背景でないと見えません。`on: :black` や濃い青を使ってください。白い紙の上では、光る相手がありません。
+
+      光は絵の外へはみ出します。画面への収め方は、はみ出したぶんも含めて決まります。効果の言葉は、動きにもそのまま使えます。
+  examples:
+    - code: |
+        petals = petal(40, 16).repeat(8).in_fan.colored(:hotpink, :gold)
+        show petals.glowing, on: :black
+    - code: |
+        show star(radius: 30).colored(:white).glowing(size: 12, color: :orange), on: :black
+      caption: { en: "A white star with an orange glow.", ja: "白い星を、オレンジに光らせます。" }
+  see: [blurred, blended, shadowed, trail]
+
+- word: blurred
+  group: effect
+  signature: "blurred(amount: 2)"
+  summary: { en: "Blur a picture.", ja: "ぼかす。" }
+  details:
+    en: |-
+      `amount` is in the same units as the picture. You can write it without its name: `blurred(6)`.
+
+      The blur spills outside the picture, and the picture is fitted to the screen with the spill included. A big blur on a few shapes makes soft light, like an aurora.
+    ja: |-
+      `amount` は絵と同じ単位です。名前なしでも書けます。`blurred(6)`。
+
+      ぼかしは絵の外へはみ出します。画面への収め方は、はみ出したぶんも含めて決まります。少ない形を大きくぼかすと、オーロラのようなやわらかい光になります。
+  examples:
+    - code: |
+        show circle(30).colored(:crimson).blurred, on: :black
+    - code: |
+        show star(radius: 30).colored(:gold).blurred(amount: 5), on: :navy
+  see: [glowing, blended]
+
+- word: blended
+  group: effect
+  signature: "blended(mode = :screen)"
+  summary: { en: "Choose how a picture mixes with what is under it.", ja: "下にある絵との混ざり方を選ぶ。" }
+  details:
+    en: |-
+      Without a name, you get `:screen`: where pictures overlap, the colours get lighter, like lights shining on a wall. The other modes are `:multiply` (darker, like inks), `:overlay`, `:lighten`, `:darken`, `:difference` and `:normal` (no mixing).
+
+      `blended` changes how a picture mixes with what is under it. So it shows only when something is underneath, and the page colour counts: `:screen` on a white page does nothing, because white is already as light as it gets. Use `:screen` on a dark page and `:multiply` on a light one.
+
+      A wrong mode name gets an error that lists the right ones.
+    ja: |-
+      名前を省くと `:screen` になります。絵が重なったところの色が明るくなります(壁に当たった光のように)。ほかには `:multiply`(暗くなる、インクのように)、`:overlay`、`:lighten`、`:darken`、`:difference`、`:normal`(混ぜない)があります。
+
+      `blended` は、その絵が下にある絵とどう混ざるかを変えます。だから下に何かあるときだけ効きます。背景の色も「下にあるもの」です。白い背景に `:screen` を使っても、白はもう最大に明るいので何も変わりません。暗い背景には `:screen`、明るい背景には `:multiply` を使ってください。
+
+      モードの名前を間違えると、使える名前を並べたエラーが出ます。
+  examples:
+    - code: |
+        red = circle(30).colored(:crimson).move(left: 14)
+        blue = circle(30).colored(:dodgerblue).move(right: 14)
+        show red.blended + blue.blended, on: :black
+      caption: { en: "Screen: where the circles overlap, the light adds up.", ja: "screen:重なったところは、光が足し算されて明るくなります。" }
+    - code: |
+        yellow = circle(30).colored(:gold).move(left: 14)
+        cyan = circle(30).colored(:deepskyblue).move(right: 14)
+        show yellow + cyan.blended(:multiply)
+      caption: { en: "Multiply on white paper: where they overlap, the inks mix to green.", ja: "multiply:白い紙の上で、重なったところはインクが混ざって緑になります。" }
+  see: [glowing, blurred, trail, opacity]
+
+- word: shadowed
+  group: effect
+  signature: "shadowed(down: 2, right: 0, blur: 3, color: :black, opacity: 0.4)"
+  summary: { en: "Drop a soft shadow under a picture.", ja: "影を落とす。" }
+  details:
+    en: |-
+      `down` and `right` say where the shadow falls, `blur` how soft it is, and `opacity` how dark. The first number can be written without its name: `shadowed(6)` is `shadowed(down: 6)`. Sizes are in the same units as the picture.
+
+      A shadow needs a light page to show. It makes pictures look like cut-out paper lying on top of each other.
+    ja: |-
+      `down` と `right` は影の落ちる方向、`blur` はぼかし具合、`opacity` は濃さです。最初の数字は名前なしでも書けます。`shadowed(6)` は `shadowed(down: 6)` です。大きさは絵と同じ単位です。
+
+      影は明るい背景でないと見えません。紙を切り抜いて重ねたような絵になります。
+  examples:
+    - code: |
+        show star(radius: 30).colored(:tomato).shadowed, on: :linen
+    - code: |
+        show star(radius: 30).colored(:tomato).shadowed(down: 8, right: 6, blur: 6, opacity: 0.5), on: :linen
+  see: [colored, glowing, clipped_by]
+
+- word: clipped_by
+  group: effect
+  signature: "clipped_by(shape = nil)"
+  summary: { en: "Show a picture only through the window of a shape.", ja: "ある形の窓から覗いたように切り抜く。" }
+  details:
+    en: |-
+      The shape is used where it is, so you can move it to choose which part shows. A number works as a round window: `clipped_by(8)` is `clipped_by(circle(8))`. With nothing, you get a round window, a bit smaller than the picture.
+
+      The shape can be anything that becomes a picture, even your own class. Combine it with a pattern, a gradient or a motion and the picture shows through the shape.
+    ja: |-
+      窓の形は置かれた位置のまま使われます。動かせば、見える場所を選べます。数字を渡すと丸い窓になります。`clipped_by(8)` は `clipped_by(circle(8))` と同じです。何も渡さなければ、絵より少し小さな丸い窓になります。
+
+      窓には、絵になれるものなら何でも(自作のクラスでも)使えます。模様やグラデーションや動きと組み合わせると、形の窓から覗いたような絵になります。
+  examples:
+    - code: |
+        stripes = rect(10, 80).repeat(10).in_row.colored(:crimson, :gold)
+        show stripes.clipped_by
+      caption: { en: "No shape: a round window.", ja: "形なし:丸い窓です。" }
+    - code: |
+        stripes = rect(10, 80).repeat(10).in_row.colored(:crimson, :gold)
+        show stripes.clipped_by(heart(60))
+    - code: |
+        show wave(120, 20, 4).outlined(:white, width: 8).clipped_by(circle(40)), on: :navy
+  see: [colored, shadowed, circle]
+
+# --------------------------------------------------------------- arrange
+
+- word: in_row
+  group: arrange
+  signature: "in_row(gap: 0)"
+  summary: { en: "Put a group in a row, left to right.", ja: "横一列に並べる。" }
+  details:
+    en: |-
+      `gap` is the space between neighbours. The whole row is centred.
+
+      Arranging words work on a group of pictures, which you get from `repeat` or from an array's `to_art`. They also work on one picture alone.
+    ja: |-
+      `gap` は隣どうしの間のすき間です。全体は中心にそろいます。
+
+      並べる言葉は、`repeat` や配列の `to_art` で作った「絵の集まり」に使います。1枚の絵にも使えます。
+  examples:
+    - code: |
+        show circle.repeat(5).in_row
+    - code: |
+        show star.repeat(5).in_row(gap: 6).colored(:gold)
+  see: [in_column, in_grid, beside]
+
+- word: in_column
+  group: arrange
+  signature: "in_column(gap: 0)"
+  summary: { en: "Put a group in a column, top to bottom.", ja: "縦一列に並べる。" }
+  details:
+    en: "`gap` is the space between neighbours. The whole column is centred."
+    ja: "`gap` は隣どうしの間のすき間です。全体は中心にそろいます。"
+  examples:
+    - code: |
+        show circle.repeat(4).in_column
+    - code: |
+        show rect(40, 8).repeat(4).in_column(gap: 6).colored(:teal)
+  see: [in_row, in_grid, above]
+
+- word: in_grid
+  group: arrange
+  signature: "in_grid(columns: nil, gap: 0)"
+  summary: { en: "Put a group in a table, filled row by row.", ja: "表のように並べる(1行ずつ埋める)。" }
+  details:
+    en: |-
+      Without `columns`, the table is about as wide as it is tall. `gap` is the space between cells.
+
+      Every cell is as big as the biggest picture. You can write the number of columns without its name: `in_grid(4)`.
+    ja: |-
+      `columns`(列の数)を省くと、縦横がほぼ同じになります。`gap` はマスの間のすき間です。
+
+      マスの大きさは、いちばん大きい絵に合わせます。列の数は名前なしでも書けます。`in_grid(4)`。
+  examples:
+    - code: |
+        show square.repeat(9).in_grid
+    - code: |
+        show circle(8).repeat(20).in_grid(columns: 5, gap: 4).colored(:crimson, :navy)
+  see: [in_row, in_column, change_each]
+
+- word: in_ring
+  group: arrange
+  signature: "in_ring(radius: nil, facing_out: false)"
+  summary: { en: "Put a group evenly round a circle, clockwise from the top.", ja: "円周に等しい間隔で並べる(真上から時計回り)。" }
+  details:
+    en: |-
+      Without `radius`, the circle is just big enough that neighbours do not touch. With `facing_out: true`, each picture turns so that its top points away from the centre.
+
+      You can write the radius without its name: `in_ring(60)`. Even one picture can go on a ring: it sits at the top.
+    ja: |-
+      `radius`(半径)を省くと、隣どうしがぶつからないちょうどいい大きさの円になります。`facing_out: true` にすると、それぞれの絵が、上を外側に向けるように回ります。
+
+      半径は名前なしでも書けます。`in_ring(60)`。1枚の絵でも円周に置けて、そのときは真上に来ます。
+  examples:
+    - code: |
+        show circle(5).repeat(12).in_ring
+    - code: |
+        show triangle(14).repeat(10).in_ring(radius: 40, facing_out: true).colored(:orange)
+  see: [in_fan, in_spiral, orbit]
+
+- word: in_fan
+  group: arrange
+  signature: "in_fan(over: 360)"
+  summary: { en: "Turn each picture a little more than the one before, around the centre.", ja: "中心のまわりで、少しずつ回しながら並べる。" }
+  details:
+    en: |-
+      Made for petals: a picture that sits off the centre, copied and fanned out, is a flower.
+
+      `over` is how many degrees the fan covers. With a full 360 the pictures go all the way round. With less, they spread evenly and the fan is centred on straight up.
+    ja: |-
+      花びらのための言葉です。中心から外れた絵をコピーして扇のように広げると、花になります。
+
+      `over` は扇が開く角度(度)です。360 なら一周します。それより小さければ、均等に広がり、真上が中央になります。
+  examples:
+    - code: |
+        show petal.repeat(8).in_fan
+    - code: |
+        show petal(50, 8).repeat(7).in_fan(over: 120).colored(:teal)
+      caption: { en: "A fan of 120 degrees.", ja: "120 度の扇。" }
+  see: [petal, in_ring, rotate]
+
+- word: in_spiral
+  group: arrange
+  signature: "in_spiral(spacing: nil)"
+  summary: { en: "Put a group in a sunflower-seed spiral, from the centre outwards.", ja: "ひまわりの種のような渦巻きに並べる(中心から外へ)。" }
+  details:
+    en: |-
+      Each picture is turned by the golden angle from the one before, and moves a little further out. Without `spacing`, it is the size of the biggest picture.
+
+      You can write it without its name: `in_spiral(8)`.
+    ja: |-
+      1つ進むごとに黄金角だけ回り、少しずつ外へ出ていきます。`spacing` を省くと、いちばん大きい絵の大きさになります。
+
+      名前なしでも書けます。`in_spiral(8)`。
+  examples:
+    - code: |
+        show circle(3).repeat(100).in_spiral
+    - code: |
+        show circle(2).repeat(200).in_spiral(spacing: 5).colored(:gold, :orange)
+  see: [in_ring, in_grid]
+
+- word: scattered
+  group: arrange
+  signature: "scattered(over: nil, seed: nil)"
+  summary: { en: "Put a group in random places.", ja: "ばらまく(ランダムな場所に置く)。" }
+  details:
+    en: |-
+      Without `over`, the area is chosen from how many pictures there are and how big they are. `over: 200` is a 200 by 200 square. `over: [300, 100]` is 300 wide and 100 tall. The area is centred.
+
+      Each run looks different. But while the live view is running, it stays put: saving the file again does not shuffle the pictures. Write `seed: 7` (any whole number) to get the same picture every time, on every machine.
+    ja: |-
+      `over` を省くと、個数と絵の大きさから広さが決まります。`over: 200` は 200 × 200 の正方形、`over: [300, 100]` は横 300、縦 100 です。中心は真ん中です。
+
+      実行するたびに違う絵になります。ただしライブ表示している間は変わりません。ファイルを保存し直しても、ばらまき方は保たれます。`seed: 7`(好きな整数)と書くと、いつ、どのパソコンで実行しても同じ絵になります。
+  examples:
+    - code: |
+        show circle(3).repeat(30).scattered
+    - code: |
+        show star(radius: 4).repeat(40).scattered(over: [200, 100], seed: 7).colored(:gold), on: :midnightblue
+  see: [in_grid, in_spiral]
+
+- word: change_each
+  group: arrange
+  signature: "change_each { |one, t, i| ... }"
+  summary: { en: "Change the pictures of a group one at a time.", ja: "1つずつ変える。" }
+  details:
+    en: |-
+      The block gets each picture (`one`), how far along it is (`t`: 0.0 for the first, creeping up towards 1.0 for the last) and its number (`i`, from 0). It answers the changed picture.
+
+      The pictures stay where they are, so `change_each` can come before or after the arranging words. One thing to know: moving, turning and scaling happen around the centre of the whole picture. If you want each picture to turn or grow around itself, do it before arranging, as in the example.
+    ja: |-
+      ブロックには、それぞれの絵(`one`)、何番目あたりか(`t`:最初が 0.0、最後に向かって 1.0 に近づく)、番号(`i`、0 から)が渡されます。変えたあとの絵を返してください。
+
+      絵はその場所に残るので、`change_each` は並べる言葉の前でも後でも使えます。ひとつだけ注意:動かす・回す・拡大するは、全体の中心を基準に行われます。1つ1つがその場で回ったり大きくなったりしてほしいときは、例のように、並べる前に変えてください。
+  examples:
+    - code: |
+        dots = circle(6).repeat(10).change_each { |dot, t| dot.grow(to: 1 + t * 2) }
+        show dots.in_row(gap: 4)
+    - code: |
+        tiles = square(18).repeat(25).change_each { |s, t, i| s.rotate(t * 90).colored(i.even? ? :tomato : :navy) }
+        show tiles.in_grid(5, gap: 4)
+  see: [in_grid, nothing, hsl]
+
+# ---------------------------------------------------------------- to_art
+
+- word: to_art
+  group: to_art
+  signature: "to_art(as: nil)"
+  summary: { en: "Ask any object to become a picture.", ja: "どんなものにも「絵になって」と頼む。" }
+  details:
+    en: |-
+      This is the heart of asobi: treat objects as pictures, and pictures as objects.
+
+      What each thing becomes:
+
+      A number is a circle of that radius. A negative number is the same circle, as a line only. `0` is nothing.
+
+      With `as:` you hand over the shape, and the number says how big it should be (half of its larger side). `8.to_art(as: star)` is a star of radius 8.
+
+      An array or a range turns each item into a picture and puts them in a row, with a small gap. `as:` goes to every item. An array of arrays is a table: each inner array is a row. A string or a symbol is its letters, like `text`. A hash makes one row per pair: the key's picture beside the value's picture. `nil` is nothing.
+
+      An array that holds something in motion becomes a motion.
+
+      You do not need to call `to_art` yourself to show things: `show` and the words `on`, `under`, `beside` and `above` ask for it for you.
+
+      Your own class only has to write a `to_art` method (see the last example). Add `include Asobi::Art` to the class when you want to call picture words directly on its objects, such as `planet.rotate(20)`. This is like `Enumerable`, which asks only for `each`.
+    ja: |-
+      asobi の中心になる言葉です。オブジェクトを絵として扱い、絵をオブジェクトとして扱います。
+
+      それぞれ、こんな絵になります。
+
+      数字は、その半径の丸。マイナスの数は、同じ大きさで線だけの丸。`0` は何もない絵です。
+
+      `as:` で形を渡すと、数字がその大きさ(大きいほうの辺の半分)になります。`8.to_art(as: star)` は半径 8 の星です。
+
+      配列と範囲は、中身をそれぞれ絵にして、小さなすき間をあけて横に並べます。`as:` は中身すべてに伝わります。配列の配列は表になり、内側の配列が1行になります。文字列とシンボルは、`text` と同じ文字の絵です。ハッシュは1組ごとに1行で、キーの絵の隣に値の絵が並びます。`nil` は何もない絵です。
+
+      動きを含む配列は、全体が動きになります。
+
+      絵を出すだけなら、自分で `to_art` を呼ぶ必要はありません。`show` や `on`、`under`、`beside`、`above` が、代わりに頼んでくれます。
+
+      自作のクラスは、`to_art` というメソッドを書くだけで絵になれます(最後の例を見てください)。そのオブジェクトに `planet.rotate(20)` のように絵の言葉を直接使いたいときだけ、クラスに `include Asobi::Art` を足します。`each` だけ書けば `Enumerable` が使えるのと同じ考え方です。
+  examples:
+    - code: |
+        show 20.to_art
+      caption: { en: "A number: a circle.", ja: "数字:丸になります。" }
+    - code: |
+        show [3, 6, 9, -12, 0, 12].to_art
+      caption: { en: "An array: a row. A negative number is only a line. Zero is empty.", ja: "配列:横に並びます。マイナスは線だけ、0 は空です。" }
+    - code: |
+        show [1, 2, 3, 5, 8].to_art(as: star).colored(:gold, :orange), on: :black
+      caption: { en: "as: gives the shape; the numbers give the sizes.", ja: "as: で形を渡し、数字が大きさになります。" }
+    - code: |
+        hearts = (1..5).to_art(as: heart)
+        show hearts.colored(:crimson)
+      caption: { en: "A range works like an array.", ja: "範囲も配列と同じです。" }
+    - code: |
+        show [[1, 2, 3], [4, 5, 6], [7, 8, 9]].to_art(as: square).colored(:teal, :navy)
+      caption: { en: "An array of arrays: a table.", ja: "配列の配列:表になります。" }
+    - code: |
+        show "asobi".chars.to_art.colored(:crimson, :navy)
+      caption: { en: "A string: its letters. Here, split into one picture per letter.", ja: "文字列:文字の絵。ここでは1文字ずつの絵に分けています。" }
+    - code: |
+        show({ 3 => 12, 5 => 6 }.to_art.colored(:teal))
+      caption: { en: "A hash: one row for each key and value.", ja: "ハッシュ:キーと値で1行ずつ。" }
+    - code: |
+        class Planet
+          def initialize(size, color)
+            @size = size
+            @color = color
+          end
+
+          def to_art
+            circle(@size).colored(@color)
+          end
+        end
+
+        show [Planet.new(6, :tomato), Planet.new(10, :gold), Planet.new(4, :skyblue)].to_art
+      caption: { en: "Your own class: write to_art, and arrays and show can use it.", ja: "自作のクラス:to_art を書くだけで、配列や show から使えます。" }
+    - code: |
+        class Planet
+          include Asobi::Art
+
+          def initialize(size, color)
+            @size = size
+            @color = color
+          end
+
+          def to_art
+            circle(@size).colored(@color)
+          end
+        end
+
+        show Planet.new(10, :gold).spin(every: 4).move(right: 20).on(40)
+      caption: { en: "With include Asobi::Art, picture words work on the object itself.", ja: "include Asobi::Art を足すと、オブジェクトに直接、絵の言葉が使えます。" }
+  see: [text, repeat, orbit]
+
+# ---------------------------------------------------------------- motion
+
+- word: spin
+  group: motion
+  signature: "spin(every: 4, clockwise: true)"
+  summary: { en: "Turn round and round.", ja: "回り続ける。" }
+  details:
+    en: |-
+      `every` is the seconds for one full turn. With `clockwise: false` it turns the other way.
+
+      A motion is a function from time to a picture. It has no frame counter and no memory, so the same moment is always the same picture. Motion words can follow each other: `flower.spin(every: 8).pulse(every: 1)`. All the picture words work on a motion too: `flower.spin.colored(:crimson)`.
+
+      The loop length of a combination is the least common multiple of the parts (or the longest part, if that would be more than a minute).
+    ja: |-
+      `every` は1回転にかかる秒数です。`clockwise: false` にすると逆向きに回ります。
+
+      動きは「時刻から絵を返す関数」です。フレーム番号も記憶も持たないので、同じ時刻なら必ず同じ絵になります。動きの言葉は続けて書けます。`flower.spin(every: 8).pulse(every: 1)`。絵の言葉は、動きにもそのまま使えます。`flower.spin.colored(:crimson)`。
+
+      組み合わせた動きの1周は、それぞれの周期の最小公倍数です(1分を超えるときは、いちばん長いもの)。
+  examples:
+    - code: |
+        show star.spin
+    - code: |
+        show star(radius: 30).spin(every: 2, clockwise: false).colored(:gold)
+    - code: |
+        flower = petal(40, 16).repeat(8).in_fan.colored(:crimson, :navy)
+        show flower.spin(every: 8).pulse(every: 1)
+      caption: { en: "Two motion words, one after the other.", ja: "動きの言葉を2つ続けます。" }
+  see: [pulse, sway, orbit, one_by_one, trail]
+
+- word: pulse
+  group: motion
+  signature: "pulse(every: 1, to: 1.2)"
+  summary: { en: "Swell up and come back.", ja: "膨らんで戻る。" }
+  details:
+    en: "`to` is how big it gets, as a multiple (`to: 2` is twice as big). `every` is the seconds for one pulse. You can write `every` without its name: `pulse(2)`."
+    ja: "`to` は何倍まで膨らむかです(`to: 2` なら2倍)。`every` は1回の脈にかかる秒数で、名前なしでも書けます。`pulse(2)`。"
+  examples:
+    - code: |
+        show heart.colored(:crimson).pulse
+    - code: |
+        show heart(40).colored(:crimson).pulse(every: 0.8, to: 1.5)
+  see: [spin, fade, one_by_one]
+
+- word: sway
+  group: motion
+  signature: "sway(every: 2, by: 10)"
+  summary: { en: "Rock to one side and the other.", ja: "左右に揺れる。" }
+  details:
+    en: |-
+      `by` is how many degrees it rocks each way. `every` is the seconds for one swing there and back.
+
+      It rocks around the centre of the picture. To make something hang from a point, put that point at the centre: `petal.flip.sway` swings like a bell.
+    ja: |-
+      `by` は左右に何度ずつ揺れるか、`every` は行って戻るまでの秒数です。
+
+      揺れるのは絵の中心のまわりです。ある点からぶら下がっているように見せたいなら、その点を中心に置きます。`petal.flip.sway` は鐘のように揺れます。
+  examples:
+    - code: |
+        show petal(40, 16).flip.colored(:teal).sway
+    - code: |
+        show petal(40, 16).repeat(3).in_fan(over: 90).colored(:crimson).sway(every: 3, by: 20)
+  see: [spin, bounce]
+
+- word: orbit
+  group: motion
+  signature: "orbit(radius: nil, every: 4)"
+  summary: { en: "Go round a circle.", ja: "円周を回る。" }
+  details:
+    en: |-
+      The picture itself does not turn. It travels round a circle of `radius`, clockwise, starting from the top. Without `radius`, the circle is as big as the picture's larger side.
+
+      You can write the radius without its name: `orbit(40)`.
+    ja: |-
+      絵そのものは回らず、`radius` の円周の上を時計回りに、真上から進みます。`radius` を省くと、絵の大きいほうの辺の長さの円になります。
+
+      半径は名前なしでも書けます。`orbit(40)`。
+  examples:
+    - code: |
+        show circle(5).colored(:crimson).orbit
+    - code: |
+        show circle(10).colored(:gold) + circle(4).colored(:skyblue).orbit(radius: 30, every: 3), on: :black
+  see: [spin, in_ring, drift, trail]
+
+- word: fade
+  group: motion
+  signature: "fade(every: 2, to: 0.2)"
+  summary: { en: "Fade out and come back.", ja: "薄くなって戻る。" }
+  details:
+    en: "`to` is how faint it gets: `0` is invisible and `1` does nothing."
+    ja: "`to` はどこまで薄くなるかです。`0` で見えなくなり、`1` では何も起きません。"
+  examples:
+    - code: |
+        show circle(20).colored(:navy).fade
+    - code: |
+        show star(radius: 20).repeat(6).in_ring.colored(:gold).fade(every: 3, to: 0).one_by_one, on: :black
+  see: [opacity, pulse, one_by_one]
+
+- word: bounce
+  group: motion
+  signature: "bounce(height: 20, every: 1)"
+  summary: { en: "Jump up and fall back, like a ball.", ja: "ボールのように弾む。" }
+  details:
+    en: "`height` is how high it jumps. It is slow at the top and fast near the ground. You can write the height without its name: `bounce(40)`."
+    ja: "`height` は跳ぶ高さです。頂点でゆっくり、地面の近くで速くなります。高さは名前なしでも書けます。`bounce(40)`。"
+  examples:
+    - code: |
+        show circle(8).colored(:tomato).bounce
+    - code: |
+        show circle(6).repeat(10).in_row(gap: 4).colored(:teal).bounce(height: 30, every: 2).one_by_one
+  see: [drift, one_by_one]
+
+- word: drift
+  group: motion
+  signature: "drift(right: nil, left: nil, up: nil, down: nil, every: 4)"
+  summary: { en: "Go somewhere and come back, smoothly.", ja: "なめらかに行って戻る。" }
+  details:
+    en: "Name the way, like `move`: `drift(right: 40)`. With nothing named, it drifts to the right by the width of the picture."
+    ja: "`move` と同じように行き先を書きます。`drift(right: 40)`。何も書かなければ、絵の幅だけ右へ行って戻ります。"
+  examples:
+    - code: |
+        show circle.colored(:orange).drift
+    - code: |
+        show square(20).colored(:navy).drift(right: 30, up: 20, every: 3)
+  see: [orbit, bounce, move]
+
+- word: shift_color
+  group: motion
+  signature: "shift_color(from: nil, to: :crimson, every: 4)"
+  summary: { en: "Slowly change colour and come back.", ja: "色がゆっくり移り変わって戻る。" }
+  details:
+    en: |-
+      Give it two colours, `shift_color(:navy, :gold)`, to go from the first to the second and back. Give it one colour, `shift_color(:gold)`, to go from black to that colour. With nothing, it goes from black to crimson.
+
+      You can also name them: `shift_color(from: :navy, to: :gold, every: 6)`.
+    ja: |-
+      色を2つ渡すと、1つ目から2つ目へ移って戻ります。`shift_color(:navy, :gold)`。1つなら、黒からその色へ。何も渡さなければ、黒から crimson へ移ります。
+
+      名前を付けて書くこともできます。`shift_color(from: :navy, to: :gold, every: 6)`。
+  examples:
+    - code: |
+        show circle(20).shift_color
+    - code: |
+        show heart(40).shift_color(:navy, :hotpink, every: 3)
+  see: [colored, hsl, one_by_one]
+
+- word: one_by_one
+  group: motion
+  signature: "one_by_one(gap: nil)"
+  summary: { en: "Make a group move one at a time, instead of all together.", ja: "並んだ絵の動きを、1つずつ時間をずらす。" }
+  details:
+    en: |-
+      Write it right after a motion word (`spin`, `pulse`, `bounce` and so on) on a group of pictures. Each picture does the motion a little after the one before. By default, the loop is shared out evenly, and that makes a wave.
+
+      `gap` is the seconds between one picture and the next. Each picture does the motion around its own centre, so a ring of dots that pulses one by one stays a ring.
+
+      `one_by_one` belongs right after the motion word it staggers. If you stagger two motions, write it after each of them, as in the hearts example below: one for the colour, one for the bounce.
+    ja: |-
+      並んだ絵(絵の集まり)に付けた動きの言葉(`spin`、`pulse`、`bounce` など)の、すぐあとに書きます。1つ前の絵から少し遅れて、同じ動きをします。何も書かなければ、1周をちょうど等分した時間差になり、波のように見えます。
+
+      `gap` は、隣の絵との時間差(秒)です。それぞれの絵は、自分の中心で動きます。だから、丸が並んだ輪を1つずつ脈打たせても、輪の形はそのままです。
+
+      `one_by_one` は、ずらしたい動きの言葉のすぐあとに書きます。2つの動きをずらしたいときは、それぞれのあとに書きます。下のハートの例では、色の動きのあとと、弾みのあとに1回ずつ書いています。
+  examples:
+    - code: |
+        show circle(6).repeat(12).in_ring(40).colored(:crimson).pulse(every: 1.5, to: 1.8).one_by_one
+    - code: |
+        show circle(5).repeat(16).in_row(gap: 5).colored(:teal).bounce(height: 20, every: 2).one_by_one(gap: 0.1)
+    - code: |
+        hearts = heart(20).repeat(5).in_row(gap: 6)
+        show hearts.shift_color(:crimson, :orchid).one_by_one.bounce(height: 24).one_by_one
+      caption: { en: "Two motions, so two one_by_one: one right after shift_color, one right after bounce.", ja: "動きが2つなので、one_by_one も2つ。shift_color のすぐあとと、bounce のすぐあとです。" }
+  see: [pulse, bounce, fade, spin]
+
+- word: trail
+  group: motion
+  signature: "trail(count: 5, gap: nil)"
+  summary: { en: "Leave fading copies of earlier moments behind a moving picture.", ja: "動く絵のうしろに、少し前の姿を薄く残す(残像)。" }
+  details:
+    en: |-
+      The copies come from `gap` seconds earlier, then twice that, and so on, each fainter than the last, drawn underneath. Without `gap` it is a short moment, which looks good. `count` is how many copies. You can write it without its name: `trail(10)`.
+
+      On a still picture it does nothing: there is no earlier moment. Each copy is a whole picture, so a big picture with a long trail makes a heavy animation.
+    ja: |-
+      `gap` 秒前の姿、その2倍前の姿、と続けて、だんだん薄くして下に重ねます。`gap` を省くと、見た目のよい短い間隔になります。`count` はコピーの数で、名前なしでも書けます。`trail(10)`。
+
+      止まった絵に付けても何も変わりません(少し前、というものがないからです)。コピーはそれぞれ1枚の絵なので、大きな絵に長い残像を付けると、重いアニメーションになります。
+  examples:
+    - code: |
+        show circle(5).colored(:gold).orbit(30).trail, on: :black
+    - code: |
+        show circle(5).colored(:hotpink).orbit(radius: 30, every: 3).trail(count: 12).glowing, on: :black
+      caption: { en: "A long trail, with a glow.", ja: "長い残像に、光を足します。" }
+  see: [glowing, blended, orbit, spin]
+
+- word: animate
+  group: motion
+  signature: "animate(seconds = 4) { |picture, t| ... }"
+  summary: { en: "Make your own motion.", ja: "自分で動きを作る。" }
+  details:
+    en: |-
+      The block gets the picture and `t`, which runs from 0.0 up to (not including) 1.0 and then starts again, once every `seconds` seconds. It answers the picture for that moment.
+
+      Use the other words inside the block. Anything they can do, your motion can do.
+    ja: |-
+      ブロックには、絵と `t` が渡されます。`t` は `seconds` 秒ごとに、0.0 から(1.0 未満まで)進んでは最初に戻ります。その瞬間の絵を返してください。
+
+      ブロックの中では、ほかの言葉がそのまま使えます。言葉でできることは、すべて自作の動きにも使えます。
+  examples:
+    - code: |
+        show star.animate(4) { |picture, t| picture.rotate(t * 360).grow(to: 1 + t) }
+    - code: |
+        dots = circle(5).repeat(8).in_ring(30)
+        show dots.animate(3) { |ring, t| ring.change_each { |dot, u| dot.colored(hsl((t + u) * 360)) } }
+      caption: { en: "Colours run round the ring.", ja: "色が輪の上を走ります。" }
+  see: [spin, at, hsl]
+
+- word: at
+  group: motion
+  signature: "at(seconds = 0)"
+  summary: { en: "The picture a motion shows at one moment. Also: every, frames.", ja: "動きの、ある時刻の絵。(あわせて every、frames)" }
+  details:
+    en: |-
+      `motion.at(1.5)` is the still picture 1.5 seconds in. Time is in seconds, and it repeats: a motion with `every` of 4 shows the same picture at 0.5 and at 4.5.
+
+      `motion.every` is how many seconds one loop takes. `motion.frames(fps: 30)` is one loop as a lazy list of pictures, at 30 pictures a second.
+
+      You never need them to show a motion: just `show` it.
+    ja: |-
+      `motion.at(1.5)` は、1.5 秒の時点の止まった絵です。時間の単位は秒で、繰り返します。`every` が 4 の動きなら、0.5 秒と 4.5 秒は同じ絵です。
+
+      `motion.every` は1周にかかる秒数です。`motion.frames(fps: 30)` は、1秒に30枚の割合で並べた1周ぶんの絵のリスト(必要になるまで計算しない遅延リスト)です。
+
+      動きを見せるだけなら、これらは要りません。そのまま `show` してください。
+  examples:
+    - code: |
+        show circle(5).colored(:crimson).orbit(radius: 30, every: 4).at(1)
+      caption: { en: "One moment: a quarter of the way round.", ja: "ある瞬間:4分の1周したところ。" }
+    - code: |
+        trail = circle(3).colored(:navy).orbit(radius: 30, every: 4).frames(fps: 6)
+        show trail.reduce(:+)
+      caption: { en: "Every frame on top of each other draws the path.", ja: "全部のコマを重ねると、通り道が描けます。" }
+  see: [animate, spin]
+
+# ------------------------------------------------------------------ show
+
+- word: show
+  group: show
+  signature: "show(picture, on: :white, paper: nil, grain: nil)"
+  summary: { en: "Show a picture (or a motion) on screen.", ja: "絵(や動き)を画面に出す。" }
+  details:
+    en: |-
+      The picture is fitted to the screen, so you never have to think about the size of the window.
+
+      `on:` is the background colour. `paper: [800, 800]` shows a paper of that size (width and height) with the picture in the middle; anything that sticks out is cut off.
+
+      `grain:` lays a fine film grain over the whole picture, like paper or old film. `grain: true` is a gentle grain (0.12), and a number from 0 to 1 sets the strength: `grain: 0.3`. It belongs to the way the picture is shown, not to the picture, so it covers everything, background included.
+
+      If you call `show` several times, the last one is what appears.
+
+      Run a sketch with `ruby flower.rb` or `asobi flower.rb` and a browser opens. Save the file, and the picture changes. Press Ctrl-C to stop. A mistake in your code does not close anything: the last good picture stays, and the error is written below it, with a hint.
+
+      Move the mouse and small controls appear at the edge for a few seconds. Press `c` to lay the code over the picture, and `r` to start and stop recording a video (the browser saves the file).
+    ja: |-
+      絵は画面にぴったり収まります。ウィンドウの大きさを考える必要はありません。
+
+      `on:` は背景の色です。`paper: [800, 800]` は、その大きさ(幅と高さ)の紙の真ん中に絵を置きます。はみ出た部分は切れます。
+
+      `grain:` は、紙やフィルムのような細かい粒を全体に乗せます。`grain: true` はやわらかい粒(0.12)で、0 から 1 の数字で強さを決められます。`grain: 0.3`。これは絵ではなく出し方の指定なので、背景も含めて全体にかかります。
+
+      `show` を何度か呼んだら、最後のものが出ます。
+
+      `ruby flower.rb` か `asobi flower.rb` で実行するとブラウザが開きます。ファイルを保存するたびに、絵が変わります。止めるときは Ctrl-C です。書き間違いがあっても閉じたりしません。最後に出せた絵を残したまま、画面の下にエラーとヒントが出ます。
+
+      マウスを動かすと、数秒だけ端に小さな操作が出ます。`c` キーでコードが絵の上に重なり、`r` キーで動画の録画を始めたり止めたりします(ファイルはブラウザが保存します)。
+  examples:
+    - code: |
+        show star(radius: 30).colored(:gold)
+    - code: |
+        show star(radius: 30).colored(:gold), on: :midnightblue
+      caption: { en: "A background colour.", ja: "背景の色を付けます。" }
+    - code: |
+        show circle(40).colored(:crimson), paper: [300, 200]
+      caption: { en: "A 300 by 200 paper. The circle is cut off at the edge.", ja: "300 × 200 の紙。丸ははみ出た部分が切れます。" }
+    - code: |
+        show star(radius: 30).colored(:gold).glowing, on: :black, grain: true
+      caption: { en: "A film grain over everything. Try grain: 0.3 for a rougher one.", ja: "全体に細かい粒を乗せます。grain: 0.3 なら、もっと粗くなります。" }
+  see: [save, bounds]
+
+- word: save
+  group: show
+  signature: "save(path, on: :white, paper: nil, grain: nil)"
+  summary: { en: "Write a picture to a file.", ja: "絵をファイルに書き出す。" }
+  details:
+    en: |-
+      A still picture goes to an SVG file: `flower.save("flower.svg")`. A motion goes to an HTML page that plays by itself in any browser: `flower.spin.save("flower.html")`. Both accept `on:`, `paper:` and `grain:` as `show` does: `flower.save("flower.svg", grain: true)`.
+
+      To get one moment of a motion as SVG, ask for it with `at`: `flower.spin.at(1).save("still.svg")`.
+    ja: |-
+      止まった絵は SVG ファイルになります。`flower.save("flower.svg")`。動きは、どのブラウザでもひとりでに動く HTML ページになります。`flower.spin.save("flower.html")`。どちらも `show` と同じ `on:`、`paper:`、`grain:` を受け付けます。`flower.save("flower.svg", grain: true)`。
+
+      動きのある瞬間だけを SVG にしたいときは、`at` で取り出します。`flower.spin.at(1).save("still.svg")`。
+  examples:
+    - code: |
+        flower = petal(40, 16).repeat(8).in_fan.colored(:crimson, :navy)
+
+        # Remove the "#" to write the file:
+        # flower.save("flower.svg")
+
+        show flower
+      caption: { en: "The line starting with # is a comment; Ruby skips it.", ja: "# で始まる行はコメントで、Ruby は読み飛ばします。" }
+  see: [show, at, to_svg]
+
+- word: to_svg
+  group: show
+  signature: "to_svg(on: :white, paper: nil)"
+  summary: { en: "The picture as SVG text.", ja: "絵を SVG の文字列にする。" }
+  details:
+    en: "It answers a string. `save(\"x.svg\")` writes the same text to a file. It works on still pictures. For a motion, take a moment with `at` first."
+    ja: "SVG の文字列を返します。`save(\"x.svg\")` は、同じ文字列をファイルに書きます。止まった絵に使えます。動きは、先に `at` で瞬間を取り出してください。"
+  examples:
+    - code: |
+        svg = circle(10).colored(:crimson).to_svg
+        show text("#{svg.length} characters of SVG", size: 8)
+  see: [save, at]
+
+- word: bounds
+  group: show
+  signature: "bounds, width, height"
+  summary: { en: "Measure a picture.", ja: "絵の大きさを測る。" }
+  details:
+    en: "`width` and `height` are the size of the smallest box around the picture. `bounds` is that box, with `x0`, `y0`, `x1` and `y1`. For a motion, they cover everything it shows over one loop."
+    ja: "`width` と `height` は、絵をぴったり囲む四角の幅と高さです。`bounds` はその四角で、`x0`、`y0`、`x1`、`y1` を持ちます。動きの場合は、1周のあいだに通る範囲すべてです。"
+  examples:
+    - code: |
+        shape = star(radius: 20)
+        show text("#{shape.width.round(1)} x #{shape.height.round(1)}", size: 12)
+  see: [show, save]
+
+- word: turn
+  group: show
+  signature: "turn"
+  summary: { en: "An angle written as a number of turns.", ja: "回転数で書いた角度。" }
+  details:
+    en: "Angles in asobi are degrees, clockwise. `0.25.turn` is 90.0, so `rotate(0.25.turn)` is a quarter turn. `turns` means the same: `2.turns` is 720.0."
+    ja: "asobi の角度は度で、時計回りです。`0.25.turn` は 90.0 なので、`rotate(0.25.turn)` は4分の1回転です。`turns` も同じ意味です。`2.turns` は 720.0 です。"
+  examples:
+    - code: |
+        show rect(50, 10).colored(:navy).on(rect(50, 10).colored(:crimson).rotate(0.25.turn))
+  see: [rotate, spin]

@@ -1,0 +1,44 @@
+<h1 class="visually-hidden"><%= ui(:playground_title) %></h1>
+<div class="play">
+  <div class="play-bar">
+    <span class="file"><%= ui(:file) %></span>
+    <span id="status" class="status" role="status" aria-live="polite"></span>
+    <span class="fc" id="play-fc" aria-hidden="true"></span>
+    <a class="small" href="#words-title"><%= ui(:words_jump) %></a>
+    <button type="button" id="reset" class="small"><%= ui(:reset) %></button>
+    <button type="button" id="copy" class="small"><%= ui(:copy_link) %></button>
+  </div>
+  <section class="play-edit" aria-label="<%= ui(:code) %>">
+    <label for="code" class="visually-hidden"><%= ui(:code) %></label>
+    <div class="editor">
+      <pre id="code-tint" aria-hidden="true"><code><%= AsobiSite.highlight(default_play_code, word_list) %></code></pre>
+      <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-describedby="editor-hint"><%= h(default_play_code) %></textarea>
+    </div>
+    <p id="editor-hint" class="hint"><%= ui(:editor_hint) %></p>
+  </section>
+  <section class="play-view" aria-label="<%= ui(:picture) %>">
+    <div id="stage" class="stage-box" role="img" aria-label="<%= ui(:picture) %>"></div>
+  </section>
+</div>
+<section class="play-words" aria-labelledby="words-title">
+  <div class="band-head">
+    <p class="label"><%= ui(:words) %> · <%= content.words.size %></p>
+    <div><h2 id="words-title"><%= ui(:words) %></h2><p><%= ui(:words_hint) %></p></div>
+  </div>
+  <div class="word-groups">
+<%- groups.each do |group, words| -%>
+    <div class="word-group">
+      <h3><span class="label"><%= group_title(group) %></span></h3>
+      <ul>
+<%- words.each do |w| -%>
+        <li><a href="<%= h(word_href(w["word"], new_tab: true)) %>" target="_blank" rel="noopener" title="<%= h(t(w["summary"])) %>"><code><%= h(w["word"]) %></code></a></li>
+<%- end -%>
+      </ul>
+    </div>
+<%- end -%>
+  </div>
+</section>
+<script type="application/json" id="play-config"><%= script_json(play_config) %></script>
+<script src="<%= root %>assets/code-url.js" defer></script>
+<script src="<%= root %>assets/tint.js" defer></script>
+<script src="<%= root %>assets/playground.js" defer></script>

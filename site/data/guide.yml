@@ -1,0 +1,406 @@
+# Getting started: from install to a moving, coloured piece, and to your own class.
+# Every code block is a whole sketch that ends in `show`.
+
+- id: install
+  title: { en: "Install and the first minute", ja: "インストールと、最初の1分" }
+  steps:
+    - text:
+        en: "Install the gem. You need Ruby 3.2 or newer, and nothing else."
+        ja: "gem を入れます。必要なのは Ruby 3.2 以上だけです。ほかには何も要りません。"
+    - text:
+        en: "Type `asobi` in a terminal. The first time, it writes a small sketch called play.rb and opens it in your browser. This is the sketch:"
+        ja: "ターミナルで `asobi` と打ちます。最初のときは、play.rb という小さなスケッチを書いて、ブラウザで開きます。中身はこれです。"
+      code: |
+        # Change anything and save. The picture follows.
+        flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
+
+        show flower.spin(every: 8)
+      words: [show]
+    - text:
+        en: "Open play.rb in any editor, change a number and save. The picture in the browser changes by itself. Try 8 to 12."
+        ja: "play.rb を好きなエディタで開いて、数字を1つ書き換えて保存してください。ブラウザの絵がひとりでに変わります。8 を 12 にしてみましょう。"
+      code: |
+        flower = petal.repeat(12).in_fan.colored(:crimson, :navy)
+
+        show flower.spin(every: 8)
+    - text:
+        en: "Press Ctrl-C in the terminal to stop. Later you can run any file with `asobi file.rb` or `ruby file.rb`."
+        ja: "止めるときは、ターミナルで Ctrl-C を押します。ほかのファイルは `asobi file.rb` か `ruby file.rb` で動かせます。"
+
+- id: shape
+  title: { en: "Make a shape", ja: "形を作る" }
+  steps:
+    - text:
+        en: "A shape word makes a picture. `show` puts it on the screen. That is all you need for a first picture."
+        ja: "形の言葉が絵を作り、`show` がそれを画面に出します。最初の1枚は、これだけで描けます。"
+      code: |
+        show circle
+      words: [circle, show]
+    - text:
+        en: "Every number can be left out, so it just works. When you want to decide, give the number a name."
+        ja: "数字はどれも省けるので、書かなくても絵は出ます。自分で決めたいときは、数字に名前を付けて書きます。"
+      code: |
+        show circle(radius: 30)
+    - text:
+        en: "There are many shapes. Try them one by one: `rect`, `triangle`, `star`, `heart`, `moon`, `cloud`."
+        ja: "形はたくさんあります。1つずつ試してみてください。`rect`、`triangle`、`star`、`heart`、`moon`、`cloud`。"
+      code: |
+        show star(points: 7, radius: 30)
+      words: [star, heart, rect, triangle, moon, cloud]
+    - text:
+        en: "A picture is a value, so you can keep it in a variable. Think of it as a sticker: you make it once, and then you can ask it to do things."
+        ja: "絵は値なので、変数に入れておけます。シールのようなものだと思ってください。1枚作っておいて、あとからいろいろ頼みます。"
+      code: |
+        dot = circle(10)
+        show dot
+    - text:
+        en: "Lengths have no unit, and the picture is fitted to the screen. Only the proportions matter."
+        ja: "長さに単位はなく、絵は画面にぴったり収まります。大事なのは比率だけです。"
+
+- id: repeat
+  title: { en: "Make more of it", ja: "増やす" }
+  steps:
+    - text:
+        en: "`repeat` copies a picture. Here are five circles. They all lie in the same place, so you see only one."
+        ja: "`repeat` は絵を増やします。ここでは丸が5つあります。ただ、全部同じ場所に重なっているので、1つにしか見えません。"
+      code: |
+        show circle.repeat(5)
+      words: [repeat]
+    - text:
+        en: "Now put them in a row. Copying and arranging are two separate steps."
+        ja: "それを横に並べます。増やすことと並べることは、別々の言葉です。"
+      code: |
+        show circle.repeat(5).in_row
+      words: [in_row]
+    - text:
+        en: "`*` is the short way to write `repeat`. It is one of the only two symbols in asobi."
+        ja: "`*` は `repeat` の短い書き方です。asobi の記号は2つだけで、これはそのうちの1つです。"
+      code: |
+        dots = circle * 5
+        show dots.in_row(gap: 6)
+      words: ["*"]
+
+- id: arrange
+  title: { en: "Arrange it", ja: "並べる" }
+  steps:
+    - text:
+        en: "`in_ring` puts the copies evenly round a circle. You did not say how big the ring is, and it still works: it picks a size where the neighbours do not touch."
+        ja: "`in_ring` は、増やした絵を円周に等しく並べます。輪の大きさは書いていませんが、隣どうしがぶつからない大きさを自分で選びます。"
+      code: |
+        show circle(5).repeat(12).in_ring
+      words: [in_ring]
+    - text:
+        en: "`in_grid` makes a table. The number of columns can be written without its name."
+        ja: "`in_grid` は表にして並べます。列の数は、名前なしで書けます。"
+      code: |
+        show square.repeat(12).in_grid(4, gap: 4)
+      words: [in_grid]
+    - text:
+        en: "A `petal` starts at the centre and grows straight up. Copy it and turn each copy a little more with `in_fan`: that is a flower."
+        ja: "`petal`(花びら)は中心から真上へ伸びます。コピーして `in_fan` で少しずつ回すと、花になります。"
+      code: |
+        show petal.repeat(8).in_fan
+      words: [petal, in_fan]
+    - text:
+        en: "More ways to arrange: `in_spiral`, `in_row`, `in_column`, and `scattered`, which puts things in random places. A scattered picture is different every time you run it, but it does not jump around when you save."
+        ja: "並べ方はほかにもあります。`in_spiral`、`in_row`、`in_column`、それからランダムに置く `scattered`。ばらまいた絵は、実行のたびに変わりますが、保存し直しても動き回ったりはしません。"
+      code: |
+        show circle(3).repeat(150).in_spiral
+      words: [in_spiral, in_column, scattered]
+    - text:
+        en: "To change each copy a little differently, use `change_each`. The block gets the picture, `t` (0.0 for the first, up to nearly 1.0 for the last) and the number."
+        ja: "コピーを1つずつ違うように変えたいときは `change_each` を使います。ブロックには、絵と `t`(最初が 0.0、最後が 1.0 の少し手前)と番号が渡されます。"
+      code: |
+        dots = circle(5).repeat(12).change_each { |dot, t| dot.grow(to: 1 + t * 2) }
+        show dots.in_row(gap: 4)
+      words: [change_each, grow]
+
+- id: color
+  title: { en: "Add colour", ja: "色を付ける" }
+  steps:
+    - text:
+        en: "`colored` paints. A colour is a CSS colour name written as a symbol: `:crimson`, `:navy`, `:skyblue`, `:gold`. With no name at all, you get crimson."
+        ja: "`colored` で色を塗ります。色は CSS の色名をシンボルで書きます。`:crimson`、`:navy`、`:skyblue`、`:gold`。何も書かなければ crimson です。"
+      code: |
+        show heart.colored(:crimson)
+      words: [colored]
+    - text:
+        en: "Give a group several colours and they are used in turn."
+        ja: "絵の集まりに色を複数渡すと、順番に使われます。"
+      code: |
+        show petal.repeat(8).in_fan.colored(:crimson, :navy)
+    - text:
+        en: "For a rainbow, use `hsl`. The hue is an angle from 0 to 360, and `t` in `change_each` goes from 0 up to 1, so the hue goes once round."
+        ja: "虹にするなら `hsl` を使います。色相は 0 から 360 の角度で、`change_each` の `t` は 0 から 1 へ進むので、色相がちょうど一周します。"
+      code: |
+        dots = circle(8).repeat(12).change_each { |dot, t| dot.colored(hsl(t * 360, 80, 55)) }
+        show dots.in_ring
+      words: [hsl]
+    - text:
+        en: "`outlined` keeps only the line. `stroke` keeps the fill and adds a line. `opacity` makes it see-through."
+        ja: "`outlined` は線だけにします。`stroke` は塗りを残して輪郭の線を足します。`opacity` は透け具合を変えます。"
+      code: |
+        show star(radius: 30).colored(:gold).stroke(:orange, width: 3)
+      words: [outlined, stroke, opacity]
+    - text:
+        en: "The page is white by default. Give `show` a background with `on:`."
+        ja: "紙はふつう白です。`show` に `on:` を付けると、背景の色が変えられます。"
+      code: |
+        show star(radius: 30).colored(:gold), on: :midnightblue
+
+- id: combine
+  title: { en: "Put pictures together", ja: "合わせる" }
+  steps:
+    - text:
+        en: "`on` puts one picture on top of another."
+        ja: "`on` は、絵を別の絵の上に置きます。"
+      code: |
+        show circle(8).colored(:gold).on(circle(20).colored(:navy))
+      words: ["on"]
+    - text:
+        en: "`+` puts pictures on top of each other too. What you write later is in front. It is the other symbol in asobi."
+        ja: "`+` も絵を重ねます。あとに書いたものが手前です。もう1つの、asobi の記号です。"
+      code: |
+        sun = circle(30).colored(:gold)
+        show sun + circle(14).colored(:orange) + circle(5).colored(:crimson)
+      words: ["+", under]
+    - text:
+        en: "`beside` puts pictures side by side, and `above` stacks them. The result is again one picture."
+        ja: "`beside` は横に、`above` は縦に並べます。できあがりは、やはり1枚の絵です。"
+      code: |
+        show circle.beside(square).above(triangle)
+      words: [beside, above]
+    - text:
+        en: "That is the point: whatever you build is one picture, so you can copy it, arrange it and paint it again. Here is a face, built from smaller pictures."
+        ja: "ここが大事なところです。何を作っても1枚の絵なので、それをまたコピーしたり、並べたり、塗ったりできます。小さな絵を重ねて顔を作ってみます。"
+      code: |
+        eyes = circle(3).repeat(2).in_row(gap: 12)
+        smile = arc(10, from: 90, to: 270).outlined(:black, width: 2)
+        face = eyes.above(smile, gap: 6).on(circle(24).colored(:gold))
+        show face.repeat(4).in_row(gap: 6)
+      words: [arc]
+
+- id: ask
+  title: { en: "Ask objects to be pictures", ja: "オブジェクトに「絵になって」と頼む" }
+  steps:
+    - text:
+        en: "Any object can be asked to become a picture with `to_art`. A number is a circle of that radius. An array is a row of pictures."
+        ja: "どんなオブジェクトにも、`to_art` で「絵になって」と頼めます。数字は、その半径の丸になります。配列は、絵が横に並びます。"
+      code: |
+        show [4, 8, 12, 16].to_art
+      words: [to_art]
+    - text:
+        en: "Numbers do not have to be circles. Say what shape they should be with `as:`, and the numbers become sizes."
+        ja: "数字は丸でなくてもかまいません。`as:` で形を渡すと、数字は大きさになります。"
+      code: |
+        fib = [1, 1, 2, 3, 5, 8, 13]
+        show fib.to_art(as: star).colored(:gold, :orange), on: :black
+    - text:
+        en: "Strings become letters. `chars` splits a word into one letter each, so each letter is its own picture you can colour."
+        ja: "文字列は文字の絵になります。`chars` で1文字ずつに分けると、1文字ずつが別の絵になり、色を付けられます。"
+      code: |
+        show "asobi".chars.to_art.colored(:crimson, :navy)
+      words: [text]
+    - text:
+        en: "An array of arrays is a table: each inner array is a row."
+        ja: "配列の配列は表になります。内側の配列が1行です。"
+      code: |
+        table = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+        show table.to_art(as: square).colored(:teal, :navy)
+    - text:
+        en: "`show` asks for `to_art` for you, so for a plain list of numbers you can leave it out. To paint or move it, ask first."
+        ja: "`show` は代わりに `to_art` を頼んでくれるので、数字のリストをそのまま出すだけなら省けます。色を塗ったり動かしたりするときは、先に頼みます。"
+      code: |
+        show [3, 6, 9, 12]
+
+- id: move
+  title: { en: "Make it move", ja: "動かす" }
+  steps:
+    - text:
+        en: "A motion word turns a picture into a picture in motion. `every` is how many seconds one loop takes."
+        ja: "動きの言葉を付けると、絵が動く絵になります。`every` は1周にかかる秒数です。"
+      code: |
+        show star(radius: 30).colored(:gold).spin(every: 3)
+      words: [spin]
+    - text:
+        en: "Motion words follow each other. The words you already know, like `colored`, work on motions too."
+        ja: "動きの言葉は続けて書けます。`colored` のような、いままでの言葉も動きにそのまま使えます。"
+      code: |
+        flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
+        show flower.spin(every: 8).pulse(every: 1.5)
+      words: [pulse, sway, bounce, orbit, fade, drift, shift_color]
+    - text:
+        en: "`one_by_one` makes a group move one at a time instead of all together. Each dot pulses around its own centre, so the ring keeps its shape."
+        ja: "`one_by_one` は、並んだ絵の動きを、1つずつ時間をずらします。丸は自分の中心で脈打つので、輪の形は崩れません。"
+      code: |
+        dots = circle(5).repeat(24).in_ring.colored(:crimson, :orange)
+        show dots.pulse(every: 2, to: 2).one_by_one
+      words: [one_by_one]
+    - text:
+        en: "`one_by_one` belongs right after the motion word it staggers. To stagger two motions, write it after each. Here the colour and the bounce both go one by one."
+        ja: "`one_by_one` は、ずらしたい動きの言葉のすぐあとに書きます。2つの動きをずらしたいときは、それぞれのあとに書きます。ここでは、色も弾みも1つずつずれます。"
+      code: |
+        hearts = heart(20).repeat(5).in_row(gap: 6)
+        show hearts.shift_color(:crimson, :orchid).one_by_one.bounce(height: 24).one_by_one
+    - text:
+        en: "A moving picture and a still one go together: still on moving gives a motion."
+        ja: "動く絵と止まった絵も合わせられます。合わせたものは動きになります。"
+      code: |
+        sun = circle(10).colored(:gold)
+        planet = circle(4).colored(:skyblue).orbit(radius: 30, every: 5)
+        show sun + planet, on: :black
+    - text:
+        en: "For your own motion, `animate` gives you the picture and `t`, which runs from 0.0 up to 1.0 and starts again."
+        ja: "自分で動きを作りたいときは `animate` です。絵と `t` が渡され、`t` は 0.0 から 1.0 へ進んでは最初に戻ります。"
+      code: |
+        show star(radius: 20).animate(4) { |picture, t| picture.rotate(t * 360).grow(to: 1 + t) }
+      words: [animate]
+
+- id: glow
+  title: { en: "Make it glow", ja: "光らせる" }
+  steps:
+    - text:
+        en: "So far everything was flat: plain colours, like ink on white paper. That is the right place to start. Richness is something you add, one word at a time. Here is a flat flower on a dark page."
+        ja: "ここまでの絵は、白い紙に塗ったインクのような、平らな色でした。それが出発点です。豊かさは、あとから1つずつ言葉を足して作ります。まず、暗い背景に、平らな花を置きます。"
+      code: |
+        flower = petal(40, 16).repeat(8).in_fan.colored(:hotpink, :gold)
+        show flower, on: :black
+    - text:
+        en: "Add `glowing`. The edges glow in the picture's own colour. A glow needs a dark page, which is why we chose black."
+        ja: "`glowing` を足します。縁が、絵自身の色で光ります。光は暗い背景でないと見えないので、黒にしてあります。"
+      code: |
+        flower = petal(40, 16).repeat(8).in_fan.colored(:hotpink, :gold)
+        show flower.glowing, on: :black
+      words: [glowing, blurred]
+    - text:
+        en: "`blended` chooses how a picture mixes with what is under it. With `:screen` (the default), lights add up: where the circles overlap, the colour gets lighter. It shows only because something is underneath, here the other circle and the black page."
+        ja: "`blended` は、絵が下にある絵とどう混ざるかを選びます。`:screen`(省いたときの値)では光が足し算され、丸が重なったところが明るくなります。下に何かあるから見えるので、ここでは、もう1つの丸と、黒い背景が「下にあるもの」です。"
+      code: |
+        red = circle(30).colored(:crimson).move(left: 14)
+        blue = circle(30).colored(:dodgerblue).move(right: 14)
+        show red.blended + blue.blended, on: :black
+      words: [blended]
+    - text:
+        en: "`colored` can also make a gradient. Name where it starts and ends. On a group, the gradient flows once across the whole group, and `around: true` runs it from the centre outwards."
+        ja: "`colored` はグラデーションも作れます。始まりと終わりの色を書きます。絵の集まりでは、全体にまたがって1回流れます。`around: true` にすると、中心から外へ流れます。"
+      code: |
+        petals = petal(50, 18).repeat(8).in_fan.colored(from: :hotpink, to: :gold, around: true)
+        show petals.glowing, on: :black
+      words: [colored]
+    - text:
+        en: "`trail` leaves fading copies of earlier moments behind a moving picture. It does nothing to a still picture."
+        ja: "`trail` は、動く絵のうしろに、少し前の姿を薄く残します。止まった絵に付けても何も変わりません。"
+      code: |
+        comet = circle(5).colored(:gold).orbit(radius: 30, every: 3).trail(10)
+        show comet.glowing, on: :black
+      words: [trail]
+    - text:
+        en: "Last, `grain: true` in `show` lays a fine film grain over the whole picture, like paper or old film. It is a way of showing, so it is written in `show`, not on the picture."
+        ja: "最後に、`show` に `grain: true` を付けると、紙やフィルムのような細かい粒が全体に乗ります。絵ではなく出し方の指定なので、絵ではなく `show` に書きます。"
+      code: |
+        comet = circle(5).colored(:gold).orbit(radius: 30, every: 3).trail(10)
+        show comet.glowing, on: :black, grain: true
+    - text:
+        en: "On a light page, use `shadowed` to make pictures look like cut-out paper lying on top of each other."
+        ja: "明るい背景では、`shadowed` で影を落とすと、切り抜いた紙を重ねたような絵になります。"
+      code: |
+        sun = circle(22).colored(:gold).move(up: 20, right: 40)
+        hill = ellipse(220, 70).colored(:seagreen).move(down: 50)
+        show sun.shadowed + hill.shadowed, on: :oldlace
+      words: [shadowed]
+    - text:
+        en: "And `clipped_by` shows a picture only through the window of a shape. Here, stripes seen through a heart."
+        ja: "`clipped_by` は、ある形の窓から覗いたように絵を切り抜きます。ここでは、しま模様をハートの窓から覗きます。"
+      code: |
+        stripes = rect(10, 80).repeat(10).in_row.colored(:crimson, :gold)
+        show stripes.clipped_by(heart(60))
+      words: [clipped_by]
+
+- id: live
+  title: { en: "Show it live, and record it", ja: "ライブで見る、録画する" }
+  steps:
+    - text:
+        en: "When you run a sketch, the browser opens and watches the file. Every time you save, the picture is swapped for the new one, and the motion carries on from where it was."
+        ja: "スケッチを動かすとブラウザが開き、ファイルを見張ります。保存するたびに新しい絵に差し替わり、動きは続きから再生されます。"
+      code: |
+        show circle(30).colored(:crimson).pulse
+    - text:
+        en: "If you make a typing mistake, nothing closes. The last good picture stays on the screen, and the error is written below it, with a hint on how to fix it. Fix it and save."
+        ja: "書き間違えても、何も閉じません。最後に出せた絵が残り、画面の下にエラーと直し方のヒントが出ます。直して保存すれば、続きから遊べます。"
+    - text:
+        en: "Move the mouse and small controls appear at the edge for a few seconds. Press `c` to lay the code over the picture. Press `r` to start recording, and `r` again to stop: the browser saves a video file."
+        ja: "マウスを動かすと、数秒だけ端に小さな操作が出ます。`c` キーでコードが絵の上に重なります。`r` キーで録画を始め、もう一度 `r` で止めると、ブラウザが動画ファイルを保存します。"
+    - text:
+        en: "`show` can also take a background (`on:`) and a paper size (`paper:`)."
+        ja: "`show` には、背景の色(`on:`)と紙の大きさ(`paper:`)も渡せます。"
+      code: |
+        show star(radius: 30).colored(:gold).spin(every: 4), on: :black, paper: [400, 400]
+    - text:
+        en: "To keep a picture, use `save`. A still picture becomes an SVG file. A motion becomes an HTML page that plays by itself. (Remove the `#` to try it.)"
+        ja: "絵を残したいときは `save` です。止まった絵は SVG ファイルに、動きはひとりでに動く HTML ページになります。(試すときは `#` を消してください。)"
+      code: |
+        flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
+
+        # flower.save("flower.svg")
+        # flower.spin(every: 8).save("flower.html")
+
+        show flower.spin(every: 8)
+      words: [save]
+
+- id: own_class
+  title: { en: "Make your own class a picture", ja: "自分のクラスを絵にする" }
+  steps:
+    - text:
+        en: "Here is the idea of asobi: treat objects as pictures, and pictures as objects. Write a method called `to_art` in your class and say what the object looks like."
+        ja: "ここが asobi の考え方です。オブジェクトを絵として扱い、絵をオブジェクトとして扱います。自分のクラスに `to_art` というメソッドを書いて、そのオブジェクトがどんな絵かを教えます。"
+      code: |
+        class Flower
+          def initialize(petals, color)
+            @petals = petals
+            @color = color
+          end
+
+          def to_art
+            petal(30, 12).repeat(@petals).in_fan.colored(@color)
+          end
+        end
+
+        show Flower.new(8, :crimson)
+    - text:
+        en: "Now your objects can go anywhere a picture can: in an array, beside another picture, on top of one."
+        ja: "これで、自分のオブジェクトを、絵が入れるところなら、どこにでも入れられます。配列の中でも、ほかの絵の隣でも、上でも。"
+      code: |
+        class Flower
+          def initialize(petals, color)
+            @petals = petals
+            @color = color
+          end
+
+          def to_art
+            petal(30, 12).repeat(@petals).in_fan.colored(@color)
+          end
+        end
+
+        garden = [Flower.new(5, :crimson), Flower.new(8, :navy), Flower.new(12, :gold)]
+        show garden.to_art
+    - text:
+        en: "To call picture words directly on your objects, like `flower.spin`, add one line to the class: `include Asobi::Art`. It works like `Enumerable`: you write `each`, and you get `map`, `select` and the rest. Here you write `to_art`, and you get `spin`, `move`, `colored` and the rest."
+        ja: "`flower.spin` のように、自分のオブジェクトに絵の言葉を直接使いたいときは、クラスに `include Asobi::Art` の1行を足します。`Enumerable` と同じ仕組みです。`each` を書くと `map` や `select` が使えるように、`to_art` を書くと `spin` や `move` や `colored` が使えます。"
+      code: |
+        class Flower
+          include Asobi::Art
+
+          def initialize(petals, color)
+            @petals = petals
+            @color = color
+          end
+
+          def to_art
+            petal(30, 12).repeat(@petals).in_fan.colored(@color)
+          end
+        end
+
+        show Flower.new(8, :navy).spin(every: 6)
+    - text:
+        en: "Anything can be a picture. A class can hold numbers, names, dates, anything, and decide for itself how to look. Next, look at the gallery, or open the reference to see every word."
+        ja: "どんなものでも絵になれます。数字でも名前でも日付でも、クラスが持っているものを、自分でどう見せるか決められます。次は見本集を眺めたり、リファレンスで言葉を調べたりしてみてください。"

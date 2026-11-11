@@ -1,0 +1,8 @@
+tagline: { en: "Objects become pictures.", ja: "オブジェクトが絵になる。" }
+philosophy:
+  - { en: "Pictures are values.", ja: "絵は値。" }
+  - { en: "Play first.", ja: "まず遊ぶ。" }
+hero_code: |
+  petal = ellipse(width: 12, height: 32).move(up: 22)
+  show petal.repeat(8).in_fan.colored(:crimson, :navy).spin(every: 4)
+install: { en: "Ruby 3.2 or newer.", ja: "Ruby 3.2 以上。" }

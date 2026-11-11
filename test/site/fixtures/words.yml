@@ -1,0 +1,50 @@
+# Fixture for test/site_test.rb: the same schema as site/data/words.yml.
+- word: circle
+  group: shapes
+  signature: "circle(radius: 10)"
+  summary: { en: "A filled circle.", ja: "塗りつぶした丸。" }
+  details:
+    en: |-
+      Every number can be left out.
+
+      `circle(12)` is the same as `circle(radius: 12)`. See also `ring`.
+    ja: |-
+      数字はどれも省けます。
+
+      `circle(12)` は `circle(radius: 12)` と同じです。
+  examples:
+    - code: |
+        show circle(radius: 12)
+      caption: { en: "A still picture.", ja: "止まった絵。" }
+  see: [ring, spin]
+  unknown_extra_key: ignored
+
+- word: ring
+  group: shapes
+  signature: "ring(radius: 20, thickness: 4)"
+  summary: { en: "A ring; the hole shows what is behind.", ja: "ドーナツ型。" }
+  examples:
+    - code: |
+        show ring.colored(:teal)
+
+- word: +
+  group: combine
+  signature: "a + b"
+  summary: { en: "Put b on top of a.", ja: "a の上に b を重ねる。" }
+  examples:
+    - code: |
+        show circle(radius: 20) + circle(radius: 8).colored(:gold)
+
+- word: spin
+  group: motion
+  signature: "spin(every: 4, clockwise: true)"
+  summary: { en: "Keeps turning. Try it on `star`.", ja: "回り続ける。" }
+  examples:
+    - code: |
+        show star.colored(:crimson).spin(every: 2)
+      caption: { en: "It moves.", ja: "動きます。" }
+
+- word: show
+  group: show
+  signature: "show(picture, on: :white, paper: nil)"
+  summary: { en: "Put a picture on the screen.", ja: "絵を画面に出す。" }

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="<%= lang %>" data-root="<%= root %>" data-page="<%= page %>">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0b0f">
+<title><%= h(title) %></title>
+<meta name="description" content="<%= h(t(content.home && content.home["tagline"])) %>">
+<link rel="icon" href="<%= root %>assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="<%= other_lang %>" href="<%= h(other_language_href) %>">
+<link rel="stylesheet" href="<%= root %>assets/site.css">
+<script src="<%= root %>assets/player.js" defer></script>
+<script src="<%= root %>assets/site.js" defer></script>
+</head>
+<body class="page-<%= page %><%= " sheet" unless page == "index" %>">
+<a class="skip" href="#main"><%= ui(:skip) %></a>
+<header class="top">
+  <a class="brand" href="<%= href("index") %>"<%= ' aria-current="page"' if page == "index" %>><img src="<%= root %>assets/favicon.svg" alt="" width="18" height="20">asobi</a>
+  <nav class="nav" aria-label="<%= ui(:menu) %>">
+    <ul>
+<%- NAV.each do |p| -%>
+      <li><a href="<%= href(p) %>"<%= ' aria-current="page"' if page == p %>><%= ui(p.to_sym) %></a></li>
+<%- end -%>
+    </ul>
+  </nav>
+  <nav class="lang" aria-label="<%= ui(:language) %>">
+<%- LANGUAGES.each do |code, name| -%>
+<%- if code == lang -%>
+    <span lang="<%= code %>" aria-current="true"><span aria-hidden="true"><%= code.upcase %></span><span class="visually-hidden"><%= name %></span></span>
+<%- else -%>
+    <a lang="<%= code %>" hreflang="<%= code %>" href="<%= h(other_language_href) %>" aria-label="<%= name %>" data-keep-hash><%= code.upcase %></a>
+<%- end -%>
+<%- end -%>
+  </nav>
+</header>
+<main id="main">
+<%= body %>
+</main>
+<footer class="foot">
+  <a class="foot-brand" href="<%= href("index") %>" aria-label="asobi · <%= h(ui(:index)) %>">asobi</a>
+  <p class="foot-meta">v<%= Asobi::VERSION %> · <%= h(ui(:footer_license)) %></p>
+<%- if page == "playground" -%>
+  <p class="foot-note"><%= h(ui(:footer_playground)) %></p>
+<%- end -%>
+</footer>
+</body>
+</html>

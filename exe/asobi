@@ -1,0 +1,106 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# asobi            play.rb がなければ見本を作り、ライブ表示する
+# asobi FILE.rb    そのスケッチをライブ表示する
+# asobi version
+#
+# Test seam: ASOBI_CREATE_ONLY=1 stops right after play.rb has been created
+# (or found), before the live view starts.
+
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__) # a checkout; an installed gem is already on the path
+require "optparse"
+require "asobi"
+require "asobi/live"
+
+module Asobi
+  Messages.add(:cli_missing,
+               en: "asobi can't find %{file}. Check the name, like:  asobi flower.rb  (or run asobi alone to start with play.rb)",
+               ja: "%{file} が見つかりません。名前を確かめてください。例：asobi flower.rb（asobi だけで実行すると play.rb から始められます）")
+  Say.add(:cli_created,
+               en: "asobi: made %{file} for you. Change anything in it and save.",
+               ja: "asobi: %{file} を作りました。好きなところを書き換えて保存してください。")
+  Messages.add(:cli_bad_option,
+               en: "asobi doesn't know %{got}. See the options with, like:  asobi --help",
+               ja: "%{got} は知りません。使えるオプションは次で見られます。例：asobi --help")
+  Say.add(:cli_help,
+               en: <<~TEXT,
+                 asobi: play with pictures in Ruby
+
+                   asobi              make play.rb if it is missing, and show it live
+                   asobi FILE.rb      show that sketch live (save the file and the picture follows)
+                   asobi version
+                   asobi help
+
+                 options:
+                   --port N           start looking for a free port at N (default 4567)
+                   --no-open          don't open the browser
+               TEXT
+               ja: <<~TEXT)
+                 asobi: Ruby で絵と遊ぶ
+
+                   asobi              play.rb がなければ見本を作って、ライブ表示します
+                   asobi FILE.rb      そのスケッチをライブ表示します（保存すると絵が変わります）
+                   asobi version
+                   asobi help
+
+                 オプション:
+                   --port N           ポート N から空きを探す（初期値 4567）
+                   --no-open          ブラウザを開かない
+               TEXT
+  Say.add(:cli_starter_comment,
+               en: "Change anything and save. The picture follows.",
+               ja: "どこでも書き換えて保存してください。絵がついてきます。")
+
+  module CLI
+    module_function
+
+    def starter
+      <<~RUBY
+        require "asobi"
+
+        # #{Say.text(:cli_starter_comment)}
+        flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
+
+        show flower.spin(every: 8)
+      RUBY
+    end
+
+    def main(argv)
+      options = { port: Live::DEFAULT_PORT, open: true }
+      parser = OptionParser.new do |o|
+        o.on("--port N", Integer) { options[:port] = _1 }
+        o.on("--no-open") { options[:open] = false }
+        o.on("-h", "--help") { options[:help] = true }
+        o.on("-v", "--version") { options[:version] = true }
+      end
+      begin
+        args = parser.parse(argv)
+      rescue OptionParser::ParseError => e
+        warn Messages.text(:cli_bad_option, got: e.args.first || e.message)
+        return 1
+      end
+
+      return puts(Say.text(:cli_help)) || 0 if options[:help] || args.first == "help"
+      return puts(Asobi::VERSION) || 0 if options[:version] || args.first == "version"
+
+      file = args.first || "play.rb"
+      if args.empty? && !File.exist?(file)
+        File.write(file, starter, encoding: "UTF-8")
+        puts Say.text(:cli_created, file:)
+      elsif !File.file?(file)
+        warn Messages.text(:cli_missing, file:)
+        return 1
+      end
+      return 0 if ENV["ASOBI_CREATE_ONLY"] == "1"
+
+      Live.run(file, port: options[:port], open: options[:open])
+      0
+    rescue IOError, SystemCallError => e
+      warn e.message
+      1
+    end
+  end
+end
+
+exit Asobi::CLI.main(ARGV)

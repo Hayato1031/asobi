@@ -1,0 +1,53 @@
+<div class="doc">
+<aside class="side">
+  <nav aria-labelledby="index-title" data-spy>
+    <h2 id="index-title" class="label"><%= ui(:words) %> · <%= content.words.size %></h2>
+<%- groups.each do |group, words| -%>
+    <h3><a href="#group-<%= group %>"><%= group_title(group) %></a></h3>
+    <ul class="word-index">
+<%- words.each do |w| -%>
+      <li><a href="#<%= h(AsobiSite.anchor(w["word"])) %>"><code><%= h(w["word"]) %></code></a></li>
+<%- end -%>
+    </ul>
+<%- end -%>
+  </nav>
+</aside>
+<div class="doc-body">
+  <header class="doc-head">
+    <p class="label"><%= ui(:words_count, content.words.size) %> · <%= ui(:groups_count, groups.size) %></p>
+    <h1><%= ui(:reference) %></h1>
+    <p class="lead"><%= ui(:reference_lead) %></p>
+  </header>
+<%- groups.each_with_index do |(group, words), gi| -%>
+  <section class="group" id="group-<%= group %>" aria-labelledby="group-<%= group %>-title">
+    <header>
+      <h2 id="group-<%= group %>-title"><%= group_title(group) %></h2>
+      <span class="label"><span class="n">§<%= format("%02d", gi + 1) %></span> · <%= ui(:words_count, words.size) %></span>
+    </header>
+<%- words.each do |w| a = AsobiSite.anchor(w["word"]) -%>
+    <article class="word prose" id="<%= h(a) %>" aria-labelledby="<%= h(a) %>-title" data-spy-target>
+      <header>
+        <h3 id="<%= h(a) %>-title"><a href="#<%= h(a) %>"><code><%= h(w["word"]) %></code></a></h3>
+        <span class="label"><%= group_title(group) %></span>
+      </header>
+      <pre class="signature"><code><%= AsobiSite.highlight(w["signature"], word_list) %></code></pre>
+      <%= rich(t(w["summary"]), tag: "p").sub("<p>", '<p class="summary">') %>
+<%- if w["details"] -%>
+      <div class="details"><%= rich(t(w["details"])) %></div>
+<%- end -%>
+<%- w["examples"].each do |ex| -%>
+      <%= example(ex["code"], w["word"], caption: ex["caption"]) %>
+<%- end -%>
+<%- unless w["see"].empty? -%>
+      <p class="see"><span><%= ui(:see_also) %></span>
+<%- w["see"].each do |s| -%>
+        <a href="#<%= h(AsobiSite.anchor(s)) %>"><code><%= h(s) %></code></a>
+<%- end -%>
+      </p>
+<%- end -%>
+    </article>
+<%- end -%>
+  </section>
+<%- end -%>
+</div>
+</div>
