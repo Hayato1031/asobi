@@ -148,6 +148,10 @@ Open `_site/index.html` in a browser for English or `_site/ja/index.html` for Ja
 
 After `bundle install`, run `bundle exec rake test`. The suite checks the library and CLI, builds the site with test data, and runs the sketch examples from the gallery and both READMEs. For the design of pictures, motion and the `to_art` protocol, see the [design notes (Japanese)](DESIGN.md).
 
+## Bugs and feature ideas
+
+Issues are welcome in English or Japanese. For a bug, a small sketch that shows the problem helps us reproduce it. For an idea, tell us what you'd like to draw or animate. [Open an issue](https://github.com/Hayato1031/asobi/issues/new/choose)
+
 ## License
 
 [MIT](LICENSE)
