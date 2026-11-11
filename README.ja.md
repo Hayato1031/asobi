@@ -143,9 +143,11 @@ bundle exec rake site
 
 ライブラリ本体に加えた変更は、リポジトリのルートで `ruby exe/asobi examples/flower.rb` を実行して試せます。依存関係を `bundle install` でインストールしたら、`bundle exec rake test` でテストを実行できます。ライブラリ本体に加え、ドキュメントや作例のスケッチも検証します。ライブラリの設計については[設計書](DESIGN.md)を参照してください。
 
-## 不具合報告・機能提案
+## 不具合報告・改善の提案（Issue・PR）
 
 日本語・英語どちらでも歓迎です。不具合の場合は、問題が起きる短いスケッチがあると再現しやすくなります。機能のアイデアは「こんな絵を描きたい」「こんな動きを作りたい」から気軽にどうぞ。[Issue を作成する](https://github.com/Hayato1031/asobi/issues/new/choose)
+
+バグの修正、ドキュメントの改善、作例の追加などのプルリクエスト（PR）も歓迎です。[asobi をフォーク](https://github.com/Hayato1031/asobi/fork)して、自分のフォークにブランチを作り、変更を `Hayato1031/asobi` の `main` 宛てに送ってください。大きな変更は、先に Issue で相談できます。
 
 ## ライセンス
 

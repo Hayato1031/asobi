@@ -142,9 +142,11 @@ Open `_site/index.html` in a browser for English or `_site/ja/index.html` for Ja
 
 From the repository root, use `ruby exe/asobi examples/flower.rb` to try changes to the library. After `bundle install`, run `bundle exec rake test`. The suite checks the library and CLI, builds the site with test data, and runs the sketch examples from the gallery and both READMEs. For the design of pictures, motion and the `to_art` protocol, see the [design notes (Japanese)](DESIGN.md).
 
-## Bugs and feature ideas
+## Issues and pull requests
 
 Issues are welcome in English or Japanese. For a bug, a small sketch that shows the problem helps us reproduce it. For an idea, tell us what you'd like to draw or animate. [Open an issue](https://github.com/Hayato1031/asobi/issues/new/choose)
+
+Want to fix a bug, improve the docs, or share a sketch? [Fork asobi](https://github.com/Hayato1031/asobi/fork), make your change on a branch in your fork, and open a pull request against `Hayato1031/asobi:main`. English and Japanese are both welcome. For a larger change, an issue is a good place to discuss the idea first.
 
 ## License
 

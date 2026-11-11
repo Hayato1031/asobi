@@ -110,4 +110,13 @@
 <%- end -%>
   </div>
 </section>
+<section class="band contribute" id="contribute" aria-labelledby="contribute-title">
+  <h2 id="contribute-title"><%= ui(:contribute) %></h2>
+  <p><%= ui(:issue_invitation) %></p>
+  <div class="cta">
+    <a class="btn" href="<%= GITHUB_URL %>/issues/new?template=bug_report.md"><%= ui(:report_bug) %></a>
+    <a class="btn" href="<%= GITHUB_URL %>/issues/new?template=feature_request.md"><%= ui(:suggest_feature) %></a>
+  </div>
+  <p><%= ui(:pr_invitation) %> <a href="<%= GITHUB_URL %>/fork"><%= ui(:fork_repo) %></a></p>
+</section>
 <script src="<%= root %>assets/home.js" defer></script>

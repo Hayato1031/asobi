@@ -53,6 +53,7 @@ module AsobiSite
   ASSETS = File.join(SITE, "assets")
   PLAYGROUND = File.join(SITE, "playground")
   RUBYGEMS_URL = "https://rubygems.org/gems/asobi"
+  GITHUB_URL = "https://github.com/Hayato1031/asobi"
   MARKER = ".asobi-site" # marks a directory this builder may wipe and rewrite
 
   class BuildError < StandardError; end
@@ -97,6 +98,10 @@ module AsobiSite
       view_gem: "View on RubyGems",
       watch_film: "Watch the film", film_info: "Short film · 32 seconds · Music",
       film_description: "Three numbers become three circles. A Flower object trades its petals for stars, then spins and leaves a trail of light.",
+      contribute: "Help improve asobi",
+      issue_invitation: "Found a bug? Share a sketch or the steps that reproduce it. For a feature idea, tell us what you’d like to draw or animate. English and Japanese are both welcome.",
+      pr_invitation: "Fixes, examples and documentation are welcome too. Fork the repository, make your changes and open a pull request to main.",
+      report_bug: "Report a bug", suggest_feature: "Suggest a feature", fork_repo: "Fork on GitHub",
       groups: { "shapes" => "Shapes", "combine" => "Combine", "change" => "Change", "color" => "Colour",
                 "effect" => "Effects", "arrange" => "Arrange", "to_art" => "Objects as pictures", "motion" => "Motion", "show" => "Show" },
       creative_coding: "creative coding", chapters_count: "%02d chapters", pieces_count: "%02d pieces", groups_count: "%d groups",
@@ -133,6 +138,10 @@ module AsobiSite
       view_gem: "RubyGems で見る",
       watch_film: "紹介映像を見る", film_info: "紹介映像 · 32秒 · 音楽あり",
       film_description: "3つの数字が3つの円に。Flower オブジェクトの花びらが星に変わり、回転しながら光の軌跡を描きます。",
+      contribute: "asobi の改善に参加する",
+      issue_invitation: "不具合を見つけたら、再現できるスケッチや手順を教えてください。機能の提案は「こんな絵を描きたい」「こんな動きを作りたい」からどうぞ。日本語・英語どちらも歓迎です。",
+      pr_invitation: "コードの修正、作例の追加、ドキュメントの改善も歓迎します。リポジトリをフォークして変更を加え、main 宛てにプルリクエストを送ってください。",
+      report_bug: "不具合を報告する", suggest_feature: "機能を提案する", fork_repo: "GitHub でフォークする",
       groups: { "shapes" => "形", "combine" => "合わせる", "change" => "変える", "color" => "色",
                 "effect" => "効果", "arrange" => "並べる", "to_art" => "オブジェクトを絵に", "motion" => "動き", "show" => "画面に出す" },
       creative_coding: "クリエイティブコーディング", chapters_count: "全%d章", pieces_count: "全%d作品", groups_count: "%dグループ",

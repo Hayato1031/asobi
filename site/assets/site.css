@@ -267,6 +267,9 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 
 /* ---- home: sections below the stage ------------------------------------------------- */
 .band { padding: var(--s9) var(--gutter) 0; max-width: calc(var(--wide) + 2 * var(--gutter)); margin: 0 auto; }
+.contribute { display: grid; justify-items: start; gap: var(--s4); scroll-margin-top: 60px; }
+.contribute h2 { font-size: clamp(32px, 4vw, 44px); }
+.contribute p { margin: 0; max-width: 46em; color: var(--ink-2); }
 .film { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--s6); align-items: center; scroll-margin-top: 60px; }
 .film h2 { font-size: clamp(32px, 4vw, 48px); }
 .film h2 + p { margin: var(--s3) 0 0; color: var(--ink-2); }

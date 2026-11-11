@@ -39,7 +39,7 @@
 </main>
 <footer class="foot">
   <a class="foot-brand" href="<%= href("index") %>" aria-label="asobi · <%= h(ui(:index)) %>">asobi</a>
-  <p class="foot-meta"><a href="<%= RUBYGEMS_URL %>">RubyGems</a> · v<%= Asobi::VERSION %> · <%= h(ui(:footer_license)) %></p>
+  <p class="foot-meta"><a href="<%= href("index", "contribute") %>"><%= ui(:contribute) %></a> · <a href="<%= RUBYGEMS_URL %>">RubyGems</a> · v<%= Asobi::VERSION %> · <%= h(ui(:footer_license)) %></p>
 <%- if page == "playground" -%>
   <p class="foot-note"><%= h(ui(:footer_playground)) %></p>
 <%- end -%>
