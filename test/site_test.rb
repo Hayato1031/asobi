@@ -92,6 +92,23 @@ class SiteTest < Minitest::Test
     end
   end
 
+  def test_sitemap_lists_the_canonical_pages_of_both_languages
+    sitemap_urls = read("sitemap.xml").scan(%r{<loc>(.*?)</loc>}).flatten
+    canonical_urls = []
+    PAGES.each do |page|
+      %w[en ja].each do |lang|
+        directory = lang == "en" ? "" : "ja/"
+        url = "https://asobi.myura.me/#{directory}#{page unless page == "index"}"
+        html = read("#{directory}#{page}.html")
+        assert_includes html, %(<link rel="canonical" href="#{url}">)
+        assert_includes html, %(<link rel="alternate" hreflang="#{lang}" href="#{url}">)
+        canonical_urls << url
+      end
+    end
+    assert_equal canonical_urls.sort, sitemap_urls.sort
+    assert_includes read("robots.txt").lines.map(&:chomp), "Sitemap: https://asobi.myura.me/sitemap.xml"
+  end
+
   def test_footers_show_the_version_and_license_in_each_language
     PAGES.each do |page|
       { "#{page}.html" => [/MIT license/i, /browser.*Copy link/i],
@@ -136,8 +153,11 @@ class SiteTest < Minitest::Test
   def test_only_external_resource_is_ruby_wasm_from_jsdelivr
     externals = (html_files + Dir.glob(File.join(@out, "assets", "*.{js,css}"))).flat_map do |f|
       source = File.read(f, encoding: "UTF-8")
-      # Following an ordinary link is optional; this check covers resources the site loads.
-      source = source.gsub(%r{(<a\b[^>]*?\s)href="https?://[^"]*"}, '\1') if f.end_with?(".html")
+      # Navigation and search metadata contain URLs but do not load resources.
+      if f.end_with?(".html")
+        source = source.gsub(%r{(<a\b[^>]*?\s)href="https?://[^"]*"}, '\1')
+        source = source.gsub(/<link rel="(?:alternate|canonical)"[^>]*>/, "")
+      end
       source.scan(%r{https?://[^\s"'<>)\\]+})
     end.uniq
     externals.reject! { _1.start_with?("http://www.w3.org/") } # the SVG namespace, not a download

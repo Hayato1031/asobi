@@ -8,7 +8,10 @@
 <title><%= h(title) %></title>
 <meta name="description" content="<%= h(t(content.home && content.home["tagline"])) %>">
 <link rel="icon" href="<%= root %>assets/favicon.svg" type="image/svg+xml">
-<link rel="alternate" hreflang="<%= other_lang %>" href="<%= h(other_language_href) %>">
+<link rel="canonical" href="<%= h(AsobiSite.page_url(page, lang)) %>">
+<%- LANGUAGES.each_key do |code| -%>
+<link rel="alternate" hreflang="<%= code %>" href="<%= h(AsobiSite.page_url(page, code)) %>">
+<%- end -%>
 <link rel="stylesheet" href="<%= root %>assets/site.css">
 <script src="<%= root %>assets/player.js" defer></script>
 <script src="<%= root %>assets/site.js" defer></script>

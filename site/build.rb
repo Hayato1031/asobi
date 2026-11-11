@@ -52,6 +52,7 @@ module AsobiSite
   TEMPLATES = File.join(SITE, "templates")
   ASSETS = File.join(SITE, "assets")
   PLAYGROUND = File.join(SITE, "playground")
+  SITE_URL = "https://asobi.myura.me"
   RUBYGEMS_URL = "https://rubygems.org/gems/asobi"
   GITHUB_URL = "https://github.com/Hayato1031/asobi"
   MARKER = ".asobi-site" # marks a directory this builder may wipe and rewrite
@@ -168,6 +169,11 @@ module AsobiSite
   # ---- small helpers ------------------------------------------------------
 
   def h(text) = ERB::Util.html_escape(text.to_s)
+
+  def page_url(page, lang)
+    directory = lang == :en ? "/" : "/#{lang}/"
+    "#{SITE_URL}#{directory}#{page unless page == "index"}"
+  end
 
   # Finished pieces (the gallery, the home page, the playground) show the
   # require line, so they can be copied into a file and run as they are.
@@ -569,6 +575,7 @@ module AsobiSite
       write_assets
       write_reels
       LANGUAGES.each_key { |lang| PAGES.each_key { |page| write_page(page, lang) } }
+      write_search_files
       say "built #{@out} (#{@results.size} pictures, #{@results.values.count(&:moving?)} moving)"
       @out
     end
@@ -704,6 +711,20 @@ module AsobiSite
       html = view.render
       path = lang == :en ? File.join(@out, "#{page}.html") : File.join(@out, "ja", "#{page}.html")
       File.write(path, html)
+    end
+
+    def write_search_files
+      entries = LANGUAGES.keys.product(PAGES.keys).map do |lang, page|
+        "  <url><loc>#{AsobiSite.h(AsobiSite.page_url(page, lang))}</loc></url>"
+      end
+      File.write(File.join(@out, "sitemap.xml"), <<~XML)
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        #{entries.join("\n")}
+        </urlset>
+      XML
+      File.write(File.join(@out, "robots.txt"), "User-agent: *\nDisallow:\n\nSitemap: #{SITE_URL}/sitemap.xml\n")
+      FileUtils.cp(File.join(SITE, "404.html"), @out)
     end
 
     def template(name)
