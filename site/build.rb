@@ -52,6 +52,7 @@ module AsobiSite
   TEMPLATES = File.join(SITE, "templates")
   ASSETS = File.join(SITE, "assets")
   PLAYGROUND = File.join(SITE, "playground")
+  RUBYGEMS_URL = "https://rubygems.org/gems/asobi"
   MARKER = ".asobi-site" # marks a directory this builder may wipe and rewrite
 
   class BuildError < StandardError; end
@@ -93,6 +94,7 @@ module AsobiSite
       reset: "Start again",
       footer_playground: "Your sketch runs in your browser. Use “Copy link” to share it.",
       footer_license: "MIT License",
+      view_gem: "View on RubyGems",
       groups: { "shapes" => "Shapes", "combine" => "Combine", "change" => "Change", "color" => "Colour",
                 "effect" => "Effects", "arrange" => "Arrange", "to_art" => "Objects as pictures", "motion" => "Motion", "show" => "Show" },
       creative_coding: "creative coding", chapters_count: "%02d chapters", pieces_count: "%02d pieces", groups_count: "%d groups",
@@ -126,6 +128,7 @@ module AsobiSite
       reset: "最初に戻す",
       footer_playground: "スケッチはブラウザで動きます。「リンクをコピー」で共有できます。",
       footer_license: "MIT ライセンス",
+      view_gem: "RubyGems で見る",
       groups: { "shapes" => "形", "combine" => "合わせる", "change" => "変える", "color" => "色",
                 "effect" => "効果", "arrange" => "並べる", "to_art" => "オブジェクトを絵に", "motion" => "動き", "show" => "画面に出す" },
       creative_coding: "クリエイティブコーディング", chapters_count: "全%d章", pieces_count: "全%d作品", groups_count: "%dグループ",

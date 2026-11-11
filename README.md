@@ -1,6 +1,6 @@
 # asobi
 
-[日本語版](README.ja.md)
+[Official website](https://asobi.myura.me/) · [RubyGems](https://rubygems.org/gems/asobi) · [日本語版](README.ja.md)
 
 asobi (Japanese for “play”) is a Ruby library for making SVG pictures and looping animations. A picture is a Ruby value. You can copy a petal eight times, arrange the petals into a flower and spin the whole flower.
 

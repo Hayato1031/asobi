@@ -9,7 +9,7 @@
       <a class="btn" href="<%= href("guide") %>"><%= ui(:get_started) %></a>
     </div>
     <div class="install-line"><span class="ps" aria-hidden="true">$</span><code id="install-cmd">gem install asobi</code><button type="button" class="small" data-copy="install-cmd" data-copied="<%= h(ui(:copied_short)) %>"><%= ui(:copy) %></button></div>
-    <p class="install-note"><%= inline(t(home["install"])) %></p>
+    <p class="install-note"><%= inline(t(home["install"])) %> <a href="<%= RUBYGEMS_URL %>"><%= ui(:view_gem) %></a></p>
   </div>
   <div class="stage-pic">
     <%= picture(first["code"], t(home["tagline"]), css: "stage-shot", live: false, readout: false) %>

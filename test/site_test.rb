@@ -135,7 +135,10 @@ class SiteTest < Minitest::Test
 
   def test_only_external_resource_is_ruby_wasm_from_jsdelivr
     externals = (html_files + Dir.glob(File.join(@out, "assets", "*.{js,css}"))).flat_map do |f|
-      File.read(f, encoding: "UTF-8").scan(%r{https?://[^\s"'<>)\\]+})
+      source = File.read(f, encoding: "UTF-8")
+      # Following an ordinary link is optional; this check covers resources the site loads.
+      source = source.gsub(%r{(<a\b[^>]*?\s)href="https?://[^"]*"}, '\1') if f.end_with?(".html")
+      source.scan(%r{https?://[^\s"'<>)\\]+})
     end.uniq
     externals.reject! { _1.start_with?("http://www.w3.org/") } # the SVG namespace, not a download
     assert externals.all? { _1.start_with?("https://cdn.jsdelivr.net/npm/@ruby/") }, externals.inspect
