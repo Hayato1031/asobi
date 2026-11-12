@@ -96,7 +96,7 @@
   text: { en: "Two bright colours on black. Glow, screen blending and a film grain make it shine.", ja: "黒い背景に明るい2色。光、スクリーン合成、粒を足すと、輝いて見えます。" }
   code: |
     petals = petal(50, 18).repeat(8).in_fan.colored(:deeppink, :cyan)
-    spinning = petals.animate(2) { |flower, t| flower.rotate(t * 90) }
+    spinning = petals.spin(every: 4)
     show spinning.trail(4).glowing.blended(:screen), on: :black, grain: true
 
 - id: aurora

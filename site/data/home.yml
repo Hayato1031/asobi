@@ -11,7 +11,7 @@ philosophy:
 hero_code: |
   flower = petal(40, 16).repeat(10).in_fan.colored(from: :hotpink, to: :gold, around: true)
   comet = circle(4).colored(:white).orbit(62, every: 6).trail(12)
-  sky = flower.animate(2) { |f, t| f.rotate(t * 36) } + comet
+  sky = flower.spin(every: 6) + comet
 
   show sky.glowing, on: :black, grain: true
 install:
