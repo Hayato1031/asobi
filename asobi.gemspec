@@ -20,7 +20,7 @@ Gem::Specification.new do |spec|
   spec.metadata["bug_tracker_uri"] = "https://github.com/Hayato1031/asobi/issues"
   spec.metadata["changelog_uri"] = "https://github.com/Hayato1031/asobi/blob/v#{spec.version}/CHANGELOG.md"
 
-  spec.files = Dir["lib/**/*", "exe/*", "README.md", "README.ja.md", "docs/first-sketch.svg", "CHANGELOG.md", "LICENSE", "DESIGN.md"]
+  spec.files = Dir["lib/**/*", "exe/*", "README.md", "README.ja.md", "docs/first-sketch.svg", "docs/readme/*.{png,gif}", "CHANGELOG.md", "LICENSE", "DESIGN.md"]
   spec.bindir = "exe"
   spec.executables = ["asobi"]
   spec.require_paths = ["lib"]

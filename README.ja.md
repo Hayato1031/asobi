@@ -1,12 +1,23 @@
-# asobi
+# ![asobi](docs/readme/header.png)
 
-[公式サイト](https://asobi.myura.me/ja/) · [紹介映像を見る（32秒）](https://asobi.myura.me/ja/#film) · [RubyGems](https://rubygems.org/gems/asobi) · [English](README.md)
+[English](README.md) · **日本語**
 
-asobi（遊び）は、Ruby で図形を組み合わせて、SVG の静止画やループアニメーションを作るライブラリです。たとえば花びらを8枚並べると、ひとつの花ができます。花も Ruby のオブジェクトなので、`spin` を呼ぶと花ごと回ります。
+**Ruby で図形を組み合わせて、SVG の静止画やループアニメーションを作れます。** asobi（遊び）では、絵も Ruby のオブジェクトです。花びらを8枚並べてひとつの花を作り、`spin` を呼ぶと花ごと回ります。
+
+**[ブラウザで試す](https://asobi.myura.me/ja/playground.html)** · [入門ガイドを読む](https://asobi.myura.me/ja/guide.html) · [32秒の紹介映像を見る](https://asobi.myura.me/ja/#film)
+
+## 作品ギャラリー
+
+気になる作品の画像を選び、「遊び場で開く」を押すと、コードを編集できます。画像の下のメソッド名からは、作品の Ruby ファイルを読めます。
+
+| 花 | ハートの窓 | 夜空 |
+| :---: | :---: | :---: |
+| [![金色の中心のまわりを、深紅と紺の花びらが回る。](docs/readme/flower.gif)](https://asobi.myura.me/ja/examples.html#flower) | [![ハート形の窓の向こうで、赤から金色へ変わるしま模様が回る。](docs/readme/through_a_heart.gif)](https://asobi.myura.me/ja/examples.html#through_a_heart) | [![光る三日月のそばで、金色の星がまたたく。](docs/readme/night_sky.gif)](https://asobi.myura.me/ja/examples.html#night_sky) |
+| [`in_fan`](examples/flower.rb) | [`clipped_by`](examples/through_a_heart.rb) | [`fade`](examples/night_sky.rb) |
 
 ## 最初のスケッチを動かす
 
-用意するのは Ruby 3.2 以上とブラウザです。スケッチを置きたいフォルダで次の2行を実行します。
+自分のパソコンで動かすには、**Ruby 3.2 以上**とブラウザを用意します。スケッチを置きたいフォルダで次の2行を実行してください。
 
 ```sh
 gem install asobi
@@ -22,11 +33,14 @@ flower = petal.repeat(8).in_fan.colored(:crimson, :navy)
 show flower.spin(every: 8)
 ```
 
-<img src="docs/first-sketch.svg" width="240" alt="深紅と紺の花びらが交互に8枚並んだ花。">
+**花びらを増やしてみましょう。** `play.rb` の `repeat(8)` を `repeat(12)` に変えて保存すると、ブラウザの花に4枚の花びらが加わります。`every: 8` を `every: 2` にすると、今度は2秒で1回転します。終了するにはターミナルで Ctrl+C を押します。
 
-`play.rb` の `repeat(8)` を `repeat(12)` に変えて保存すると、花びらが12枚に増えます。`spin(every: 8)` の `8` を `2` に変えると、今度は2秒で1回転します。ファイルを保存するたびに表示が更新されます。終了するには、コマンドを実行したターミナルで Ctrl+C を押します。
+<details>
+<summary>ほかのスケッチを開く・ポートを指定する</summary>
 
 ほかの作品を開くには、`asobi sketch.rb` のようにファイルを指定します。`require "asobi"` と `show` を書いたスケッチは `ruby sketch.rb` でも開けます。ブラウザを自分で開く場合は `asobi` コマンドに `--no-open` を付けて、ターミナルに表示された URL にアクセスしてください。`--port 5000` を付けると、5000 番から空いているポートを探します（既定は 4567 番）。
+
+</details>
 
 ## スケッチの書き方
 
@@ -83,6 +97,9 @@ dots = circle(5).repeat(24).in_ring.colored(:gold, :orange)
 show dots.pulse(every: 2, to: 2).one_by_one, on: :black
 ```
 
+<details>
+<summary>ほかの図形・色・動きに使えるメソッド</summary>
+
 | やりたいこと | 主なメソッドとオプション |
 | --- | --- |
 | 形を作る | `circle`、`rect`、`star`、`text`、`path`、`wave`、`heart`、`petal` |
@@ -90,6 +107,8 @@ show dots.pulse(every: 2, to: 2).one_by_one, on: :black
 | 色や質感を変える | `colored(from: :gold, to: :crimson)` でグラデーション、`glowing` で発光、`shadowed` で影、`clipped_by` で切り抜き |
 | 動きを作る | `spin` で回転、`sway` で揺れ、`orbit` で公転、`trail` で残像を付ける。独自の動きは `animate` で定義する |
 | 表示を整える | `show` の `on:` で背景色、`paper:` で用紙の寸法、`grain: true` で粒子感を指定する |
+
+</details>
 
 ## 作品の保存と録画
 
@@ -106,7 +125,11 @@ show motion
 
 アニメーションの途中を静止画にするには、`motion.at(1).save("frame.svg")` のように秒数を指定します。
 
-ライブ表示中にポインターを動かすと操作ボタンが現れます。`c` キーでソースコードの表示を切り替えられます。録画に対応しているブラウザでは、`r` キーで録画を開始し、もう一度押すと動画をダウンロードできます。形式はブラウザによって MP4 または WebM です。編集中にエラーが起きたときは、直前に描けた絵とエラーメッセージが表示されます。
+| ライブ表示中の操作 | 結果 |
+| --- | --- |
+| **C** キーを押す | スケッチのソースコードの表示を切り替えます。 |
+| **R** キーを押し、もう一度押す | 録画を開始し、2回目で動画をダウンロードします。対応ブラウザに応じて MP4 または WebM になります。 |
+| エラーのあるスケッチを保存する | 直前に描けた絵が残り、その下にエラーメッセージが表示されます。 |
 
 ## 既存の Ruby プログラムに組み込む
 
@@ -121,7 +144,7 @@ stars.colored(:navy).save("stars.svg")
 
 ## 作例とドキュメント
 
-ブラウザでスケッチを試すには[遊び場](https://asobi.myura.me/ja/playground.html)を開いてください。[入門ガイド](https://asobi.myura.me/ja/guide.html)と[リファレンス](https://asobi.myura.me/ja/reference.html)もオンラインで読めます。
+絵を作る手順は[入門ガイド](https://asobi.myura.me/ja/guide.html)で、メソッドの引数や既定値は[リファレンス](https://asobi.myura.me/ja/reference.html)で調べられます。
 
 リポジトリには、1ファイルで動くスケッチが入っています。クローンしたリポジトリのルートで `asobi examples/flower.rb` を実行すると、花の作例を開けます。
 
@@ -130,18 +153,19 @@ stars.colored(:navy).save("stars.svg")
 - 自作クラスで複数の軌道を描くなら [惑星](examples/planets.rb)
 - ほかの作品を探すなら [作例一覧](examples/README.md)
 
-日本語のドキュメントには、入門ガイド、引数や既定値を調べるリファレンス、作例を編集して動かせる「遊び場」があります。リポジトリのルートで次のコマンドを実行して、ドキュメントを生成します。
+## 開発
+
+リポジトリのルートで `ruby exe/asobi examples/flower.rb` を実行すると、ライブラリ本体への変更を試せます。テストの実行とドキュメントの生成には次のコマンドを使います。
 
 ```sh
 bundle install
+bundle exec rake test
 bundle exec rake site
 ```
 
-生成された `_site/ja/index.html` をブラウザで開くと、日本語版を読めます。「遊び場」でコードを編集して実行するには、CDN から ruby.wasm を読み込むためのインターネット接続が必要です。
+生成された `_site/ja/index.html` をブラウザで開くと日本語版、`_site/index.html` を開くと英語版を読めます。「遊び場」でコードを編集して実行するには、CDN から ruby.wasm を読み込むためのインターネット接続が必要です。
 
-## 開発
-
-ライブラリ本体に加えた変更は、リポジトリのルートで `ruby exe/asobi examples/flower.rb` を実行して試せます。依存関係を `bundle install` でインストールしたら、`bundle exec rake test` でテストを実行できます。ライブラリ本体に加え、ドキュメントや作例のスケッチも検証します。ライブラリの設計については[設計書](DESIGN.md)を参照してください。
+テストでは、ライブラリと CLI の動作、テスト用データからのサイト生成、ギャラリーと両言語の README に載せたスケッチを検証します。ライブラリの設計については[設計書](DESIGN.md)を参照してください。
 
 ## 不具合報告・改善の提案（Issue・PR）
 
@@ -151,4 +175,4 @@ bundle exec rake site
 
 ## ライセンス
 
-[MIT ライセンス](LICENSE)
+[MIT ライセンス](LICENSE) · [RubyGems](https://rubygems.org/gems/asobi) · [公式サイト](https://asobi.myura.me/ja/)
