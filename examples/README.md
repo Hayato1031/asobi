@@ -27,4 +27,17 @@ With the gem installed, you can also run `asobi examples/flower.rb` or `ruby exa
 | `paper_cutouts.rb` | paper cut-outs with soft shadows |
 | `through_a_heart.rb` | gradient stripes seen through a heart-shaped window (`clipped_by`) |
 
+## Showcase
+
+Bigger pieces live in `showcase/`. They take a moment longer to draw, so they are not in the website's playground. Run one with `ruby exe/asobi examples/showcase/hanabi.rb`.
+
+| file | what it shows |
+|---|---|
+| `showcase/hanabi.rb` | fireworks: fans of sparks that open one by one and leave streaks |
+| `showcase/phyllotaxis.rb` | 400 seeds on a sunflower spiral (`in_spiral`) |
+| `showcase/type_rings.rb` | letters on three rings, turning against each other |
+| `showcase/orbits.rb` | your own `Planet` class with glowing tails (`to_art`, `trail`) |
+| `showcase/seigaiha.rb` | the Japanese wave pattern with a tide of colour (`shift_color`) |
+| `showcase/bubble_sort.rb` | every swap of a bubble sort, drawn as it happens |
+
 リポジトリのルートで `ruby exe/asobi examples/flower.rb` を実行すると、ブラウザに回転する花が表示されます。コードを書き換えて保存すると、表示も更新されます。[日本語の使い方](../README.ja.md)

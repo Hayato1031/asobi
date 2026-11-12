@@ -254,4 +254,45 @@ class DocsTest < Minitest::Test
       end
     end
   end
+
+  # ------------------------------------------------------- examples/showcase
+  # The bigger pieces shown in the READMEs. They are not on the site, so the
+  # reel size limit does not apply; they only have to run.
+
+  SHOWCASE = Dir[File.join(DocsHelper::ROOT, "examples", "showcase", "*.rb")].sort
+
+  SHOWCASE.each do |path|
+    id = File.basename(path, ".rb")
+    define_method("test_runs_showcase_file_#{id}") do
+      source = DocsHelper.read(path)
+      assert_match(/^require "asobi"$/, source, "showcase/#{id}.rb must start with require \"asobi\"")
+      assert_match(/^#/, source, "showcase/#{id}.rb needs a comment line")
+      reel = DocsHelper.run(source.sub(/^require "asobi"\n/, ""))
+      assert_nil reel["error"], "showcase/#{id}.rb failed:\n#{reel["error"]}"
+      assert_operator reel["frames"].size, :>, 1, "showcase/#{id}.rb must move"
+    end
+  end
+
+  [["README.md", README], ["README.ja.md", README_JA]].each do |name, path|
+    define_method("test_#{name.tr(".", "_")}_shows_every_showcase_piece") do
+      text = DocsHelper.read(path)
+      SHOWCASE.each do |file|
+        id = File.basename(file, ".rb")
+        assert_includes text, "examples/showcase/#{id}.rb", "#{name} must link to showcase/#{id}.rb"
+        assert_path_exists File.join(DocsHelper::ROOT, "docs", "readme", "media", "#{id}.gif")
+      end
+      text.scan(/(?:src="|\]\()(docs\/[^")]+)/).flatten.each do |image|
+        assert_path_exists File.join(DocsHelper::ROOT, image), "#{name} shows #{image}, which is missing"
+      end
+    end
+
+    # The fireworks at the top are too big for the reel limit, so their code
+    # sits in an "rb" block; it must stay the same as the showcase file.
+    define_method("test_#{name.tr(".", "_")}_fireworks_match_the_showcase_file") do
+      block = DocsHelper.read(path)[/^```rb\n(.*?)^```/m, 1]
+      refute_nil block, "#{name} must show the fireworks code in an rb block"
+      source = DocsHelper.read(File.join(DocsHelper::ROOT, "examples", "showcase", "hanabi.rb"))
+      assert_equal source.lines.reject { _1.start_with?("#") }.join, block
+    end
+  end
 end
