@@ -4,7 +4,7 @@ require "asobi"
 Planet = Data.define(:size, :distance, :color, :year) do
   def to_art
     path = ring(distance, 0.25).colored("#2b3050")
-    path + circle(size).colored(color).glowing(2).orbit(distance, every: year).trail(30, gap: 0.02)
+    path + circle(size).colored(color).orbit(distance, every: year).trail(30, gap: 0.02).glowing(2)
   end
 end
 

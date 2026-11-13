@@ -8,6 +8,10 @@
   #stage { position: fixed; inset: 0; }
   #tools { position: fixed; left: 8px; bottom: 60px; z-index: 10; display: flex; gap: 6px; font: 12px sans-serif; }
   #tools.hidden { display: none; }
+  #fake { position: fixed; left: 8px; top: 8px; z-index: 10; display: none; gap: 8px; align-items: center;
+          font: 12px sans-serif; background: rgba(255,255,255,.85); padding: 6px 8px; border-radius: 6px; }
+  #fake.on { display: flex; flex-wrap: wrap; max-width: 560px; }
+  #fake input[type=range] { width: 70px; }
 </style>
 </head>
 <body>
@@ -16,11 +20,26 @@
   <button id="swap">swap reel</button>
   <button id="err">send error</button>
   <button id="clear">clear error</button>
+  <button id="pending">send preview</button>
+  <button id="react">reactions</button>
+  <button id="sound">sound</button>
+  <button id="nosong">sound, no song</button>
+</div>
+<div id="fake">
+  <label><input type="checkbox" id="pretend"> pretend sound</label>
+  <label>vol <input type="range" id="f-volume" min="0" max="1" step="0.01" value="0"></label>
+  <label>low <input type="range" id="f-low" min="0" max="1" step="0.01" value="0"></label>
+  <label>mid <input type="range" id="f-mid" min="0" max="1" step="0.01" value="0"></label>
+  <label>high <input type="range" id="f-high" min="0" max="1" step="0.01" value="0"></label>
+  <label>pitch <input type="range" id="f-pitch" min="0" max="1" step="0.01" value="0"></label>
+  <button id="f-beat">beat</button>
+  <span id="f-read"></span>
 </div>
 <script src="../../lib/asobi/web/player.js"></script>
 <script>
   // Query: ?code=1 shows the code overlay, ?error=1 sends an error, ?swap=1 swaps reel, ?notools=1 hides buttons,
-  // ?dark=1 uses a black background.
+  // ?dark=1 uses a black background, ?pending=1 sends a one-frame preview ("pending": true) and keeps it.
+  // ?react=1 starts with the reactions reel, ?controls=0 adds "controls": false to it.
   var q = new URLSearchParams(location.search);
 
   // 60 frames of a rotating ring of circles.
@@ -53,10 +72,150 @@
   document.getElementById("swap").onclick = function () { current = current === reelA ? reelB : reelA; player.update(current); };
   document.getElementById("err").onclick = sendError;
   document.getElementById("clear").onclick = function () { player.update(current); };
+  // A motion's quick first look: one frame, "pending": true. The whole reel follows 3 s later.
+  function sendPreview(keep) {
+    var preview = { frames: [current.frames[0]], fps: 30, view: current.view, background: bg, error: null, pending: true };
+    player.update(preview);
+    if (!keep) setTimeout(function () { player.update(current); }, 3000);
+  }
+  document.getElementById("pending").onclick = function () { sendPreview(false); };
+
+  // ---- reactions: one reel with every kind of reacting part -------------
+  // p1 click (8 dots in a ring, plus one inside p2), p2 hover (the square), p3 key "a" (the bar
+  // top left), p4 beat from the mic (the big ring), p5 / p6 mouse_x / mouse_y (the markers on the
+  // edges), p7..p10 mic volume / low / high / pitch (the bars at the bottom).
+  function seq(n, f) { var out = []; for (var i = 0; i < n; i++) out.push(f(i, n)); return out; }
+  function bar(x, label, color) {
+    return function (i, n) {
+      var h = 28 * i / (n - 1);
+      return '<rect x="' + x + '" y="' + (90 - h) + '" width="14" height="' + h.toFixed(1) + '" fill="' + color + '"/>' +
+             '<text x="' + (x + 7) + '" y="98" font-size="6" text-anchor="middle" fill="#666">' + label + '</text>';
+    };
+  }
+  function makeReactions() {
+    var top = [];
+    for (var f = 0; f < 60; f++) {
+      var g = '<circle r="88" fill="none" stroke="#ddd" stroke-width="1" stroke-dasharray="4 6" transform="rotate(' + (f * 6) + ')"/>';
+      g += '<!--asobi:p4-->';
+      for (var i = 0; i < 8; i++) {
+        var a = i / 8 * Math.PI * 2;
+        g += '<g transform="translate(' + (60 * Math.cos(a)).toFixed(2) + ',' + (60 * Math.sin(a)).toFixed(2) + ')"><!--asobi:p1--></g>';
+      }
+      g += '<!--asobi:p2--><!--asobi:p3--><!--asobi:p5--><!--asobi:p6--><!--asobi:p7--><!--asobi:p8--><!--asobi:p9--><!--asobi:p10-->';
+      top.push(g);
+    }
+    var reel = {
+      frames: top, fps: 30, view: [-100, -100, 200, 200], background: bg, error: null,
+      code: "dot.pulse.when_clicked.repeat(8).in_ring\nsquare.spin.while_hovered\nbar.flash.when_pressed(\"a\")\nring.flash.on_beat\n...",
+      parts: {
+        p1: { fps: 30, turn: "click", frames: seq(12, function (i, n) {
+          var r = 7 + 6 * Math.sin(Math.PI * i / n);
+          return '<circle r="' + r.toFixed(2) + '" fill="tomato" stroke="#333" stroke-width="1"/>'; }) },
+        p2: { fps: 30, turn: "hover", frames: seq(24, function (i) {
+          return '<g transform="rotate(' + (i * 15) + ')"><rect x="-18" y="-18" width="36" height="36" fill="skyblue" stroke="#333"/></g><!--asobi:p1-->'; }) },
+        p3: { fps: 30, turn: "key", key: "a", frames: seq(15, function (i, n) {
+          return '<rect x="-95" y="-95" width="30" height="8" fill="gold" fill-opacity="' + (i === 0 ? 0.25 : (1 - i / n)).toFixed(2) + '"/>' +
+                 '<text x="-80" y="-81" font-size="6" text-anchor="middle" fill="#666">a</text>'; }) },
+        p4: { fps: 30, turn: "beat", from: "mic", frames: seq(10, function (i, n) {
+          return '<circle r="' + (78 + i) + '" fill="none" stroke="orchid" stroke-width="3" stroke-opacity="' + (i === 0 ? 0.15 : (1 - i / n)).toFixed(2) + '"/>'; }) },
+        p5: { turn: "value", from: "mouse_x", frames: seq(21, function (i) {
+          return '<line x1="-100" y1="-99" x2="100" y2="-99" stroke="#ccc"/><circle cx="' + (-100 + i * 10) + '" cy="-99" r="2.5" fill="seagreen"/>'; }) },
+        p6: { turn: "value", from: "mouse_y", frames: seq(21, function (i) {
+          return '<line x1="99" y1="-100" x2="99" y2="100" stroke="#ccc"/><circle cx="99" cy="' + (-100 + i * 10) + '" r="2.5" fill="seagreen"/>'; }) },
+        p7: { turn: "value", from: "mic", frames: seq(21, bar(-96, "vol", "#555")) },
+        p8: { turn: "value", from: "mic", what: "low", frames: seq(21, bar(-78, "low", "tomato")) },
+        p9: { turn: "value", from: "mic", what: "high", frames: seq(21, bar(-60, "high", "skyblue")) },
+        p10: { turn: "value", from: "mic", what: "pitch", frames: seq(21, bar(-42, "pitch", "gold")) }
+      }
+    };
+    if (q.get("controls") === "0") reel.controls = false;
+    return reel;
+  }
+  var reactions = makeReactions();
+  function showReactions() {
+    current = reactions; player.update(reactions);
+    document.getElementById("fake").className = "on";
+  }
+  document.getElementById("react").onclick = showReactions;
+  if (q.get("react")) showReactions();
+
+  // "pretend sound": feeds the sliders to the player instead of the microphone.
+  var fakeIds = ["volume", "low", "mid", "high", "pitch"];
+  function feedNow(beat) {
+    if (!document.getElementById("pretend").checked) { AsobiPlayer._internals.feed("mic", null); return; }
+    var v = { beat: !!beat };
+    fakeIds.forEach(function (k) { v[k] = Number(document.getElementById("f-" + k).value); });
+    AsobiPlayer._internals.feed("mic", v);
+  }
+  fakeIds.forEach(function (k) { document.getElementById("f-" + k).oninput = function () { feedNow(false); }; });
+  document.getElementById("pretend").onchange = function () { feedNow(false); };
+  document.getElementById("f-beat").onclick = function () { document.getElementById("pretend").checked = true; feedNow(true); };
+  // What the player hears now (real or pretended).
+  setInterval(function () {
+    var s = AsobiPlayer._internals.sound(), m = s.mic;
+    document.getElementById("f-read").textContent = s.state + "  vol " + m.volume.toFixed(2) + " low " + m.low.toFixed(2) +
+      " mid " + m.mid.toFixed(2) + " high " + m.high.toFixed(2) + " pitch " + m.pitch.toFixed(2) + " beats " + m.beats;
+  }, 100);
+
+  // ---- asobi's own sound: a song (made here, a 120 BPM loop) and sounding parts ----
+  // p1 click (8 dots, one of the six sounds each), p2 click (a row of notes c4..c5),
+  // p3 key "s" (kick), p4 beat from music (the ring, with a hat: it must not hear itself),
+  // p5 / p6 music volume / low (the bars).
+  function songUri() {
+    var rate = 22050, n = rate * 4, b = new DataView(new ArrayBuffer(44 + n * 2)), seed = 7, prev = 0;
+    function str(o, s) { for (var i = 0; i < s.length; i++) b.setUint8(o + i, s.charCodeAt(i)); }
+    str(0, "RIFF"); b.setUint32(4, 36 + n * 2, true); str(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true);
+    b.setUint16(22, 1, true); b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true); b.setUint16(32, 2, true);
+    b.setUint16(34, 16, true); str(36, "data"); b.setUint32(40, n * 2, true);
+    for (var i = 0; i < n; i++) {
+      var t = i / rate, k = t % 0.5, h = (t + 0.25) % 0.5, bass = [55, 55, 73.4, 65.4][Math.floor(t) % 4];
+      seed = (seed * 16807) % 2147483647;
+      var x = seed / 1073741823.5 - 1, hiss = x - prev; // a hat: noise with only the highs
+      prev = x;
+      var v = 0.7 * Math.sin(2 * Math.PI * (50 * k + 4 * (1 - Math.exp(-k / 0.04)))) * Math.exp(-k / 0.15) +
+              0.15 * Math.sin(2 * Math.PI * bass * t) + 0.12 * hiss * Math.exp(-h / 0.03);
+      b.setInt16(44 + i * 2, Math.max(-32767, Math.min(32767, Math.round(v * 32767))), true);
+    }
+    var bytes = new Uint8Array(b.buffer), s = "";
+    for (i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+    return "data:audio/wav;base64," + btoa(s);
+  }
+  function makeSoundReel() {
+    var names = ["pop", "kick", "snare", "hat", "clap", "bell", "pop", "bell"], top = [];
+    for (var f = 0; f < 60; f++) {
+      var g = '<!--asobi:p4-->';
+      for (var i = 0; i < 8; i++) {
+        var a = i / 8 * Math.PI * 2;
+        g += '<g transform="translate(' + (60 * Math.cos(a)).toFixed(2) + ',' + (60 * Math.sin(a)).toFixed(2) + ')"><!--asobi:s' + i + '--></g>';
+      }
+      for (i = 0; i < 8; i++) g += '<g transform="translate(' + (-35 + i * 10) + ',0)"><!--asobi:n' + i + '--></g>';
+      top.push(g + '<!--asobi:p3--><!--asobi:p5--><!--asobi:p6-->');
+    }
+    var dot = function (color) { return seq(12, function (i, n) { return '<circle r="' + (7 + 5 * Math.sin(Math.PI * i / n)).toFixed(2) + '" fill="' + color + '" stroke="#333"/>'; }); };
+    var parts = {
+      p3: { fps: 30, turn: "key", key: "s", sound: "kick", frames: seq(15, function (i, n) {
+        return '<rect x="-95" y="-95" width="30" height="8" fill="gold" fill-opacity="' + (i === 0 ? 0.25 : (1 - i / n)).toFixed(2) + '"/>' +
+               '<text x="-80" y="-81" font-size="6" text-anchor="middle" fill="#666">s</text>'; }) },
+      p4: { fps: 30, turn: "beat", from: "music", sound: "hat", frames: seq(10, function (i, n) {
+        return '<circle r="' + (82 + i) + '" fill="none" stroke="orchid" stroke-width="3" stroke-opacity="' + (i === 0 ? 0.15 : (1 - i / n)).toFixed(2) + '"/>'; }) },
+      p5: { turn: "value", from: "music", frames: seq(21, bar(-96, "vol", "#555")) },
+      p6: { turn: "value", from: "music", what: "low", frames: seq(21, bar(-78, "low", "tomato")) }
+    };
+    names.forEach(function (name, i) { parts["s" + i] = { fps: 30, turn: "click", sound: name, frames: dot(i === 5 || i === 7 ? "gold" : "tomato") }; });
+    for (var k = 0; k < 8; k++) parts["n" + k] = { fps: 30, turn: "click", note: [60, 62, 64, 65, 67, 69, 71, 72][k],
+      frames: seq(12, function (i, n) { return '<rect x="-4" y="' + (-4 - 4 * Math.sin(Math.PI * i / n)).toFixed(2) + '" width="8" height="8" fill="skyblue" stroke="#333"/>'; }) };
+    return { frames: top, fps: 30, view: [-100, -100, 200, 200], background: bg, error: null, parts: parts,
+             song: { id: "fixture-loop", src: songUri(), volume: 0.8 },
+             code: 'play "loop.wav", volume: 0.8\ndot.pulse.when_clicked.sounding(:pop)\nring.flash.on_beat(:music).sounding(:hat)\n...' };
+  }
+  document.getElementById("sound").onclick = function () { current = makeSoundReel(); player.update(current); };
+  document.getElementById("nosong").onclick = function () { var r = makeSoundReel(); delete r.song; current = r; player.update(r); };
+  if (q.get("sound")) { current = makeSoundReel(); player.update(current); }
 
   if (q.get("notools")) document.getElementById("tools").className = "hidden";
   if (q.get("swap")) setTimeout(function () { current = reelB; player.update(reelB); }, 500);
   if (q.get("error")) setTimeout(sendError, 300);
+  if (q.get("pending")) setTimeout(function () { sendPreview(true); }, 300);
   if (q.get("code")) setTimeout(function () {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
   }, 300);

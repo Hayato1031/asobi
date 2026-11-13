@@ -3,7 +3,7 @@
 module Asobi
   # Colours are plain values: a CSS colour name as a Symbol (:crimson), or a
   # String such as "#ff0066", "hsl(200, 70%, 50%)" or "rgb(10, 20, 30)".
-  # This module checks them, turns them into SVG paint, and mixes them.
+  # This module checks them, writes them the CSS way, and mixes them.
   module Color
     # The CSS named colours (CSS Color Module Level 4), name => [r, g, b].
     NAMES = {
@@ -66,7 +66,7 @@ module Asobi
 
     module_function
 
-    # SVG paint for a colour value: "crimson", "#ff0066", "none" ...
+    # A colour value as CSS writes it: "crimson", "#ff0066", "none" ...
     # Unknown colours raise a teaching error.
     def css(value)
       return "none" if value.nil? || value == false
@@ -180,7 +180,8 @@ module Asobi
   # +angle+ is in degrees, clockwise: 0 flows from top to bottom, 90 from
   # right to left (the gradient turned a quarter clockwise). +around+ makes
   # it flow from the centre outwards instead. Where it starts and ends is
-  # worked out when drawing, from the box of the picture it paints.
+  # worked out when drawing, from the box of the picture it paints (see
+  # Asobi::Drawing.gradient).
   Gradient = Data.define(:from, :to, :angle, :around) do
     def self.make(from, to, angle, around)
       Asobi::Check.number(angle, word: :colored, name: :angle, example: "colored(from: :gold, to: :crimson, angle: 90)")
@@ -204,33 +205,6 @@ module Asobi
 
       turned = Math.atan2(-x, y) * 180 / Math::PI
       with(angle: Asobi::Gradient.tidy(turned % 360))
-    end
-
-    # The <linearGradient> or <radialGradient> for a Box (in the
-    # coordinates of the picture it paints), without its id.
-    def definition(box)
-      stops = %(<stop offset="0" stop-color="#{Asobi.escape(from)}"/>) +
-              %(<stop offset="1" stop-color="#{Asobi.escape(to)}"/>)
-      box ||= Asobi::Box.new(-1.0, -1.0, 1.0, 1.0)
-      if around
-        r = [[box.width, box.height].max / 2.0, 1e-3].max
-        return %(<radialGradient gradientUnits="userSpaceOnUse" cx="#{Asobi.fmt(box.cx)}" cy="#{Asobi.fmt(box.cy)}" ) +
-               %(r="#{Asobi.fmt(r)}">#{stops}</radialGradient>)
-      end
-
-      radians = angle * Math::PI / 180
-      dx = Asobi::Affine.tidy(-Math.sin(radians))
-      dy = Asobi::Affine.tidy(Math.cos(radians))
-      half = (dx.abs * box.width + dy.abs * box.height) / 2.0
-      if half < 1e-6 # a flat line across the flow: let it flow along the line
-        dx, dy = box.width >= box.height ? [1.0, 0.0] : [0.0, 1.0]
-        half = [box.width, box.height].max / 2.0
-        half = 1.0 if half < 1e-6
-      end
-      x1, y1 = box.cx - dx * half, box.cy - dy * half
-      x2, y2 = box.cx + dx * half, box.cy + dy * half
-      %(<linearGradient gradientUnits="userSpaceOnUse" x1="#{Asobi.fmt(x1)}" y1="#{Asobi.fmt(y1)}" ) +
-        %(x2="#{Asobi.fmt(x2)}" y2="#{Asobi.fmt(y2)}">#{stops}</linearGradient>)
     end
   end
 end

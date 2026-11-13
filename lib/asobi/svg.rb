@@ -1,12 +1,15 @@
 # frozen_string_literal: true
 
 module Asobi
-  # Whole SVG documents. The look is ink on paper: shapes are black unless
-  # they say otherwise, the page is white, and the picture fills the page
-  # with a small margin.
+  # The SVG renderer: it follows a drawing (lib/asobi/drawing.rb) and writes
+  # SVG. All the SVG in asobi is in this file.
+  #
+  # Whole documents look like ink on paper: shapes are black unless they say
+  # otherwise, the page is white, and the picture fills the page with a
+  # small margin.
   #
   # The pieces are separate so the browser player can use them too: frames
-  # are fragments (art.svg) and share one viewBox (SVG.view).
+  # are fragments (SVG.fragment, or art.svg) and share one viewBox (SVG.view).
   module SVG
     NAMESPACE = "http://www.w3.org/2000/svg"
     PIXELS = 512 # the larger side of a saved picture, when no paper is given
@@ -18,29 +21,37 @@ module Asobi
     #   SVG.document(art, on: nil)                     see-through
     #   SVG.document(art, paper: [800, 800])           centred on 800 x 800 paper
     #   SVG.document(art, grain: true)                 fine grain over it all
+    #
+    # Boxes and SVG already worked out while writing it are reused, then
+    # forgotten (see Asobi::Memo).
     def document(art, margin: nil, background: :white, on: background, paper: nil, grain: nil)
       art = Asobi.art(art)
-      strength = grain_strength(grain)
-      view = view(art.box(IDENTITY), margin:, paper:)
-      open_tag(view, size: paper && paper_size(paper)) + background(view, on) + art.svg +
-        (strength ? grain(view, strength) : "") + "</svg>\n"
+      Memo.during { page(Drawing.page(art, margin:, on:, paper:, grain:)) }
     end
+
+    # The document for a page from Drawing.page.
+    def page(page)
+      view = page[:view]
+      open_tag(view, size: page[:paper]) + background(view, page[:background]) + fragment(page[:picture]) +
+        (page[:grain] ? grain(view, page[:grain]) : "") + "</svg>\n"
+    end
+
+    # The SVG of one picture, without the <svg> tag around it (what a frame
+    # of a reel is).
+    #
+    # Inside Memo.during, the SVG written for a picture object is written
+    # down and handed back the next time the same object is asked for: a
+    # trail draws the same pictures frame after frame, and a firework
+    # repeats one spark a thousand times. The string is frozen, because the
+    # same one is handed out every time.
+    def fragment(node) = Memo.recall(:svg, node) { Drawing.draw(node, Writer).freeze }
 
     # The viewBox [x, y, width, height] for a box (or a picture): the box
-    # plus a margin, or the paper centred on the origin. An empty picture
-    # gets a small square so the page is never zero-sized.
-    def view(box_or_art = nil, margin: nil, paper: nil)
-      if paper
-        w, h = paper_size(paper)
-        return [-w / 2.0, -h / 2.0, w, h]
-      end
+    # plus a margin, or the paper centred on the origin (see Drawing.view).
+    def view(box_or_art = nil, margin: nil, paper: nil) = Drawing.view(box_or_art, margin:, paper:)
 
-      box = box_or_art.is_a?(Box) || box_or_art.nil? ? box_or_art : Asobi.art(box_or_art).box(IDENTITY)
-      box ||= Box.new(-10.0, -10.0, 10.0, 10.0)
-      margin ||= [[box.width, box.height].max * 0.08, 2.0].max
-      Check.number(margin, word: :to_svg, name: :margin, example: "to_svg(margin: 10)", min: 0)
-      box.grow(margin).to_a
-    end
+    def paper_size(paper) = Drawing.paper_size(paper)
+    def grain_strength(grain) = Drawing.grain_strength(grain)
 
     # The opening <svg> tag for a viewBox. +size+ is [width, height] in
     # pixels; by default the larger side is PIXELS.
@@ -52,7 +63,7 @@ module Asobi
       end
       %(<svg xmlns="#{NAMESPACE}" viewBox="#{view.map { Asobi.fmt(_1) }.join(" ")}" ) +
         %(width="#{Asobi.fmt(size[0])}" height="#{Asobi.fmt(size[1])}" ) +
-        %(stroke-linejoin="round" stroke-linecap="round">)
+        %(stroke-linejoin="#{Drawing::LINE_JOIN}" stroke-linecap="#{Drawing::LINE_CAP}">)
     end
 
     # A rectangle of colour covering the viewBox ("" when see-through).
@@ -63,235 +74,224 @@ module Asobi
       x, y, w, h = view.map { Asobi.fmt(_1) }
       %(<rect x="#{x}" y="#{y}" width="#{w}" height="#{h}" fill="#{Asobi.escape(paint)}"/>)
     end
-
-    def paper_size(paper)
-      ok = paper.is_a?(Array) && paper.size == 2 && paper.all? { Check.number?(_1) && _1.positive? }
-      raise Messages.error(ArgumentError, :bad_paper, got: paper.inspect) unless ok
-
-      paper.map(&:to_f)
-    end
   end
-end
 
-module Asobi
-  # Effects (glow, blur, shadow, clip, blend), drawn with SVG filters,
-  # masks and mix-blend-mode.
-  #
-  # An effect lives in a style under :effects, an ordered Hash:
-  #   glow:   { size:, color: }   color nil: the picture's own colours
-  #   blur:   amount
-  #   shadow: { right:, down:, blur:, color:, opacity: }
-  #   clip:   a picture (the window, in the same coordinates)
-  #   blend:  "screen", "multiply" ...
-  #
-  # Every definition (<filter>, <mask>, gradient) is written inside the
-  # picture's own SVG as <defs>, with an id made from its content, so a
-  # fragment is complete by itself, equal pictures give equal SVG, and the
-  # same definition twice on one page is harmless. A Many gathers the
-  # <defs> of everything inside it to its start, once each.
-  module Effects
-    BLENDS = %w[normal screen multiply overlay lighten darken difference].freeze
-    DEFS = %r{<defs>(.*?)</defs>}m
-
-    module_function
-
-    # +effects+ with +key+ set to +value+ (moved to the end: it is the
-    # latest word).
-    def put(effects, key, value) = (effects || {}).reject { |k, _| k == key }.merge(key => value).freeze
-
-    # +node+ without the effect +key+ wherever it sits directly on it (not
-    # inside a Many): so the same effect given again replaces the old one.
-    def strip(node, key)
-      case node
-      when Transformed then Transformed.new(strip(node.art, key), node.matrix)
-      when Styled
-        effects = node.style[:effects]
-        return node unless effects
-
-        inner = strip(node.art, key)
-        rest = effects.reject { |k, _| k == key }
-        style = rest.empty? ? node.style.except(:effects) : node.style.merge(effects: rest.freeze)
-        style.empty? ? inner : Styled.new(inner, style)
-      else node
-      end
-    end
-
-    # The effects of a Many after its pictures are moved by +matrix+.
-    def transform(effects, matrix)
-      k = matrix.stretch
-      effects.to_h do |key, value|
-        changed =
-          case key
-          when :glow then value.merge(size: value[:size] * k)
-          when :blur then value * k
-          when :shadow
-            right, down = matrix.linear.apply(value[:right], value[:down])
-            value.merge(right: right, down: down, blur: value[:blur] * k)
-          when :clip then Asobi.transform(value, matrix)
-          else value
-          end
-        [key, changed.frozen? ? changed : changed.freeze]
-      end.freeze
-    end
-
-    # How far each effect reaches outside the picture.
-    def spill(key, value)
-      case key
-      when :glow then value[:size] * 1.5
-      when :blur then value * 3.0
-      when :shadow then value[:blur] * 1.5
-      else 0.0
-      end
-    end
-
-    # The box of a picture with its effects, given its plain box under m.
-    def grow(box, effects, m)
-      return box unless effects
-
-      effects.each do |key, value|
-        break if box.nil?
-
-        box =
-          case key
-          when :glow, :blur then box.grow(spill(key, value) * m.stretch)
-          when :shadow
-            dx, dy = m.linear.apply(value[:right], value[:down])
-            moved = Box.new(box.x0 + dx, box.y0 + dy, box.x1 + dx, box.y1 + dy).grow(spill(key, value) * m.stretch)
-            Box.union([box, moved])
-          when :clip then intersect(box, value.box(m))
-          else box
-          end
-      end
-      box
-    end
-
-    def intersect(a, b)
-      return nil unless a && b
-
-      x0 = [a.x0, b.x0].max
-      y0 = [a.y0, b.y0].max
-      x1 = [a.x1, b.x1].min
-      y1 = [a.y1, b.y1].min
-      x0 > x1 || y0 > y1 ? nil : Box.new(x0, y0, x1, y1)
-    end
-
-    # The SVG for a picture drawn with +style+: +inside+ is the SVG of what
-    # it contains, +box+ (a block, asked only when needed) its plain box.
-    # With +hoist+, the <defs> inside are gathered to the front.
+  module SVG
+    # The painter that writes SVG (see Asobi::Drawing for what each method
+    # is asked to draw). Each method answers an SVG fragment.
     #
-    # A gradient on a group (+group+) is drawn once across the whole group:
-    # a rectangle of gradient seen through the group's own shape (a mask),
-    # because SVG would otherwise start the gradient again in every
-    # moved or turned picture inside. Pictures inside the group then take
-    # the gradient too, even ones with colours of their own.
-    def render(style, inside, hoist: false, group: false, &box)
-      if Style.plain?(style) && !hoist
-        return "<g#{Style.attributes(style)}>#{inside}</g>"
+    # SVG's own defaults are asobi's (black fill, no line, line width 1), so
+    # nothing is written for them, and a colour on a <g> is inherited by
+    # what is inside it, as the drawing asks.
+    #
+    # Gradients, filters and masks are definitions: each is written inside
+    # the picture's own SVG as <defs>, with an id made from its content, so
+    # a fragment is complete by itself, equal pictures give equal SVG, and
+    # the same definition twice on one page is harmless. A group gathers
+    # the <defs> of everything inside it to its start, once each.
+    module Writer
+      DEFS = %r{<defs>(.*?)</defs>}m
+      LETTERS = { move: "M", line: "L", cubic: "C", close: "Z" }.freeze
+      ATTRIBUTES = { fill: "fill", stroke: "stroke", stroke_width: "stroke-width", opacity: "opacity" }.freeze
+
+      module_function
+
+      # --- shapes --------------------------------------------------------------
+
+      def circle(r) = %(<circle r="#{Asobi.fmt(r)}"/>)
+      def ellipse(rx, ry) = %(<ellipse rx="#{Asobi.fmt(rx)}" ry="#{Asobi.fmt(ry)}"/>)
+
+      def rect(x, y, width, height)
+        %(<rect x="#{Asobi.fmt(x)}" y="#{Asobi.fmt(y)}" ) +
+          %(width="#{Asobi.fmt(width)}" height="#{Asobi.fmt(height)}"/>)
       end
 
-      defs = []
-      if hoist
-        defs.concat(inside.scan(DEFS).flatten)
-        inside = inside.gsub(DEFS, "")
+      def path(commands, fill_rule)
+        d = commands.map { |name, *n| [LETTERS[name], *n.map { Asobi.fmt(_1) }].join(" ") }.join(" ")
+        rule = fill_rule == :evenodd ? %( fill-rule="evenodd") : ""
+        %(<path d="#{d}"#{rule}/>)
       end
-      plain_box = nil
-      measured = -> { plain_box ||= [box.call] }
 
-      urls = {}
-      style.each_value do |value|
-        next unless value.is_a?(Gradient)
-
-        body = value.definition(measured.call.first)
-        urls[value] = SVG.id_for(body)
-        defs << SVG.with_id(body, urls[value])
+      # Centred both ways; spaces kept as written.
+      def text(string, size, font)
+        %(<text text-anchor="middle" dominant-baseline="central" xml:space="preserve" ) +
+          %(font-family="#{Asobi.escape(font)}" font-size="#{Asobi.fmt(size)}">) +
+          "#{Asobi.escape(string)}</text>"
       end
-      out =
-        if group && urls.any? && measured.call.first
-          through_window(style, inside, urls, measured.call.first, defs)
-        elsif style.except(:effects).empty?
-          inside
-        else
-          "<g#{Style.attributes(style, urls)}>#{inside}</g>"
+
+      def nothing = ""
+
+      # --- putting together ------------------------------------------------------
+
+      def transformed(matrix, part)
+        inner = SVG.fragment(part)
+        return "" if inner.empty?
+
+        t =
+          if matrix.translation?
+            "translate(#{Asobi.fmt(matrix.e)} #{Asobi.fmt(matrix.f)})"
+          else
+            "matrix(#{[matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].map { Asobi.fmt(_1) }.join(" ")})"
+          end
+        %(<g transform="#{t}">#{inner}</g>)
+      end
+
+      def styled(style, part) = render(style, SVG.fragment(part))
+
+      # Inside a reel, a marker where the part goes (the reel carries its
+      # frames, and the player puts the right one in). Anywhere else, the
+      # part at rest.
+      def reacting(reaction)
+        id = Parts.id_for(reaction)
+        id ? Parts.marker(id) : SVG.fragment(reaction.rest)
+      end
+
+      # The <defs> of the pictures inside are gathered to the front, once each.
+      def group(style, parts)
+        inside = parts.map { SVG.fragment(_1) }.join
+        return "" if inside.empty?
+
+        render(style, inside, hoist: inside.include?("<defs>"))
+      end
+
+      # --- styles and effects ----------------------------------------------------
+
+      # +inside+ (SVG) drawn in +style+. With +hoist+, the <defs> inside are
+      # gathered to the front.
+      def render(style, inside, hoist: false)
+        plain = !style.key?(:effects) && !style[:fill].is_a?(Hash) && !style[:stroke].is_a?(Hash)
+        return "<g#{attributes(style)}>#{inside}</g>" if plain && !hoist
+
+        defs = []
+        if hoist
+          defs.concat(inside.scan(DEFS).flatten)
+          inside = inside.gsub(DEFS, "")
         end
 
-      effects = style[:effects] || {}
-      current = measured.call.first if effects.any?
-      current = current.grow(Style.stroke_width(style) / 2.0) if current && Style.stroked?(style)
-      blend = nil
-      effects.each do |key, value|
-        if key == :blend
-          blend = value
-          next
-        end
-        next unless current
+        urls = {}.compare_by_identity
+        [style[:fill], style[:stroke]].each do |paint|
+          next unless paint.is_a?(Hash)
 
-        body, attribute, extra = definition(key, value, current)
-        if body
+          body = gradient(paint)
+          urls[paint] = SVG.id_for(body)
+          defs << SVG.with_id(body, urls[paint])
+        end
+        out =
+          if style[:sheet]
+            through_window(style, inside, urls, defs)
+          elsif !paint?(style)
+            inside
+          else
+            "<g#{attributes(style, urls)}>#{inside}</g>"
+          end
+
+        style[:effects]&.each do |effect|
+          body, attribute, extra = definition(effect)
           defs.concat(extra) if extra
           id = SVG.id_for(body)
           defs << SVG.with_id(body, id)
           out = %(<g #{attribute}="url(##{id})">#{out}</g>)
         end
-        current = grow(current, { key => value }, IDENTITY)
-      end
-      out = %(<g style="mix-blend-mode:#{blend}">#{out}</g>) if blend && blend != "normal"
-      list = defs.uniq
-      list.empty? ? out : "<defs>#{list.join}</defs>#{out}"
-    end
-
-    # The group drawn as its gradient, seen through the group's shape.
-    def through_window(style, inside, urls, box, defs)
-      box = box.grow(Style.stroke_width(style) / 2.0) if Style.stroked?(style)
-      box = box.grow([box.width, box.height].max * 0.01 + 0.5)
-      gradient = style[:fill].is_a?(Gradient) ? style[:fill] : style[:stroke]
-      solid = style.except(:effects, :opacity).to_h { |k, v| [k, v.is_a?(Gradient) ? "black" : v] }
-      mask = %(<mask maskUnits="userSpaceOnUse" style="mask-type:alpha" #{region(box)}>) +
-             %(<g#{Style.attributes(solid)}>#{inside}</g></mask>)
-      id = SVG.id_for(mask)
-      defs << SVG.with_id(mask, id)
-      fade = style[:opacity] ? %( opacity="#{Asobi.fmt(style[:opacity])}") : ""
-      %(<rect #{region(box)} fill="url(##{urls.fetch(gradient)})" mask="url(##{id})"#{fade}/>)
-    end
-
-    # [definition without id, the attribute that uses it, other <defs> it
-    # needs] for one effect
-    # on a picture whose box is +box+.
-    def definition(key, value, box)
-      if key == :clip
-        window = value.svg
-        inner_defs = window.scan(DEFS).flatten
-        window = window.gsub(DEFS, "")
-        b = value.box(IDENTITY)
-        return [nil, nil] unless b
-
-        b = b.grow([b.width, b.height].max * 0.05 + 1)
-        mask = %(<mask maskUnits="userSpaceOnUse" style="mask-type:alpha" #{region(b)}>#{window}</mask>)
-        return [mask, "mask", inner_defs]
+        out = %(<g style="mix-blend-mode:#{style[:blend]}">#{out}</g>) if style[:blend]
+        list = defs.uniq
+        list.empty? ? out : "<defs>#{list.join}</defs>#{out}"
       end
 
-      area = grow(box, { key => value }, IDENTITY)
-      area = area.grow([area.width, area.height].max * 0.05 + 2)
-      primitives =
-        case key
-        when :glow
-          sigma = value[:size] / 2.0
-          tint = value[:color] ? %(<feFlood flood-color="#{Asobi.escape(value[:color])}"/><feComposite in2="b" operator="in" result="b"/>) : ""
-          %(<feGaussianBlur in="SourceGraphic" stdDeviation="#{Asobi.fmt(sigma)}" result="b"/>#{tint}) +
-            %(<feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>)
-        when :blur
-          %(<feGaussianBlur in="SourceGraphic" stdDeviation="#{Asobi.fmt(value)}"/>)
-        when :shadow
-          %(<feGaussianBlur in="SourceAlpha" stdDeviation="#{Asobi.fmt(value[:blur] / 2.0)}"/>) +
-            %(<feOffset dx="#{Asobi.fmt(value[:right])}" dy="#{Asobi.fmt(value[:down])}" result="o"/>) +
-            %(<feFlood flood-color="#{Asobi.escape(value[:color])}" flood-opacity="#{Asobi.fmt(value[:opacity])}"/>) +
-            %(<feComposite in2="o" operator="in"/>) +
-            %(<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>)
+      # Does the style give any colour, line or opacity?
+      def paint?(style) = style.key?(:fill) || style.key?(:stroke) || style.key?(:stroke_width) || style.key?(:opacity)
+
+      # SVG attributes for the colours, lines and opacity of a style. +urls+
+      # gives the id of each gradient.
+      def attributes(style, urls = nil)
+        text = +""
+        style.each do |key, value|
+          name = ATTRIBUTES[key]
+          next unless name
+
+          written =
+            case value
+            when Numeric then Asobi.fmt(value)
+            when Hash then "url(##{urls.fetch(value)})"
+            else Asobi.escape(value)
+            end
+          text << %( #{name}="#{written}")
         end
-      [%(<filter filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB" #{region(area)}>#{primitives}</filter>), "filter"]
-    end
+        text
+      end
 
-    def region(b)
-      %(x="#{Asobi.fmt(b.x0)}" y="#{Asobi.fmt(b.y0)}" width="#{Asobi.fmt([b.width, 0.001].max)}" height="#{Asobi.fmt([b.height, 0.001].max)}")
+      # A gradient from the drawing, as <linearGradient> or
+      # <radialGradient>, without its id.
+      def gradient(paint)
+        from, to = paint[:colors]
+        stops = %(<stop offset="0" stop-color="#{Asobi.escape(from)}"/>) +
+                %(<stop offset="1" stop-color="#{Asobi.escape(to)}"/>)
+        if paint[:gradient] == "radial"
+          return %(<radialGradient gradientUnits="userSpaceOnUse" cx="#{Asobi.fmt(paint[:cx])}" cy="#{Asobi.fmt(paint[:cy])}" ) +
+                 %(r="#{Asobi.fmt(paint[:r])}">#{stops}</radialGradient>)
+        end
+
+        %(<linearGradient gradientUnits="userSpaceOnUse" x1="#{Asobi.fmt(paint[:x1])}" y1="#{Asobi.fmt(paint[:y1])}" ) +
+          %(x2="#{Asobi.fmt(paint[:x2])}" y2="#{Asobi.fmt(paint[:y2])}">#{stops}</linearGradient>)
+      end
+
+      # A group's gradient as one sheet: a rectangle of gradient seen through
+      # the group's own shape (a mask). Inside the mask only the shape counts,
+      # so every gradient there is drawn plain black.
+      def through_window(style, inside, urls, defs)
+        sheet = style[:sheet]
+        box = sheet[:box]
+        box = box.grow([box.width, box.height].max * 0.01 + 0.5)
+        solid = {}
+        style.each do |key, value|
+          next if key == :opacity || !ATTRIBUTES.key?(key)
+
+          solid[key] = value.is_a?(Hash) ? "black" : value
+        end
+        mask = %(<mask maskUnits="userSpaceOnUse" style="mask-type:alpha" #{region(box)}>) +
+               %(<g#{attributes(solid)}>#{inside}</g></mask>)
+        id = SVG.id_for(mask)
+        defs << SVG.with_id(mask, id)
+        fade = style[:opacity] ? %( opacity="#{Asobi.fmt(style[:opacity])}") : ""
+        %(<rect #{region(box)} fill="url(##{urls.fetch(style[sheet[:paint]])})" mask="url(##{id})"#{fade}/>)
+      end
+
+      # [definition without id, the attribute that uses it, other <defs> it
+      # needs] for one effect from the drawing.
+      def definition(effect)
+        if effect[:effect] == "clip"
+          window = SVG.fragment(effect[:window])
+          inner_defs = window.scan(DEFS).flatten
+          window = window.gsub(DEFS, "")
+          b = effect[:window_box]
+          b = b.grow([b.width, b.height].max * 0.05 + 1)
+          mask = %(<mask maskUnits="userSpaceOnUse" style="mask-type:alpha" #{region(b)}>#{window}</mask>)
+          return [mask, "mask", inner_defs]
+        end
+
+        area = effect[:area]
+        area = area.grow([area.width, area.height].max * 0.05 + 2)
+        primitives =
+          case effect[:effect]
+          when "glow"
+            sigma = effect[:size] / 2.0
+            tint = effect[:color] ? %(<feFlood flood-color="#{Asobi.escape(effect[:color])}"/><feComposite in2="b" operator="in" result="b"/>) : ""
+            %(<feGaussianBlur in="SourceGraphic" stdDeviation="#{Asobi.fmt(sigma)}" result="b"/>#{tint}) +
+              %(<feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>)
+          when "blur"
+            %(<feGaussianBlur in="SourceGraphic" stdDeviation="#{Asobi.fmt(effect[:amount])}"/>)
+          when "shadow"
+            %(<feGaussianBlur in="SourceAlpha" stdDeviation="#{Asobi.fmt(effect[:blur] / 2.0)}"/>) +
+              %(<feOffset dx="#{Asobi.fmt(effect[:right])}" dy="#{Asobi.fmt(effect[:down])}" result="o"/>) +
+              %(<feFlood flood-color="#{Asobi.escape(effect[:color])}" flood-opacity="#{Asobi.fmt(effect[:opacity])}"/>) +
+              %(<feComposite in2="o" operator="in"/>) +
+              %(<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>)
+          end
+        [%(<filter filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB" #{region(area)}>#{primitives}</filter>), "filter"]
+      end
+
+      def region(b)
+        %(x="#{Asobi.fmt(b.x0)}" y="#{Asobi.fmt(b.y0)}" width="#{Asobi.fmt([b.width, 0.001].max)}" height="#{Asobi.fmt([b.height, 0.001].max)}")
+      end
     end
   end
 
@@ -337,15 +337,6 @@ module Asobi
         # too. Whatever falls outside the page is simply not drawn.
         %(<defs>#{with_id(body, id)}</defs><rect x="#{Asobi.fmt(x - w)}" y="#{Asobi.fmt(y - h)}" ) +
           %(width="#{Asobi.fmt(w * 3)}" height="#{Asobi.fmt(h * 3)}" filter="url(##{id})" style="pointer-events:none"/>)
-      end
-
-      # true is 0.12; false or nil is none; a number from 0 to 1.
-      def grain_strength(grain)
-        return nil if grain.nil? || grain == false
-        return 0.12 if grain == true
-
-        Check.number(grain, word: :grain, name: :grain, example: "show flower, grain: 0.3", min: 0, max: 1)
-        grain.zero? ? nil : grain.to_f
       end
     end
   end

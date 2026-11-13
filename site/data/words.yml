@@ -1311,11 +1311,182 @@
       caption: { en: "Every frame on top of each other draws the path.", ja: "全部のコマを重ねると、通り道が描けます。" }
   see: [animate, spin]
 
+# ----------------------------------------------------------------- react
+
+- word: when_clicked
+  group: react
+  signature: "when_clicked"
+  summary: { en: "Play a motion once when the picture is clicked.", ja: "クリックしたときに、動きを1回だけ再生する。" }
+  details:
+    en: |-
+      Write it right after a motion. Until you click, the picture rests on the first moment of the motion. A tap on a phone works too.
+
+      The answer is a picture, so the other words still work on it. With `repeat`, only the copy you click plays.
+    ja: |-
+      動きのすぐ後ろに書きます。クリックするまでは、動きの最初の瞬間で止まっています。スマートフォンのタップでも動きます。
+
+      答えは絵なので、ほかの言葉もそのまま使えます。`repeat` で増やすと、クリックした1つだけが動きます。
+  examples:
+    - code: |
+        show heart(30).colored(:crimson).pulse(every: 0.5, to: 1.4).when_clicked
+      caption: { en: "Click the heart.", ja: "ハートをクリックしてみてください。" }
+    - code: |
+        dot = circle(8).colored(:teal).pulse(every: 0.4, to: 1.8).when_clicked
+        show dot.repeat(12).in_ring(40)
+      caption: { en: "Only the dot you click plays.", ja: "クリックした丸だけが動きます。" }
+  see: [while_hovered, when_pressed, sounding, pulse]
+
+- word: while_hovered
+  group: react
+  signature: "while_hovered"
+  summary: { en: "Play a motion while the pointer is over the picture.", ja: "マウスが上にある間、動きをくり返す。" }
+  details:
+    en: "Write it right after a motion. The motion plays round and round while the pointer is over the picture. When the pointer leaves, it goes back to the first moment."
+    ja: "動きのすぐ後ろに書きます。マウスが絵の上にある間、動きがくり返します。離れると、最初の瞬間に戻ります。"
+  examples:
+    - code: |
+        twinkle = star(radius: 14).colored(:gold).spin(every: 1).while_hovered
+        show twinkle.repeat(5).in_row(gap: 12)
+      caption: { en: "Move the pointer along the stars.", ja: "星の上でマウスを動かしてみてください。" }
+  see: [when_clicked, by, spin]
+
+- word: when_pressed
+  group: react
+  signature: "when_pressed(key = nil)"
+  summary: { en: "Play a motion once when a key is pressed.", ja: "キーを押したときに、動きを1回だけ再生する。" }
+  details:
+    en: |-
+      Write it right after a motion. Name the key as a string, like `when_pressed("a")` or `when_pressed("ArrowUp")`, or `:space` for the space bar. Leave it out, and any key plays it.
+
+      Holding a key down plays it once. Every copy of the picture plays together.
+    ja: |-
+      動きのすぐ後ろに書きます。キーは文字列で書きます。`when_pressed("a")`、`when_pressed("ArrowUp")`。スペースキーは `:space` です。省くと、どのキーでも動きます。
+
+      押したままにしても1回だけです。絵を増やしてあれば、全部がいっしょに動きます。
+  examples:
+    - code: |
+        show circle(25).colored(:dodgerblue).bounce(height: 30, every: 0.6).when_pressed("a")
+      caption: { en: "Press a.", ja: "a キーを押してみてください。" }
+  see: [when_clicked, sounding, bounce]
+
+- word: on_beat
+  group: react
+  signature: "on_beat(from = :mic)"
+  summary: { en: "Play a motion once on every beat.", ja: "拍が聞こえるたびに、動きを1回再生する。" }
+  details:
+    en: |-
+      Write it right after a motion. A beat is a sudden low sound, like a kick drum or a knock on the table.
+
+      `:mic` (the default) listens to the microphone. Click the picture once, and the browser asks if asobi may listen. `:music` listens to the sound asobi makes itself: its song (`play`) and its sounds (`sounding`).
+    ja: |-
+      動きのすぐ後ろに書きます。拍は、急に鳴る低い音です。バスドラムや、机をたたく音など。
+
+      `:mic`(省いたときの値)はマイクを聞きます。絵を1回クリックすると、聞いてよいかブラウザがたずねます。`:music` は、asobi が自分で鳴らしている音(`play` の曲と `sounding` の音)を聞きます。
+  examples:
+    - code: |
+        show ring(radius: 40, thickness: 4).colored(:deeppink).pulse(every: 0.4, to: 1.3).on_beat, on: :black
+      caption: { en: "Click once, allow the microphone, then knock on the table.", ja: "1回クリックしてマイクを許可し、机をたたいてみてください。" }
+  see: [by, play, pulse]
+
+- word: by
+  group: react
+  signature: "by(from, what = nil)"
+  summary: { en: "Let a value choose the moment of a motion.", ja: "値で、動きのどの瞬間を見せるか決める。" }
+  details:
+    en: |-
+      Write it right after a motion. The value goes from 0 to 1, and the motion follows it instead of the clock.
+
+      `from` is where the value comes from. `:mouse_x` is the pointer from left (0) to right (1). `:mouse_y` is from top (0) to bottom (1). `:mic` is the microphone, and `:music` is the sound asobi makes itself (`play` and `sounding`).
+
+      For sound, `what` chooses what to follow: `:low` (the bass), `:mid`, `:high`, or `:pitch` (how high the sound is). Leave it out to follow the loudness.
+
+      A motion that goes and comes back, like `pulse`, only goes: a bigger value takes it further. A motion that goes one way, like `spin`, goes once round from 0 to 1.
+    ja: |-
+      動きのすぐ後ろに書きます。値は 0 から 1 で、動きは時計の代わりにその値についていきます。
+
+      `from` は値の出どころです。`:mouse_x` はマウスの左右の位置で、左が 0、右が 1。`:mouse_y` は上が 0、下が 1。`:mic` はマイク、`:music` は asobi が自分で鳴らしている音(`play` と `sounding`)です。
+
+      音のときは、`what` で何についていくか選べます。`:low`(低い音)、`:mid`、`:high`、`:pitch`(音の高さ)。省くと音の大きさです。
+
+      `pulse` のように行って戻る動きは、行くほうだけを使います。値が大きいほど遠くまで行きます。`spin` のように一方向の動きは、0 から 1 で1周します。
+  examples:
+    - code: |
+        flower = petal(40, 14).repeat(12).in_fan.colored(:crimson, :navy)
+        show flower.spin.by(:mouse_x)
+      caption: { en: "Move the pointer from left to right.", ja: "マウスを左から右へ動かしてみてください。" }
+    - code: |
+        burst = star(points: 8, radius: 30, inner: 12).colored(:orange)
+        show burst.pulse(to: 1.6).by(:mic, :low), on: :black
+      caption: { en: "Click once, allow the microphone, and play some music.", ja: "1回クリックしてマイクを許可し、音楽を鳴らしてみてください。" }
+  see: [on_beat, play, spin, pulse]
+
+- word: sounding
+  group: react
+  signature: "sounding(sound)"
+  summary: { en: "Make a sound each time a reaction plays.", ja: "反応するたびに、音を鳴らす。" }
+  details:
+    en: |-
+      Write it right after `when_clicked`, `while_hovered`, `when_pressed` or `on_beat`. It cannot follow `by`: a value has no moment to make a sound.
+
+      There are six sounds by name: `:pop`, `:kick`, `:snare`, `:hat`, `:clap` and `:bell`. A note is a letter from a to g, then `s` for sharp or `b` for flat if you like, then an octave from 1 to 7: `:c4` is middle C, `:cs4` is C sharp. A string works too: `"C#4"`, `"Bb3"`.
+
+      The sound starts after the first click on the picture. Browsers allow sound only after you click.
+    ja: |-
+      `when_clicked`、`while_hovered`、`when_pressed`、`on_beat` のすぐ後ろに書きます。`by` の後ろには書けません。値には、音を鳴らす瞬間がないからです。
+
+      名前のある音は6つです。`:pop`、`:kick`、`:snare`、`:hat`、`:clap`、`:bell`。音階は、a から g の文字、好みで `s`(シャープ)か `b`(フラット)、そして 1 から 7 のオクターブです。`:c4` が真ん中のド、`:cs4` はド♯。文字列でも書けます。`"C#4"`、`"Bb3"`。
+
+      音は、絵を最初にクリックしたあとで鳴ります。ブラウザは、クリックのあとでないと音を出させないからです。
+  examples:
+    - code: |
+        show circle(20).colored(:tomato).pulse(every: 0.3, to: 1.5).when_clicked.sounding(:pop)
+      caption: { en: "Click for a pop.", ja: "クリックすると、ぽんと鳴ります。" }
+    - code: |
+        bars = %i[c4 e4 g4 c5].each_with_index.map do |note, i|
+          rect(18, 40 + i * 10).colored(:teal).pulse(every: 0.3, to: 1.2).when_clicked.sounding(note)
+        end
+        show bars.to_art.in_row(gap: 8)
+      caption: { en: "Four bars, four notes.", ja: "4本の棒に、4つの音。" }
+  see: [when_clicked, on_beat, play]
+
+- word: play
+  group: react
+  signature: "play(file, volume: 1)"
+  summary: { en: "Play a song while the sketch shows, round and round.", ja: "スケッチを見せている間、曲をくり返し流す。" }
+  details:
+    en: |-
+      Write it on a line of its own, like `show`. Put the file next to your sketch. It can be .mp3, .wav, .m4a, .aac, .ogg, .opus, .flac or .webm. `volume:` goes from 0 to 1.
+
+      A sketch has one song, which loops. A later `play` replaces it, and taking the line out stops it. Change the rest of the code and the song carries on.
+
+      The sound starts after the first click on the picture. `by(:music)` and `on_beat(:music)` follow the song.
+
+      Here and in the playground there is one song to try: `"beat.wav"`, a short drum loop. Your own songs work when you run asobi on your computer.
+    ja: |-
+      `show` と同じように、1行で書きます。ファイルはスケッチと同じフォルダに置きます。使える種類は .mp3、.wav、.m4a、.aac、.ogg、.opus、.flac、.webm です。`volume:` は 0 から 1 です。
+
+      スケッチに曲は1つで、くり返し流れます。あとの `play` が前のものと入れ替わり、行を消すと止まります。ほかのコードを書き換えても、曲は途切れません。
+
+      音は、絵を最初にクリックしたあとで鳴ります。`by(:music)` と `on_beat(:music)` が曲についていきます。
+
+      このページと遊び場で試せる曲は `"beat.wav"`(短いドラムのループ)の1つです。自分の曲は、asobi を自分のパソコンで動かすと流せます。
+  examples:
+    - code: |
+        play "beat.wav"
+        burst = star(points: 8, radius: 30, inner: 12).colored(:orange)
+        show burst.pulse(to: 1.6).by(:music, :low), on: :black
+      caption: { en: "Click once to start the song. The star swells with the bass.", ja: "1回クリックすると曲が始まります。星が低い音でふくらみます。" }
+    - code: |
+        play "beat.wav"
+        show ring(radius: 40, thickness: 4).colored(:cyan).pulse(every: 0.4, to: 1.3).on_beat(:music), on: :black
+      caption: { en: "The ring jumps on every beat of the song.", ja: "輪が、曲の拍ごとに跳ねます。" }
+  see: [by, on_beat, sounding, show]
+
 # ------------------------------------------------------------------ show
 
 - word: show
   group: show
-  signature: "show(picture, on: :white, paper: nil, grain: nil)"
+  signature: "show(picture, on: :white, paper: nil, grain: nil, controls: true)"
   summary: { en: "Show a picture (or a motion) on screen.", ja: "絵(や動き)を画面に出す。" }
   details:
     en: |-
@@ -1329,7 +1500,11 @@
 
       Run a sketch with `ruby flower.rb` or `asobi flower.rb` and a browser opens. Save the file, and the picture changes. Press Ctrl-C to stop. A mistake in your code does not close anything: the last good picture stays, and the error is written below it, with a hint.
 
-      Move the mouse and small controls appear at the edge for a few seconds. Press `c` to lay the code over the picture, and `r` to start and stop recording a video (the browser saves the file).
+      Move the mouse and small controls appear at the edge for a few seconds. Press `c` to lay the code over the picture, and `r` to start and stop recording a video (the browser saves the file). A recording has asobi's own sound in it too (`play` and `sounding`), but never the microphone.
+
+      Press `f` for full screen, and `m` to mute asobi's sound. Muting quiets only the speakers: the pictures still follow the sound, and a recording still has it.
+
+      `controls: false` keeps the controls hidden, even when the mouse moves. It suits a picture on a big screen. The keys still work.
     ja: |-
       絵は画面にぴったり収まります。ウィンドウの大きさを考える必要はありません。
 
@@ -1341,7 +1516,11 @@
 
       `ruby flower.rb` か `asobi flower.rb` で実行するとブラウザが開きます。ファイルを保存するたびに、絵が変わります。止めるときは Ctrl-C です。書き間違いがあっても閉じたりしません。最後に出せた絵を残したまま、画面の下にエラーとヒントが出ます。
 
-      マウスを動かすと、数秒だけ端に小さな操作が出ます。`c` キーでコードが絵の上に重なり、`r` キーで動画の録画を始めたり止めたりします(ファイルはブラウザが保存します)。
+      マウスを動かすと、数秒だけ端に小さな操作が出ます。`c` キーでコードが絵の上に重なり、`r` キーで動画の録画を始めたり止めたりします(ファイルはブラウザが保存します)。録画には asobi 自身の音(`play` と `sounding`)も入ります。マイクの音は入りません。
+
+      `f` キーで全画面、`m` キーで asobi の音を消します。消えるのはスピーカーだけで、絵は音についていき続け、録画にも音が入ります。
+
+      `controls: false` にすると、マウスを動かしても操作が出ません。大きな画面に映すときに向いています。キーはそのまま使えます。
   examples:
     - code: |
         show star(radius: 30).colored(:gold)
@@ -1354,21 +1533,28 @@
     - code: |
         show star(radius: 30).colored(:gold).glowing, on: :black, grain: true
       caption: { en: "A film grain over everything. Try grain: 0.3 for a rougher one.", ja: "全体に細かい粒を乗せます。grain: 0.3 なら、もっと粗くなります。" }
-  see: [save, bounds]
+    - code: |
+        show star(radius: 30).colored(:gold).spin(every: 6).glowing, on: :black, controls: false
+      caption: { en: "No controls, even when the mouse moves.", ja: "マウスを動かしても、操作は出ません。" }
+  see: [save, bounds, play]
 
 - word: save
   group: show
-  signature: "save(path, on: :white, paper: nil, grain: nil)"
+  signature: "save(path, on: :white, paper: nil, grain: nil, controls: true)"
   summary: { en: "Write a picture to a file.", ja: "絵をファイルに書き出す。" }
   details:
     en: |-
       A still picture goes to an SVG file: `flower.save("flower.svg")`. A motion goes to an HTML page that plays by itself in any browser: `flower.spin.save("flower.html")`. Both accept `on:`, `paper:` and `grain:` as `show` does: `flower.save("flower.svg", grain: true)`.
 
       To get one moment of a motion as SVG, ask for it with `at`: `flower.spin.at(1).save("still.svg")`.
+
+      A picture that reacts keeps reacting in a saved `.html` page: `dot.pulse.when_clicked.save("dot.html")`. If the sketch has a `play` line above, the song goes inside the page, so the page plays it anywhere (a song of up to 20 MB). A `.svg` has no sound and does not react.
     ja: |-
       止まった絵は SVG ファイルになります。`flower.save("flower.svg")`。動きは、どのブラウザでもひとりでに動く HTML ページになります。`flower.spin.save("flower.html")`。どちらも `show` と同じ `on:`、`paper:`、`grain:` を受け付けます。`flower.save("flower.svg", grain: true)`。
 
       動きのある瞬間だけを SVG にしたいときは、`at` で取り出します。`flower.spin.at(1).save("still.svg")`。
+
+      反応する絵は、保存した `.html` のページでも反応します。`dot.pulse.when_clicked.save("dot.html")`。上の行に `play` があれば、曲もページの中に入るので、どこで開いても流れます(20 MB までの曲)。`.svg` には音がなく、反応もしません。
   examples:
     - code: |
         flower = petal(40, 16).repeat(8).in_fan.colored(:crimson, :navy)
@@ -1378,7 +1564,7 @@
 
         show flower
       caption: { en: "The line starting with # is a comment; Ruby skips it.", ja: "# で始まる行はコメントで、Ruby は読み飛ばします。" }
-  see: [show, at, to_svg]
+  see: [show, at, to_svg, play]
 
 - word: to_svg
   group: show

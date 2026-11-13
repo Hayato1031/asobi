@@ -313,6 +313,264 @@ class SiteTest < Minitest::Test
     assert_equal "nil", live
   end
 
+  # The playground's two steps: start answers a motion's preview at once,
+  # finish the whole Reel (what run answers in one step).
+  def test_browser_bundle_answers_a_preview_first
+    script = <<~RUBY
+      eval(File.read(ARGV[0], encoding: "UTF-8"), TOPLEVEL_BINDING, "asobi.rb", 1)
+      code = %(show circle(radius: 3).move(right: 9).spin\\n)
+      first = JSON.parse(Asobi::Web.start(code, "en"))
+      waiting = Asobi::Web.waiting?
+      whole = JSON.parse(Asobi::Web.finish)
+      still = JSON.parse(Asobi::Web.start("show circle\\n", "en"))
+      puts JSON.generate([first["pending"], first["frames"].size, waiting, whole == JSON.parse(Asobi::Web.run(code, "en")),
+                          still["pending"], Asobi::Web.waiting?, Asobi::Web.finish])
+    RUBY
+    out, err, status = Open3.capture3({ "ASOBI_LIVE" => nil }, RbConfig.ruby, "-e", script, File.join(@out, "assets", "asobi.rb"))
+    assert status.success?, err
+    assert_equal [true, 1, true, true, nil, false, nil], JSON.parse(out)
+  end
+
+  def test_playground_engine_speaks_in_two_steps
+    worker = read("assets/ruby-worker.js")
+    assert_includes worker, "preview: true"
+    assert_includes worker, "skipped: true"
+    assert_includes worker, "working: true"
+    engine = read("assets/ruby-engine.js")
+    assert_includes engine, "Asobi::Web.start"
+    assert_includes engine, "Asobi::Web.finish"
+    assert_includes engine, "Asobi::Web.finish_some"
+    assert_includes engine, "Asobi::Web.drop"
+    config = JSON.parse(read("playground.html")[%r{id="play-config">(.*?)</script>}m, 1])
+    assert_operator config["finishTimeout"], :>, config["timeout"]
+    assert_includes config["ui"]["too_slow_whole"], config["finishTimeout"].div(1000).to_s
+  end
+
+  def test_playground_says_when_ruby_crashed_in_both_languages
+    en = JSON.parse(read("playground.html")[%r{id="play-config">(.*?)</script>}m, 1])
+    ja = JSON.parse(read("ja/playground.html")[%r{id="play-config">(.*?)</script>}m, 1])
+    assert_includes en["ui"]["crashed"], "started again"
+    assert_includes ja["ui"]["crashed"], "起動し直しました"
+  end
+
+  # The whole Reel in slices (what the worker does), in a plain Ruby.
+  def test_browser_bundle_finishes_in_slices
+    script = <<~RUBY
+      eval(File.read(ARGV[0], encoding: "UTF-8"), TOPLEVEL_BINDING, "asobi.rb", 1)
+      code = %(show circle(radius: 3).move(right: 9).spin.trail\\n)
+      Asobi::Web.start(code, "en")
+      slices = 0
+      whole = nil
+      while Asobi::Web.waiting?
+        whole = Asobi::Web.finish_some("0")
+        slices += 1
+      end
+      Asobi::Web.start(code, "en")
+      half = Asobi::Web.finish_some("0")
+      Asobi::Web.drop
+      puts JSON.generate([slices > 1, whole == Asobi::Web.run(code, "en"), half, Asobi::Web.waiting?, Asobi::Web.finish_some("0")])
+    RUBY
+    out, err, status = Open3.capture3({ "ASOBI_LIVE" => nil }, RbConfig.ruby, "-e", script, File.join(@out, "assets", "asobi.rb"))
+    assert status.success?, err
+    assert_equal [true, true, nil, false, nil], JSON.parse(out)
+  end
+
+  def node
+    found = ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).map { File.join(_1, "node") }.find { File.executable?(_1) }
+    found || skip("node is not installed")
+  end
+
+  def node_check(script, *args)
+    out, err, status = Open3.capture3(node, File.expand_path("web/#{script}", __dir__), *args)
+    assert status.success?, err
+    JSON.parse(out.force_encoding(Encoding::UTF_8))
+  end
+
+  # The worker with a pretend engine (test/web/worker-check.js).
+  def test_worker_makes_the_whole_reel_in_slices_and_stops_for_a_newer_edit
+    result = node_check("worker-check.js", File.join(@out, "assets", "ruby-worker.js"))
+
+    whole = result["whole"]["out"].reject { _1["type"] }
+    assert_equal({ "id" => 1, "json" => "preview:motion a", "pending" => true }, whole.first)
+    assert_operator whole.count { _1["working"] }, :>, 5, "a small message between slices"
+    assert_equal({ "id" => 1, "json" => "whole:motion a" }, whole[-2])
+    assert_equal({ "id" => 2, "json" => "whole:still" }, whole[-1])
+    assert(result["whole"]["log"].all? { _1 == "step 0.08" })
+
+    newer = result["newer"]["out"].reject { _1["type"] || _1["working"] }
+    assert_equal [[1, "pending"], [1, "skipped"], [2, "pending"], [2, "json"]],
+                 newer.map { [_1["id"], _1["pending"] ? "pending" : (_1.keys - ["id"]).first] }
+    assert_equal 1, result["newer"]["log"].count("drop")
+    assert_operator result["newer"]["log"].index("drop"), :<, 5, "the old build stopped early"
+
+    fatal = result["fatal"]["out"].last
+    assert_equal 1, fatal["id"]
+    assert_includes fatal["fatal"], "unreachable"
+  end
+
+  # The page with a pretend worker (test/web/playground-check.js).
+  def test_playground_recovers_after_ruby_crashes
+    result = node_check("playground-check.js", File.join(@out, "assets", "playground.js"), File.join(@out, "playground.html"))
+    crashed = result["crashed"]
+
+    then_ = result["fatalThen"]
+    assert_equal [true, false], then_["workers"].map { _1["terminated"] }, "the broken worker is replaced"
+    assert_equal [], then_["workers"][1]["ran"], "the code that crashed is not run again by itself"
+    assert_equal [crashed], then_["errors"]
+    after = result["fatalAfter"]
+    assert_equal ["fine b"], after["workers"][1]["ran"]
+    assert_nil after["marker"]["error"]
+    assert_equal 2, after["marker"]["frames"]
+
+    error = result["error"]
+    assert_equal [true, false], error["workers"].map { _1["terminated"] }
+    assert_equal [crashed], error["errors"]
+    assert_equal ["fine b"], error["workers"][1]["ran"]
+
+    newest = result["newest"]
+    assert_equal ["fine b"], newest["workers"][1]["ran"], "the newest waiting edit runs on the new worker"
+    assert_equal "fine b", newest["last"]["code"]
+
+    fails = result["bootFails"]
+    assert_equal 2, fails["workers"].size, "no restart loop"
+    assert_equal result["ruby_failed"], fails["status"]
+    assert_equal 0, fails["scripts"], "no switch to the page engine"
+  end
+
+  # The player's reacting parts and sound analysis, without a browser (test/web/player-check.js).
+  def test_player_numbers_copies_of_reacting_parts_and_hears_beats
+    result = node_check("player-check.js", File.expand_path("../lib/asobi/web/player.js", __dir__))
+
+    compose = result["compose"]
+    assert_equal '<a/><g data-asobi-part="p1" data-asobi-n="0"><i0/></g><g data-asobi-part="p1" data-asobi-n="1"><i1/></g>' \
+                 '<g data-asobi-part="p2" data-asobi-n="0"><o1><g data-asobi-part="p1" data-asobi-n="2"><i2/></g></o1></g>' \
+                 "<!--asobi:p9--><b/>", compose["html"], "markers become numbered copies, nested ones too"
+    assert_equal [["p1", 0, 0, -1], ["p1", 1, 1, -1], ["p2", 0, 1, -1], ["p1", 2, 2, 2]], compose["copies"]
+    assert_equal "<i2/>", compose["inner"][3]
+    refute_includes compose["outOfRange"], "<i1/>", "a frame out of range shows frame 0"
+    assert compose["has"]["click"] && compose["has"]["mic"]
+    assert_nil compose["noParts"], "a Reel without parts takes the plain path"
+    assert compose["sameShape"]
+    assert_equal 32, compose["cycle"], "a cycle stops at the depth limit"
+
+    assert_equal [0, 0, 1, 1, 2, 4, 4, 4, 0], result["valueIndex"]
+    assert_equal [0, 0, 1, 2, -1, -1], result["onceIndex"]
+
+    beats = result["beats"]
+    assert_equal 20, beats["kicks120"]
+    assert_equal 20, beats["withHats"], "hats are not beats"
+    assert_equal 0, beats["silence"]
+    assert_equal 0, beats["noise"]
+    assert_operator beats["fast"], :<=, 50, "never closer than 0.2 s"
+
+    listener = result["listener"]
+    %w[silence afterMusicLong room].each do |name|
+      assert_equal({ "volume" => 0, "low" => 0, "mid" => 0, "high" => 0, "pitch" => 0 }, listener[name].except("beats"), name)
+    end
+    assert_equal 0, listener["room"]["beats"]
+    assert_operator listener["afterMusic"]["pitch"], :>, 0.3, "pitch holds a moment after the sound stops"
+    assert_operator listener["attack"], :<=, 2, "fast attack (frames)"
+    assert_includes 8..40, listener["release"], "slower release (frames)"
+    sweep = listener["sweep"]
+    assert_operator sweep.first, :<, 0.1
+    assert_operator sweep.last, :>, 0.85
+    assert_equal sweep.sort, sweep, "pitch rises with the sweep"
+    assert_equal 20, listener["kickBeats"]
+    assert_equal 0, listener["quietKicks"]
+
+    sound = result["sound"]
+    assert_equal [{ "sound" => "pop" }, { "note" => 60 }, { "sound" => "bell" }, nil, nil, nil, nil], sound["partSound"],
+                 "the six names and notes sound; value parts and unknown names are silent"
+    assert_equal [true, false], sound["hasSound"]
+    assert_equal [{ "id" => "3f9a0c2b7d1e", "src" => "/song/3f9a0c2b7d1e", "volume" => 0.5 },
+                  { "id" => "3f9a0c2b7d1e", "src" => "data:audio/mpeg;base64,AAAA", "volume" => 1 },
+                  { "id" => "a", "src" => "x.mp3", "volume" => 1 }, nil, nil], sound["songOf"]
+  end
+
+  # ---- the site's song (play "beat.wav") -----------------------------------------
+
+  # A copy of the fixtures with one more word whose example is +code+, built
+  # into a scratch folder; yields the output folder.
+  def build_with(code)
+    Dir.mktmpdir do |dir|
+      data = File.join(dir, "data")
+      FileUtils.cp_r(FIXTURES, data)
+      entry = "\n- word: tune\n  group: react\n  signature: \"tune\"\n  summary: { en: \"A tune.\", ja: \"曲。\" }\n" \
+              "  examples:\n    - code: |\n" + code.lines.map { "        #{_1}" }.join
+      edit(File.join(data, "words.yml")) { _1 + entry }
+      out = File.join(dir, "out")
+      AsobiSite::Builder.new(data:, out:, log: nil).build
+      yield out
+    end
+  end
+
+  def reel_in(out, code)
+    js = File.read(File.join(out, "reels", "#{AsobiSite.code_key(code)}.js"), encoding: "UTF-8")
+    JSON.parse(js[/\AasobiReel\("r\h{8}", (.*)\);\n\z/m, 1])
+  end
+
+  # The site ships beat.wav, and an example that plays it plays the site's own
+  # copy: a URL from the site's root, never "/song/ID" (only the live view has
+  # that) and never a data URI (every page would carry the whole file).
+  def test_an_example_plays_the_song_the_site_ships
+    song = File.expand_path("../examples/reactions/beat.wav", __dir__)
+    code = "play \"beat.wav\", volume: 0.5\nshow circle(9).colored(:teal).pulse.when_clicked.sounding(:pop)\n"
+    build_with(code) do |out|
+      assert_equal File.binread(song), File.binread(File.join(out, "assets", "beat.wav"))
+      reel = reel_in(out, code)
+      assert_equal({ "id" => Digest::SHA256.file(song).hexdigest[0, 12], "src" => "assets/beat.wav", "volume" => 0.5 }, reel["song"])
+      assert_equal 1, reel["frames"].size, "it rests until clicked"
+
+      # a picture that reacts gets a player on the page, though it has one frame
+      %w[reference.html ja/reference.html].each do |page|
+        html = File.read(File.join(out, page), encoding: "UTF-8")
+        shot = html[/<div class="pic"[^>]*data-reel="#{AsobiSite.code_key(code)}"[^>]*>.*?<p class="readout"[^>]*>.*?<\/p>/m]
+        assert shot, "#{page}: the reacting picture must be live"
+        assert_includes shot, page.start_with?("ja") ? "反応する" : "reacts"
+      end
+      # the playground offers the same file, with the same id
+      bundle = File.read(File.join(out, "assets", "asobi.rb"), encoding: "UTF-8")
+      assert_includes bundle, %("beat.wav" => Song.new(path: "beat.wav", id: "#{Digest::SHA256.file(song).hexdigest[0, 12]}", src: "assets/beat.wav"))
+      # and the pages put their own root in front of it (/ and /ja/)
+      assert_match(%r{/\^assets\\//.*root \+ s\.src}m, File.read(File.join(out, "assets", "site.js"), encoding: "UTF-8"))
+      assert_match(/cfg\.assets \+ s\.src\.slice\(7\)/, File.read(File.join(out, "assets", "playground.js"), encoding: "UTF-8"))
+    end
+  end
+
+  def test_an_example_with_any_other_song_fails_the_build
+    other = File.join(Dir.mktmpdir, "other.wav")
+    File.binwrite(other, "RIFF not the site's song".b)
+    message = build_error do |data|
+      edit(File.join(data, "words.yml")) { _1.sub("show ring.colored(:teal)", "play #{other.dump}\n        show ring.colored(:teal)") }
+    end
+    assert_includes message, "words.yml, ring, example 1: the site has only one song"
+  ensure
+    FileUtils.rm_rf(File.dirname(other))
+  end
+
+  # A heavy motion is drawn again at a lower fps, with everything show and
+  # play asked for (controls: false, the song), not only the picture.
+  def test_lighter_keeps_what_show_and_play_asked_for
+    builder = AsobiSite::Builder.new(data: FIXTURES, out: Dir.mktmpdir, log: nil)
+    code = "play \"beat.wav\"\nshow star.spin(every: 1), on: :black, paper: [100, 80], grain: 0.2, controls: false\n"
+    whole = Dir.mktmpdir do |dir|
+      FileUtils.cp(File.expand_path("../examples/reactions/beat.wav", __dir__), dir)
+      Dir.chdir(dir) { Asobi::Sketch.run(code, name: "heavy.rb") }
+    end
+    assert_nil whole["error"]
+    heavy = whole.merge("frames" => ["x" * AsobiSite::REEL_BUDGET] + whole["frames"].drop(1))
+    snippet = AsobiSite::Snippet.new(code:, file: "words.yml", entry: "heavy, example 1", label: "heavy")
+    light = builder.send(:lighter, heavy, code, snippet)
+    assert_operator light["frames"].size, :<, whole["frames"].size, "fewer frames"
+    assert_equal whole.slice("view", "background", "controls", "song", "code"), light.slice("view", "background", "controls", "song", "code")
+    assert_equal false, light["controls"]
+    assert light["song"], "the song stays"
+    assert_includes light["frames"].first, "feTurbulence", "the grain stays"
+    assert_equal "assets/beat.wav", builder.send(:site_song, light, snippet)["song"]["src"]
+  ensure
+    Asobi::Sketch.forget
+  end
+
   # ---- the build refuses to lie --------------------------------------------------
 
   def test_a_broken_example_fails_the_build_and_names_it

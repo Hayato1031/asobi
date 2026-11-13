@@ -10,7 +10,7 @@ module Asobi
   # Moving, turning or resizing a Many does the same to each of its
   # pictures, so the answer is still a Many you can arrange. Colours given
   # to the whole Many are kept on the group (+style+), and do not override
-  # colours given to the pictures inside it (as in SVG).
+  # colours given to the pictures inside it (see Asobi::Drawing).
   Many = Data.define(:items, :style) do
     include Enumerable
     include Art
@@ -33,16 +33,6 @@ module Asobi
       inner = Asobi::Box.union(items.map { _1.box(m) })
       inner = inner.grow(Asobi::Style.stroke_width(style) / 2.0 * m.stretch) if inner && Asobi::Style.stroked?(style)
       Asobi::Effects.grow(inner, style[:effects], m)
-    end
-
-    # The <defs> of the pictures inside are gathered to the front, once each.
-    def svg
-      inside = items.map(&:svg).join
-      return "" if inside.empty?
-
-      Asobi::Effects.render(style, inside, hoist: inside.include?("<defs>"), group: true) do
-        Asobi::Box.union(items.map { _1.box(IDENTITY) })
-      end
     end
 
     # --- arranging ---------------------------------------------------------

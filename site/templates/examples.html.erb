@@ -6,7 +6,7 @@
   </header>
   <div class="gallery">
 <%- content.examples.each_with_index do |ex, i| code = AsobiSite.display_code(ex["code"]) -%>
-    <article class="piece" id="<%= h(ex["id"]) %>" aria-labelledby="<%= h(ex["id"]) %>-title">
+    <article class="piece<%= " reacts" if result_for(code).reacts? %>" id="<%= h(ex["id"]) %>" aria-labelledby="<%= h(ex["id"]) %>-title">
       <div class="frame">
         <%= picture(code, t(ex["title"])) %>
         <div class="overlay" id="<%= h(ex["id"]) %>-code"><%= subtitles(code) %></div>

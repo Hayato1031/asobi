@@ -8,4 +8,4 @@ sky = burst.repeat(6).change_each { |b, t, i| b.scale(0.75 + i % 3 * 0.3) }
            .scattered(over: [290, 130], seed: 5).colored(*colors)
 bloom = sky.animate(3) { |b, t| b.scale(0.05 + t**0.35).opacity(1 - t**4) }
 
-show bloom.one_by_one.trail(4, gap: 0.05).glowing(3), on: "#070812", paper: [360, 200]
+show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
