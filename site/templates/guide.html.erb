@@ -36,5 +36,13 @@
 <%- end -%>
   </section>
 <%- end -%>
+  <section class="doc-next" aria-labelledby="doc-next-title">
+    <h2 id="doc-next-title"><%= ui(:next_steps) %></h2>
+    <div class="cta">
+      <a class="btn primary" href="<%= href('examples') %>"><%= ui(:examples) %> →</a>
+      <a class="btn" href="<%= href('reference') %>"><%= ui(:reference) %></a>
+      <a class="btn" href="<%= href('playground') %>"><%= ui(:playground) %></a>
+    </div>
+  </section>
 </div>
 </div>

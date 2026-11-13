@@ -6,12 +6,36 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0b0b0f">
 <title><%= h(title) %></title>
-<meta name="description" content="<%= h(t(content.home && content.home["tagline"])) %>">
+<meta name="description" content="<%= h(meta_description) %>">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <link rel="icon" href="<%= root %>assets/favicon.svg" type="image/svg+xml">
 <link rel="canonical" href="<%= h(AsobiSite.page_url(page, lang)) %>">
 <%- LANGUAGES.each_key do |code| -%>
 <link rel="alternate" hreflang="<%= code %>" href="<%= h(AsobiSite.page_url(page, code)) %>">
 <%- end -%>
+<link rel="alternate" hreflang="x-default" href="<%= h(AsobiSite.page_url(page, :en)) %>">
+<link rel="alternate" type="text/markdown" href="<%= h(page) %>.md">
+<link rel="alternate" type="text/markdown" title="llms.txt" href="<%= root %>llms.txt">
+<link rel="alternate" type="text/markdown" title="llms-full.txt" href="<%= root %>llms-full.txt">
+<link rel="api-catalog" type="application/linkset+json" href="<%= root %>.well-known/api-catalog">
+<link rel="agent-skills" type="application/json" href="<%= root %>.well-known/agent-skills/index.json">
+<link rel="service-doc" href="<%= href("reference") %>">
+<meta property="og:type" content="<%= og_type %>">
+<meta property="og:site_name" content="asobi">
+<meta property="og:title" content="<%= h(title) %>">
+<meta property="og:description" content="<%= h(meta_description) %>">
+<meta property="og:url" content="<%= h(AsobiSite.page_url(page, lang)) %>">
+<meta property="og:locale" content="<%= og_locale %>">
+<meta property="og:locale:alternate" content="<%= og_locale_alternate %>">
+<meta property="og:image" content="<%= h(OG_IMAGE_URL) %>">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="asobi — Object to Art. Art to Object.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="<%= h(title) %>">
+<meta name="twitter:description" content="<%= h(meta_description) %>">
+<meta name="twitter:image" content="<%= h(OG_IMAGE_URL) %>">
+<script type="application/ld+json"><%= structured_data %></script>
 <link rel="stylesheet" href="<%= root %>assets/site.css">
 <script src="<%= root %>assets/player.js" defer></script>
 <script src="<%= root %>assets/site.js" defer></script>
@@ -42,7 +66,7 @@
 </main>
 <footer class="foot">
   <a class="foot-brand" href="<%= href("index") %>" aria-label="asobi · <%= h(ui(:index)) %>">asobi</a>
-  <p class="foot-meta"><a href="<%= href("index", "contribute") %>"><%= ui(:contribute) %></a> · <a href="<%= RUBYGEMS_URL %>">RubyGems</a> · v<%= Asobi::VERSION %> · <%= h(ui(:footer_license)) %></p>
+  <p class="foot-meta"><a href="<%= href("index", "contribute") %>"><%= ui(:contribute) %></a> · <a href="<%= GITHUB_URL %>">GitHub</a> · <a href="<%= RUBYGEMS_URL %>">RubyGems</a> · <a href="<%= root %>llms.txt">llms.txt</a> · v<%= Asobi::VERSION %> · <%= h(ui(:footer_license)) %></p>
 <%- if page == "playground" -%>
   <p class="foot-note"><%= h(ui(:footer_playground)) %></p>
 <%- end -%>

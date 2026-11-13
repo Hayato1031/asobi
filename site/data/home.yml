@@ -1,22 +1,26 @@
 tagline:
-  en: "Play with pictures in Ruby. Hold them, copy them, arrange them."
-  ja: "Ruby で、絵と遊ぶ。持って、増やして、並べる。"
+  en: "Object to Art. Art to Object."
+  ja: "Object to Art. Art to Object."
+lead:
+  en: "Turn Ruby numbers, strings, arrays, and your own classes into pictures with `to_art`. Every picture returns as an immutable Ruby object you can hold, arrange, and animate."
+  ja: "数字も文字も配列も自分のクラスも、`to_art` でそのまま絵になる。生まれた絵もまた、変数に入れ、並べ、動かせる不変の Ruby オブジェクト。"
 philosophy:
-  - en: "Treat objects as pictures, and pictures as objects."
-    ja: "オブジェクトを絵として扱い、絵をオブジェクトとして扱う。"
-  - en: "What matters is that it is fun to write, easy to follow, and instantly playable."
-    ja: "書く人が楽しく、わかりやすく、すぐに遊べることが大事。"
-  - en: "A picture is like a sticker: make it, copy it, arrange it, and you still have one picture."
-    ja: "絵はシールのようなもの。作って、増やして、並べても、やっぱり1枚の絵。"
+  - en: "Object to Art: ask any Ruby object for `to_art`—numbers, arrays, hashes, or your own classes."
+    ja: "Object to Art：数字も配列も自分のクラスも、`to_art` と頼むだけで絵になる。"
+  - en: "Art to Object: a picture is an immutable Ruby object, not a command on a canvas—hold it, copy it, compose it."
+    ja: "Art to Object：絵はキャンバスへの命令ではなく、不変の Ruby オブジェクト。変数に持ち、重ねて動かせる。"
+  - en: "Play straight away: leave out any number and asobi fits it for you. Zero external dependencies, in Ruby or your browser."
+    ja: "すぐ遊べる：数字を省いても自動で収まる。外部依存ゼロで、手元でもブラウザでもすぐ動く。"
 hero_code: |
-  flower = petal(40, 16).repeat(10).in_fan.colored(from: :hotpink, to: :gold, around: true)
-  comet = circle(4).colored(:white).orbit(62, every: 6).trail(12)
-  sky = flower.spin(every: 6) + comet
+  outer = petal(42, 16).repeat(10).in_fan.colored(from: :hotpink, to: :gold, around: true)
+  inner = petal(20, 8).repeat(10).in_fan.colored(from: :white, to: :gold, around: true)
+  comet = 4.to_art.colored(:white).orbit(62, every: 6).trail(12)
+  sky = outer.spin(every: 6) + inner.spin(every: 6, clockwise: false) + comet
 
   show sky.glowing, on: :black, grain: true
 install:
-  en: "gem install asobi, then type asobi in a terminal. A sketch opens in your browser."
-  ja: "gem install asobi と打ってから、ターミナルで asobi と打ちます。ブラウザでスケッチが開きます。"
+  en: "gem install asobi, then type asobi in a terminal. A sketch opens in your browser and updates on every save."
+  ja: "gem install asobi と打ってから、ターミナルで asobi と打ちます。ブラウザで絵が開き、保存するたびに差し替わります。"
 
 # ---- optional keys read only by the site's home page (see site/build.rb) ----
 
@@ -24,31 +28,181 @@ install:
 stage: [neon_flower, aurora, through_a_heart, night_sky]
 
 # A glimpse of the gallery further down the home page.
-gallery: [paper_cutouts, tiles, rings]
+gallery: [planets, tiles, paper_cutouts]
 
-# "One word at a time": one piece, built up a word per step.
+# The two-way loop: Object -> Art and Art -> Object, with real Ruby -> SVG examples.
+cycle:
+  sides:
+    - label: "01 · Object → Art"
+      title:
+        en: "Ruby objects become art"
+        ja: "あらゆる Ruby オブジェクトが絵になる"
+      text:
+        en: "Just as `to_s` turns an object into a string, `to_art` turns numbers, strings, arrays, ranges, hashes, and your own classes into SVG art."
+        ja: "`to_s` が文字列を返すように、`to_art` は数字・文字・配列・範囲・ハッシュ・自作クラスをそのまま SVG の絵に変えます。"
+      code: |
+        fib = [2, 3, 5, 8, 13]
+        show fib.to_art(as: star).colored(:gold, :orange), on: :black
+    - label: "02 · Art → Object"
+      title:
+        en: "Art returns as an immutable object"
+        ja: "生まれた絵も、不変の Ruby オブジェクト"
+      text:
+        en: "Nothing mutates a shared canvas. Calling `colored(:crimson)` leaves the original `dot` untouched and returns a new value you can compose again."
+        ja: "共有キャンバスに描いて終わりではありません。`dot.colored(:crimson)` は元の黒い `dot` を変えず、新しい絵の値を返します。"
+      code: |
+        dot = 8.to_art
+        red = dot.colored(:crimson)
+        show dot.beside(red, gap: 6)
+  conversions:
+    - kind:
+        en: "Numeric"
+        ja: "数値 (Numeric)"
+      result:
+        en: "A circle of that radius, or any shape passed via `as:`."
+        ja: "その半径の円。`as:` を渡せば星など好きな形の大きさに。"
+      code: |
+        show 12.to_art(as: star).colored(:gold), on: :black
+    - kind:
+        en: "String / Symbol"
+        ja: "文字列・シンボル"
+      result:
+        en: "Rendered as text; split with `chars` to style each letter."
+        ja: "そのまま文字の絵に。`chars` で1文字ずつ別の絵として塗れます。"
+      code: |
+        show "asobi".chars.to_art.colored(:crimson, :navy)
+    - kind:
+        en: "Array / Range"
+        ja: "配列・範囲"
+      result:
+        en: "Each element becomes art, arranged automatically in a row."
+        ja: "各要素を絵にして、ちょうどよいすき間で横一列に並べます。"
+      code: |
+        show (1..5).to_art.colored(:teal, :gold)
+    - kind:
+        en: "Array of Arrays"
+        ja: "2次元配列"
+      result:
+        en: "Inner arrays become rows stacked into a grid."
+        ja: "内側の配列を1行として、縦横に積んだ格子になります。"
+      code: |
+        show [[2, 5, 8], [8, 5, 2]].to_art(as: square).colored(:tomato, :navy)
+    - kind:
+        en: "Hash"
+        ja: "ハッシュ"
+      result:
+        en: "Each pair draws its key picture beside its value picture."
+        ja: "1組ごとに、キーの絵と値の絵を横に並べて縦に積みます。"
+      code: |
+        show({ ruby: 6, art: 11 }.to_art)
+    - kind:
+        en: "Your Class"
+        ja: "自作クラス"
+      result:
+        en: "Write `def to_art` (and `include Asobi::Art` to chain words)."
+        ja: "`def to_art` を書くだけで絵に。`include Asobi::Art` で直接動かせます。"
+      code: |
+        class Badge
+          include Asobi::Art
+          def initialize(r, c) = (@r, @c = r, c)
+          def to_art = star(radius: @r).colored(@c) + ring(@r + 4, 1.2).colored(:gold)
+        end
+        show Badge.new(9, :crimson).spin(every: 4), on: :black
+
+# "One word at a time": Object -> Art -> Object, built up one word per step.
 steps:
-  - word: petal
+  - word: to_art
     code: |
-      show petal
-    text: { en: "A shape.", ja: "形。" }
-  - word: repeat
+      show [3, 1, 4, 1, 5].to_art
+    text: { en: "Ruby numbers become a row of circles.", ja: "配列の数字が、そのまま丸の列に。" }
+  - word: star
     code: |
-      show petal.repeat(8)
-    text: { en: "Eight of them, all in one place.", ja: "8枚。まだ同じ場所に重なっています。" }
-  - word: in_fan
+      show [3, 1, 4, 1, 5].to_art(as: star)
+    text: { en: "Pass a shape with `as:` and numbers set its size.", ja: "`as: star` で星に。数字がそのまま大きさに。" }
+  - word: in_ring
     code: |
-      show petal.repeat(8).in_fan
-    text: { en: "Arranged in a fan.", ja: "扇に並べる。" }
+      show [3, 1, 4, 1, 5].to_art(as: star).in_ring
+    text: { en: "The returned art is an object: arrange it in a ring.", ja: "返ってきた絵はオブジェクト。輪に並べます。" }
   - word: colored
     code: |
-      show petal.repeat(8).in_fan.colored(:deeppink, :cyan)
+      show [3, 1, 4, 1, 5].to_art(as: star).in_ring.colored(:deeppink, :cyan)
     text: { en: "Two colours take turns.", ja: "2色が交互に。" }
   - word: glowing
     code: |
-      show petal.repeat(8).in_fan.colored(:deeppink, :cyan).glowing, on: :black
+      show [3, 1, 4, 1, 5].to_art(as: star).in_ring.colored(:deeppink, :cyan).glowing, on: :black
     text: { en: "It glows, on black.", ja: "黒の上で光る。" }
   - word: spin
     code: |
-      show petal.repeat(8).in_fan.colored(:deeppink, :cyan).glowing.spin(every: 8), on: :black
-    text: { en: "And it moves.", ja: "そして動く。" }
+      show [3, 1, 4, 1, 5].to_art(as: star).in_ring.colored(:deeppink, :cyan).glowing.spin(every: 8), on: :black
+    text: { en: "And it spins.", ja: "そして回り続ける。" }
+
+comparison:
+  rows:
+    - aspect:
+        en: "Model"
+        ja: "設計モデル"
+      asobi:
+        en: "Object ⇄ Art: immutable values returned by `to_art` and method chains"
+        ja: "Object ⇄ Art：`to_art` とメソッドチェーンが返す不変の値オブジェクト"
+      canvas:
+        en: "Imperative commands inside `setup` / `draw` mutating one canvas"
+        ja: "`setup` / `draw` 内で1枚のキャンバス状態を命令的に書き換える"
+    - aspect:
+        en: "Readability"
+        ja: "書き方と可読性"
+      asobi:
+        en: "Reads left to right like Ruby `Enumerable` (`in_fan`, `change_each`)"
+        ja: "Ruby の `Enumerable` のように左から右へ読める（`in_fan`、`change_each`）"
+      canvas:
+        en: "Nested loops, `push` / `pop`, `translate`, manual coordinate math"
+        ja: "二重ループ、`push` / `pop`、`translate`、座標と角度の手計算"
+    - aspect:
+        en: "Motion & Live reload"
+        ja: "動きとライブ表示"
+      asobi:
+        en: "Pure function (`seconds -> art`); editing code never resets motion phase"
+        ja: "時刻（秒）→ 絵の純粋関数。保存して書き換えても動きの位相が途切れない"
+      canvas:
+        en: "Mutable frame state; reloading usually restarts from frame zero"
+        ja: "フレームごとの状態更新。書き換えると最初のフレームに戻りやすい"
+    - aspect:
+        en: "Runtime & Export"
+        ja: "依存環境と出力"
+      asobi:
+        en: "Ruby ≥ 3.2 stdlib only; SVG, standalone HTML, browser `ruby.wasm`"
+        ja: "Ruby 3.2 以上＋標準ライブラリのみ。SVG、単体 HTML、`ruby.wasm`"
+      canvas:
+        en: "Requires browser JS, SDL, OpenGL, or JDK depending on backend"
+        ja: "実行環境ごとにブラウザ JS、SDL、OpenGL、JDK などが必要"
+
+faq:
+  - q:
+      en: "What is asobi?"
+      ja: "asobi とは何ですか？"
+    a:
+      en: "asobi (Japanese for “play”) is a zero-dependency Ruby 3.2+ gem for creative coding, generative SVG art, and looping animations. You can run sketches locally with live browser reload or try them in the browser playground powered by ruby.wasm."
+      ja: "asobi（遊び）は、Ruby 3.2 以上だけで動くクリエイティブコーディング用 gem です。SVG の静止画やループアニメーションを生成でき、ローカルでのライブコーディングにも、ruby.wasm によるブラウザ上の遊び場にも対応しています。"
+  - q:
+      en: "What does “Object to Art. Art to Object.” mean?"
+      ja: "「Object to Art. Art to Object.」とはどういう意味ですか？"
+    a:
+      en: "Object to Art means any Ruby value—numbers, strings, arrays, hashes, or your own classes defining `to_art`—can become a picture. Art to Object means the returned picture is itself an immutable Ruby object (`Asobi::Art`), so you can store it in variables, pass it to methods, put it back into arrays, and chain layouts or animations without canvas state bugs."
+      ja: "Object to Art は、数値・文字列・配列・ハッシュや `to_art` を定義した自作クラスなど、あらゆる Ruby オブジェクトがそのまま絵になることを表します。Art to Object は、返ってきた絵もキャンバスに消えず不変の Ruby オブジェクト（`Asobi::Art`）として扱えることを意味し、変数への代入、再合成、配列化、アニメーションを状態事故なしに行えます。"
+  - q:
+      en: "How is asobi different from p5.js, Processing, or Ruby 2D?"
+      ja: "p5.js や Processing、Ruby 2D との違いは何ですか？"
+    a:
+      en: "p5.js and Processing draw imperatively inside `setup` and `draw` loops with mutable canvas state (`fill`, `translate`, `push`/`pop`), and Ruby 2D mutates drawable objects on an SDL window. asobi has no canvas state and no native library dependencies: every shape and motion is an immutable Ruby value composed with English-like words."
+      ja: "p5.js や Processing は `setup` / `draw` の中でミュータブルなキャンバス状態（`fill`、`translate`、`push`/`pop`）を命令的に更新し、Ruby 2D は SDL ウィンドウ上の可変オブジェクトを書き換えます。asobi はキャンバス状態やネイティブ依存を持たず、すべての図形と動きを英語のように読める不変の Ruby オブジェクトとして組み立てます。"
+  - q:
+      en: "Do I need external tools like ImageMagick, SDL, or Node.js?"
+      ja: "ImageMagick や SDL、Node.js などの外部ソフトは必要ですか？"
+    a:
+      en: "No. asobi uses only the Ruby standard library (Ruby 3.2 or newer). Run `gem install asobi` and `asobi` to start live coding in your browser, or open the online playground with zero installation."
+      ja: "不要です。実行時の依存は Ruby 3.2 以上の標準ライブラリのみです。`gem install asobi` のあと `asobi` と打つだけでブラウザが開き、オンラインの遊び場ならインストールすら不要です。"
+  - q:
+      en: "How do I turn my own Ruby class into art, and what formats can I export?"
+      ja: "自作のクラスを絵にする方法と、保存できる形式を教えてください。"
+    a:
+      en: "Define a `to_art` method returning any asobi picture on your class (and optionally `include Asobi::Art` to call methods like `spin` or `colored` directly on instances). You can save stills as clean SVG files with `save` (`art.svg`), save looping animations as standalone HTML (`art.html`), or record MP4/WebM video in the live browser view."
+      ja: "クラスに絵を返す `to_art` メソッドを定義するだけです（`include Asobi::Art` を足すとインスタンスに直接 `spin` や `colored` を呼べます）。静止画は `save` で SVG（`art.svg`）に、動きは単体再生できる HTML（`art.html`）に書き出せ、ライブ画面の `r` キーで動画録画も可能です。"

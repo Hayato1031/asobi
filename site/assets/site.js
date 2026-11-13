@@ -162,7 +162,107 @@
     });
   }
 
-  function setup() { setupPictures(); setupSpy(); setupButtons(); }
+  // ---- WebMCP: expose read & navigation tools to AI agents when supported ----
+  function registerWebMCP(tools) {
+    var contexts = [document.modelContext, navigator.modelContext].filter(function (c, i, a) {
+      return c && typeof c.registerTool === "function" && a.indexOf(c) === i;
+    });
+    if (!contexts.length) return;
+
+    var ac = typeof AbortController === "function" ? new AbortController() : null;
+    if (ac) window.addEventListener("pagehide", function () { ac.abort(); }, { once: true });
+    var opts = ac ? { signal: ac.signal } : undefined;
+
+    contexts.forEach(function (ctx) {
+      tools.forEach(function (tool) {
+        try {
+          var res = opts ? ctx.registerTool(tool, opts) : ctx.registerTool(tool);
+          if (res && typeof res.catch === "function") res.catch(function () {});
+        } catch (e) {}
+      });
+    });
+  }
+
+  function setupWebMCP() {
+    var root = document.documentElement.getAttribute("data-root") || "";
+    var lang = document.documentElement.getAttribute("lang") || "en";
+    var page = document.documentElement.getAttribute("data-page") || "index";
+
+    function jsonResult(data, isError) {
+      var out = { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      if (isError) out.isError = true;
+      return out;
+    }
+
+    registerWebMCP([
+      {
+        name: "asobi_get_page_summary",
+        description: "Return metadata, Markdown mirror URL, llms.txt URL, and Ruby code examples shown on the current asobi documentation page.",
+        inputSchema: { type: "object", properties: {} },
+        execute: function () {
+          var examples = Array.prototype.slice.call(document.querySelectorAll("pre.code")).slice(0, 20).map(function (el) {
+            return el.textContent.trim();
+          });
+          return jsonResult({
+            title: document.title,
+            lang: lang,
+            page: page,
+            url: location.href,
+            markdownUrl: new URL(page + ".md", location.href).href,
+            llmsTxtUrl: new URL(root + "llms.txt", location.href).href,
+            examplesCount: examples.length,
+            examples: examples
+          });
+        }
+      },
+      {
+        name: "asobi_lookup_word",
+        description: "Look up an asobi Ruby word (e.g. to_art, petal, spin, orbit) and return its reference URL and details if on the reference page.",
+        inputSchema: {
+          type: "object",
+          properties: { word: { type: "string", description: "Word name such as to_art, circle, in_ring, or spin." } },
+          required: ["word"]
+        },
+        execute: function (args) {
+          var word = String((args && args.word) || "").trim();
+          if (!word) return jsonResult({ error: "word is required" }, true);
+          var el = document.getElementById(word);
+          var sig = el && el.querySelector(".signature");
+          var sum = el && el.querySelector(".summary");
+          return jsonResult({
+            word: word,
+            referenceUrl: new URL("reference.html#" + encodeURIComponent(word), location.href).href,
+            markdownReferenceUrl: new URL("reference.md", location.href).href,
+            signature: sig ? sig.textContent.trim() : null,
+            summary: sum ? sum.textContent.trim() : null
+          });
+        }
+      },
+      {
+        name: "asobi_open_in_playground",
+        description: "Build a shareable Playground URL for an asobi Ruby sketch and optionally navigate to it.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            code: { type: "string", description: "Complete Ruby sketch using asobi words ending with show." },
+            navigate: { type: "boolean", description: "Set true to navigate the browser to the playground with this sketch." }
+          },
+          required: ["code"]
+        },
+        execute: function (args) {
+          var code = String((args && args.code) || "");
+          if (!code.trim()) return jsonResult({ error: "code is required" }, true);
+          var target = new URL("playground.html#code=" + AsobiCodeURL.encode(code), location.href).href;
+          if (args && args.navigate) location.href = target;
+          return jsonResult({ url: target, code: code });
+        }
+      }
+    ]);
+  }
+
+  window.AsobiWebMCP = { register: registerWebMCP };
+
+  function setup() { setupPictures(); setupSpy(); setupButtons(); setupWebMCP(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setup);
   else setup();
 })();

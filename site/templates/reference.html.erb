@@ -17,6 +17,11 @@
     <p class="label"><%= ui(:words_count, content.words.size) %> · <%= ui(:groups_count, groups.size) %></p>
     <h1><%= ui(:reference) %></h1>
     <p class="lead"><%= ui(:reference_lead) %></p>
+    <nav class="group-jump" aria-label="<%= h(ui(:groups_jump)) %>">
+<%- groups.each do |g, _| -%>
+      <a href="#group-<%= g %>"><%= h(group_title(g)) %></a>
+<%- end -%>
+    </nav>
   </header>
 <%- groups.each_with_index do |(group, words), gi| -%>
   <section class="group" id="group-<%= group %>" aria-labelledby="group-<%= group %>-title">
@@ -24,6 +29,9 @@
       <h2 id="group-<%= group %>-title"><%= group_title(group) %></h2>
       <span class="label"><span class="n">§<%= format("%02d", gi + 1) %></span> · <%= ui(:words_count, words.size) %></span>
     </header>
+<%- if (summary = group_summary(group)) -%>
+    <p class="group-lead"><%= inline(summary) %></p>
+<%- end -%>
 <%- words.each do |w| a = AsobiSite.anchor(w["word"]) -%>
     <article class="word prose" id="<%= h(a) %>" aria-labelledby="<%= h(a) %>-title" data-spy-target>
       <header>

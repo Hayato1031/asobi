@@ -271,5 +271,77 @@
     editor.focus();
   });
 
+  // ---- WebMCP: allow AI agents to run & inspect Ruby sketches in ruby.wasm ----
+  function setupPlaygroundWebMCP() {
+    if (!window.AsobiWebMCP) return;
+    function waitForEngine(ms) {
+      if (engine) return Promise.resolve(engine);
+      return new Promise(function (resolve, reject) {
+        var deadline = Date.now() + ms;
+        var timer = setInterval(function () {
+          if (engine) { clearInterval(timer); resolve(engine); }
+          else if (Date.now() >= deadline) { clearInterval(timer); reject(new Error(U.loading_ruby)); }
+        }, 120);
+      });
+    }
+    function textResult(data, isError) {
+      var res = { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      if (isError) res.isError = true;
+      return res;
+    }
+
+    window.AsobiWebMCP.register([
+      {
+        name: "asobi_get_editor_code",
+        description: "Get the current Ruby code in the asobi playground editor, its shareable URL, and whether ruby.wasm is ready.",
+        inputSchema: { type: "object", properties: {} },
+        execute: function () {
+          replaceHash(sketchHash());
+          return textResult({
+            rubyReady: !!engine,
+            code: editor.value,
+            shareUrl: location.href,
+            frames: onScreen && onScreen.frames ? onScreen.frames.length : 0
+          });
+        }
+      },
+      {
+        name: "asobi_run_code",
+        description: "Set Ruby code in the asobi playground editor, run it using ruby.wasm, update the canvas, and return SVG frame metadata.",
+        inputSchema: {
+          type: "object",
+          properties: { code: { type: "string", description: "Ruby sketch using asobi (typically ending with show)." } },
+          required: ["code"]
+        },
+        execute: function (args) {
+          var code = String((args && args.code) || "");
+          if (!code.trim()) return textResult({ error: "code is required" }, true);
+          editor.value = code;
+          retint();
+          replaceHash(sketchHash());
+          return waitForEngine(20000).then(function (eng) {
+            return eng.run(code, cfg.lang);
+          }).then(function (json) {
+            var reel = JSON.parse(json);
+            show(reel);
+            if (!reel.error) shownFor = code;
+            return textResult({
+              error: reel.error || null,
+              frames: reel.frames ? reel.frames.length : 0,
+              fps: reel.fps || null,
+              view: reel.view || null,
+              background: reel.background || null,
+              firstFrameSvg: reel.frames && reel.frames[0] ? String(reel.frames[0]).slice(0, 4000) : null,
+              shareUrl: location.href
+            }, !!reel.error);
+          }, function (err) {
+            return textResult({ error: String((err && err.message) || err) }, true);
+          });
+        }
+      }
+    ]);
+  }
+
   boot();
+  setupPlaygroundWebMCP();
 })();

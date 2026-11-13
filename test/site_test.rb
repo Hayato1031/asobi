@@ -4,6 +4,7 @@ require_relative "test_helper"
 require "tmpdir"
 require "fileutils"
 require "json"
+require "digest"
 require "open3"
 require "rbconfig"
 require_relative "../site/build"
@@ -153,10 +154,15 @@ class SiteTest < Minitest::Test
   def test_only_external_resource_is_ruby_wasm_from_jsdelivr
     externals = (html_files + Dir.glob(File.join(@out, "assets", "*.{js,css}"))).flat_map do |f|
       source = File.read(f, encoding: "UTF-8")
-      # Navigation and search metadata contain URLs but do not load resources.
+      # Navigation, social previews, and search metadata contain URLs but do not load resources.
       if f.end_with?(".html")
+        source.scan(/<meta\s+(?:property="og:image"|name="twitter:image")\s+content="([^"]+)"/).flatten.each do |img_url|
+          assert img_url.start_with?(AsobiSite::SITE_URL), "#{f}: external preview image #{img_url}"
+        end
         source = source.gsub(%r{(<a\b[^>]*?\s)href="https?://[^"]*"}, '\1')
         source = source.gsub(/<link rel="(?:alternate|canonical)"[^>]*>/, "")
+        source = source.gsub(/<meta\s+(?:property="og:|name="twitter:)[^>]*>/, "")
+        source = source.gsub(%r{<script\s+type="application/ld\+json">.*?</script>}m, "")
       end
       source.scan(%r{https?://[^\s"'<>)\\]+})
     end.uniq
@@ -359,6 +365,174 @@ class SiteTest < Minitest::Test
       File.write(File.join(dir, "precious.txt"), "keep me")
       assert_raises(AsobiSite::BuildError) { AsobiSite::Builder.new(data: FIXTURES, out: dir, log: nil).build }
       assert File.file?(File.join(dir, "precious.txt"))
+    end
+  end
+
+  # ---- SEO, AIO, and structured data ------------------------------------------
+
+  def test_seo_metadata_hreflang_and_json_ld_on_every_page
+    %w[en ja].each do |lang|
+      directory = lang == "en" ? "" : "ja/"
+      titles = PAGES.map do |page|
+        html = read("#{directory}#{page}.html")
+        title = html[%r{<title>([^<]+)</title>}, 1]
+        desc = html[%r{<meta name="description" content="([^"]+)">}, 1]
+        assert title && !title.empty?, "#{directory}#{page}.html: missing title"
+        assert desc && !desc.empty?, "#{directory}#{page}.html: missing description"
+        url = "https://asobi.myura.me/#{page unless page == "index"}"
+        assert_includes html, %(<link rel="alternate" hreflang="x-default" href="#{url}">)
+        assert_includes html, %(<meta property="og:title" content=")
+        assert_includes html, %(<meta property="og:description" content=")
+        assert_includes html, %(<meta name="twitter:card" content="summary_large_image">)
+        assert_includes html, %(<link rel="alternate" type="text/markdown" title="llms.txt")
+
+        ld = html[%r{<script type="application/ld\+json">(.*?)</script>}m, 1]
+        assert ld, "#{directory}#{page}.html: missing JSON-LD"
+        graph = JSON.parse(ld).fetch("@graph")
+        types = graph.flat_map { Array(_1["@type"]) }
+        assert_includes types, "WebSite"
+        if page == "index"
+          assert_includes types, "SoftwareApplication"
+          assert_includes types, "SoftwareSourceCode"
+          assert_includes types, "VideoObject"
+        else
+          assert_includes types, "BreadcrumbList"
+        end
+        title
+      end
+      assert_equal PAGES.size, titles.uniq.size, "#{lang}: duplicate page titles"
+    end
+  end
+
+  def test_sitemap_alternates_llms_files_and_doc_navigation
+    sitemap = read("sitemap.xml")
+    assert_includes sitemap, 'xmlns:xhtml="http://www.w3.org/1999/xhtml"'
+    assert_includes sitemap, '<xhtml:link rel="alternate" hreflang="x-default" href="https://asobi.myura.me/"/>'
+
+    robots = read("robots.txt")
+    assert_includes robots, "llms.txt"
+
+    llms = read("llms.txt")
+    assert_includes llms, "# asobi"
+    assert_includes llms, "Object to Art. Art to Object."
+    assert_includes llms, "## Vocabulary Index"
+    assert_includes llms, "`circle`"
+    assert_includes llms, "`ring`"
+
+    llms_full = read("llms-full.txt")
+    assert_includes llms_full, "## Getting Started Guide"
+    assert_includes llms_full, "## Complete Reference"
+    assert_includes llms_full, "## Examples Gallery"
+
+    ref = read("reference.html")
+    assert_includes ref, 'class="group-jump"'
+    assert_includes ref, 'class="group-lead"'
+    assert_includes read("guide.html"), 'class="doc-next"'
+  end
+
+  def test_agent_readiness_manifests_markdown_mirrors_and_webmcp
+    robots = read("robots.txt")
+    assert_includes robots, "Content-Signal: ai-train=yes, search=yes, ai-input=yes"
+
+    PAGES.each do |page|
+      %w[en ja].each do |lang|
+        dir = lang == "en" ? "" : "ja/"
+        html = read("#{dir}#{page}.html")
+        assert_includes html, %(<link rel="alternate" type="text/markdown" href="#{page}.md">)
+        assert_includes html, 'rel="api-catalog"'
+        assert_includes html, 'rel="agent-skills"'
+        assert_includes html, 'rel="service-doc"'
+
+        md = read("#{dir}#{page}.md")
+        assert md.lines.size > 3, "#{dir}#{page}.md should not be empty"
+      end
+    end
+
+    skill_md = read(".well-known/agent-skills/asobi/SKILL.md")
+    assert_includes skill_md, "name: asobi"
+    assert_includes skill_md, "gem install asobi"
+
+    skills_index = JSON.parse(read(".well-known/agent-skills/index.json"))
+    assert_equal "https://schemas.agentskills.io/discovery/0.2.0/schema.json", skills_index["$schema"]
+    skill_entry = skills_index.fetch("skills").first
+    assert_equal "asobi", skill_entry["name"]
+    assert_equal "skill-md", skill_entry["type"]
+    assert_equal "sha256:#{Digest::SHA256.hexdigest(skill_md)}", skill_entry["digest"]
+
+    ard = JSON.parse(read(".well-known/ai-catalog.json"))
+    assert_equal "1.0", ard["specVersion"]
+    assert(ard.fetch("entries").all? { _1["identifier"].start_with?("urn:air:asobi.myura.me:") && !_1["representativeQueries"].empty? })
+
+    api_catalog = JSON.parse(read(".well-known/api-catalog"))
+    assert_equal "https://asobi.myura.me/", api_catalog.fetch("linkset").first["anchor"]
+
+    poppy = JSON.parse(read(".well-known/poppy.json"))
+    assert_equal "0.1", poppy["protocol_version"]
+    assert_equal "asobi.myura.me", poppy.dig("organization", "domain")
+
+    headers = read("_headers")
+    assert_includes headers, "Link:"
+    assert_includes headers, "application/linkset+json"
+
+    site_js = read("assets/site.js")
+    assert_includes site_js, "registerTool"
+    assert_includes site_js, "asobi_lookup_word"
+
+    play_js = read("assets/playground.js")
+    assert_includes play_js, "asobi_run_code"
+  end
+
+  def test_optional_home_cycle_comparison_and_faq_sections
+    Dir.mktmpdir do |dir|
+      data = File.join(dir, "data")
+      out = File.join(dir, "out")
+      FileUtils.cp_r(FIXTURES, data)
+      extra = <<~YAML
+
+        lead:
+          en: "Objects become art."
+          ja: "オブジェクトが絵になる。"
+        cycle:
+          sides:
+            - label: "01 / Object -> Art"
+              title: { en: "Object -> Art", ja: "Object -> Art" }
+              text: { en: "Array to circles.", ja: "配列を円にする。" }
+              code: "show [10, 16].to_art"
+          conversions:
+            - kind: { en: "Numbers", ja: "数値" }
+              result: { en: "Turns into a circle.", ja: "円になる。" }
+              code: "show 20.to_art"
+        comparison:
+          rows:
+            - aspect: { en: "Model", ja: "モデル" }
+              asobi: { en: "Immutable `Asobi::Art`", ja: "不変の `Asobi::Art`" }
+              canvas: { en: "Mutable canvas", ja: "可変キャンバス" }
+        faq:
+          - q: { en: "What is Object to Art?", ja: "Object to Art とは？" }
+            a: { en: "Turning values into art.", ja: "値を絵に変えること。" }
+      YAML
+      edit(File.join(data, "home.yml")) { _1 + extra }
+      AsobiSite::Builder.new(data:, out:, log: nil).build
+
+      %w[index.html ja/index.html].each do |file|
+        html = read(file)
+        refute_includes html, 'id="object-to-art"' # fixture base omits optional sections
+        rendered = File.read(File.join(out, file), encoding: "UTF-8")
+        assert_includes rendered, 'id="object-to-art"'
+        assert_includes rendered, 'id="compare"'
+        assert_includes rendered, 'id="faq"'
+        assert_includes rendered, 'class="compare-table"'
+        ld = rendered[%r{<script type="application/ld\+json">(.*?)</script>}m, 1]
+        faq_schema = JSON.parse(ld).fetch("@graph").find { _1["@type"] == "FAQPage" }
+        assert faq_schema, "#{file}: missing FAQPage JSON-LD"
+        q_text = file.start_with?("ja/") ? "Object to Art とは？" : "What is Object to Art?"
+        assert_equal [q_text], faq_schema.fetch("mainEntity").map { _1["name"] }
+      end
+      assert_includes File.read(File.join(out, "llms-full.txt"), encoding: "UTF-8"), "## Frequently Asked Questions"
+
+      edit(File.join(data, "home.yml")) { _1.sub("show [10, 16].to_art", "show [10, 16].to_arttt") }
+      error = assert_raises(AsobiSite::BuildError) { AsobiSite::Builder.new(data:, out:, log: nil).build }
+      assert_includes error.message, "home.yml, cycle, side 1"
     end
   end
 
