@@ -4,10 +4,10 @@
 
 [English](README.md) · **日本語**
 
-# 絵は、Ruby のオブジェクト。
+# Object to Art. Art to Object.
 
-**asobi（遊び）は、Ruby で図形を組み合わせて、絵とループアニメーションを作る gem です。**<br>
-花びらを並べて花を作り、`spin` と書くと花ごと回ります。配列も、自分のクラスも、`to_art` で絵になります。
+**asobi（遊び）は、外部依存ゼロで Ruby の図形から絵とループアニメーションを作るクリエイティブコーディング gem です。**<br>
+Ruby の値や自作クラスを `to_art` で絵に変える（**Object to Art**）。描かれた絵を不変の Ruby オブジェクトとして持ち運び、組み合わせ、動かす（**Art to Object**）。
 
 [![Gem Version](https://img.shields.io/gem/v/asobi?color=ff4d6d&label=gem)](https://rubygems.org/gems/asobi)
 [![Downloads](https://img.shields.io/gem/dt/asobi?color=f6c177&label=downloads)](https://rubygems.org/gems/asobi)
@@ -57,12 +57,12 @@ show bloom.one_by_one.trail(4, gap: 0.05).glowing(3), on: "#070812", paper: [360
 
 <table>
 <tr>
-<td width="50%" valign="top"><b>絵はオブジェクト</b><br>絵は変数に入れられ、メソッドに渡せて、配列に入れられます。<code>flower.scale(0.6)</code> は元の花を変えずに、小さな花を新しく返します。<code>setup</code> と <code>draw</code> を書く必要はありません。</td>
-<td width="50%" valign="top"><b>英語として読める</b><br><code>petal.repeat(8).in_fan.colored(:crimson, :navy)</code> は「花びらを8回繰り返し、扇状に並べ、深紅と紺で塗る」と左から順に読めます。</td>
+<td width="50%" valign="top"><b>Object to Art</b><br>数値は円に、文字列はタイポグラフィに、配列や Range は横並びの図形に、自作クラスも <code>to_art</code> で絵になります。一度絵になれば、色も動きも自在につけられます。</td>
+<td width="50%" valign="top"><b>Art to Object</b><br>すべての絵は不変の Ruby オブジェクトです。変数に入れ、メソッドに渡し、別の作品へ再利用できます。<code>flower.scale(0.6)</code> は元の花を変えずに新しい花を返し、<code>setup</code> や <code>draw</code> を書く必要はありません。</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><b>すぐ遊べる</b><br><code>gem install asobi</code> のあと <code>asobi</code> と打つだけで、ブラウザに花が回ります。数字を省いても、ちょうどよい大きさで描かれます。ファイルを保存するたびに、絵が差し替わります。</td>
-<td width="50%" valign="top"><b>Ruby だけで動く</b><br>外部のソフトを必要としません。同じコードが<a href="https://asobi.myura.me/ja/playground.html">ブラウザの遊び場</a>でも動くので、インストールせずに試せます。</td>
+<td width="50%" valign="top"><b>英語として読める</b><br><code>petal.repeat(8).in_fan.colored(:crimson, :navy)</code> は「花びらを8回繰り返し、扇状に並べ、深紅と紺で塗る」と左から順に読めます。</td>
+<td width="50%" valign="top"><b>外部依存ゼロ・Ruby だけで動く</b><br>外部ソフトは不要です。<code>gem install asobi</code> のあと <code>asobi</code> と打つとブラウザでホットリロードしながら遊べ、同じコードが<a href="https://asobi.myura.me/ja/playground.html">ブラウザの遊び場</a>でもそのまま動きます。</td>
 </tr>
 </table>
 
@@ -127,9 +127,9 @@ show flower.beside(flower.scale(0.6), gap: 12)
 
 長さは絵の中での大きさを表します。表示するときは絵全体が画面に収まるように拡大・縮小されます。回転角は度で指定し、`rotate(90)` なら時計回りに4分の1回転します。
 
-### Ruby の値が絵になる
+### Object to Art：Ruby の値が絵になる
 
-`to_art` は Ruby の値を絵に変換します。この例ではフィボナッチ数列の各項が星の大きさになり、小さな星から順に横一列に並びます。`as:` を省くと、各項を半径とする円になります。絵になったあとは、ほかの絵と同じように色を塗り、動かせます。
+`to_art` は Ruby のあらゆる値を絵に変換します。数値は円、文字列やシンボルはタイポグラフィ、配列や Range は要素順の横並び、ハッシュはカラーパレットとして表現されます。`as:` を渡すと各項を指定した図形の大きさにでき、この例ではフィボナッチ数列が成長する星の列になります。絵になったあとは、ほかの絵と同じように色を塗り、動かせます。
 
 <table>
 <tr>
@@ -146,9 +146,9 @@ show stars.spin(every: 4).one_by_one, on: :black
 </tr>
 </table>
 
-### 自分のクラスが絵になる
+### Art to Object：自分のクラスが絵になる
 
-自作クラスに絵を返す `to_art` を定義すると、そのインスタンスを `show` に渡せます。さらに `Asobi::Art` をインクルードすると、インスタンスに対して直接 `spin` や `beside` を呼べます。
+自作クラスに絵を返す `to_art` を定義すると、そのままインスタンスを `show` に渡せます。さらに `Asobi::Art` をインクルードすると、インスタンスに対して直接 `spin` や `beside` のような合成・アニメーションメソッドを呼べます。
 
 <table>
 <tr>
@@ -308,10 +308,11 @@ stars.colored(:navy).save("stars.svg")
 
 | 読みたいもの | 場所 |
 | --- | --- |
-| 絵を作る手順を順番に学ぶ | [入門ガイド](https://asobi.myura.me/ja/guide.html) |
-| メソッドの引数や既定値を調べる | [リファレンス](https://asobi.myura.me/ja/reference.html) |
-| インストールせずに試す | [遊び場](https://asobi.myura.me/ja/playground.html) |
+| **Object to Art / Art to Object** を順番に学ぶ | [入門ガイド](https://asobi.myura.me/ja/guide.html) ([Markdown](https://asobi.myura.me/ja/guide.md)) |
+| 図形・配置・動きと既定値を調べる | [リファレンス](https://asobi.myura.me/ja/reference.html) ([Markdown](https://asobi.myura.me/ja/reference.md)) |
+| インストールせずにブラウザで試す | [遊び場](https://asobi.myura.me/ja/playground.html) |
 | 1ファイルで動くスケッチを読む | [作例一覧](examples/README.md) |
+| AI エージェントに完全な API コンテキストを渡す | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
 | 設計の理由を知る | [設計書](DESIGN.md) |
 | 変更の履歴を見る | [CHANGELOG](CHANGELOG.md) |
 
@@ -337,4 +338,4 @@ bundle exec rake site
 
 ## ライセンス
 
-[MIT ライセンス](LICENSE) · [RubyGems](https://rubygems.org/gems/asobi) · [公式サイト](https://asobi.myura.me/ja/)
+[MIT ライセンス](LICENSE) · [RubyGems](https://rubygems.org/gems/asobi) · [公式サイト](https://asobi.myura.me/ja/) · [llms.txt](https://asobi.myura.me/llms.txt)

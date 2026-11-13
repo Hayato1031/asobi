@@ -4,10 +4,10 @@
 
 **English** · [日本語](README.ja.md)
 
-# A picture is a Ruby object.
+# Object to Art. Art to Object.
 
-**asobi (Japanese for “play”) is a gem for making pictures and looping animations by combining shapes in Ruby.**<br>
-Arrange petals into a flower, call `spin`, and the whole flower turns. Arrays and your own classes become pictures with `to_art`.
+**asobi (Japanese for “play”) is a zero-dependency creative coding gem for making geometric pictures and looping animations in Ruby.**<br>
+Turn Ruby values and your own classes into pictures with `to_art` — **Object to Art**. Keep, compose, and animate every picture as an immutable Ruby object — **Art to Object**.
 
 [![Gem Version](https://img.shields.io/gem/v/asobi?color=ff4d6d&label=gem)](https://rubygems.org/gems/asobi)
 [![Downloads](https://img.shields.io/gem/dt/asobi?color=f6c177&label=downloads)](https://rubygems.org/gems/asobi)
@@ -57,12 +57,12 @@ show bloom.one_by_one.trail(4, gap: 0.05).glowing(3), on: "#070812", paper: [360
 
 <table>
 <tr>
-<td width="50%" valign="top"><b>A picture is an object</b><br>Keep a picture in a variable, pass it to a method, or put it in an array. <code>flower.scale(0.6)</code> returns a new, smaller flower and leaves the original as it was. There is no <code>setup</code> or <code>draw</code> to write.</td>
-<td width="50%" valign="top"><b>It reads like English</b><br><code>petal.repeat(8).in_fan.colored(:crimson, :navy)</code> reads from left to right: repeat a petal eight times, fan the copies out, colour them crimson and navy.</td>
+<td width="50%" valign="top"><b>Object to Art</b><br>Numbers become discs, strings become type, arrays and ranges become visual rows, and your own classes gain visual form through <code>to_art</code>. Once converted, they behave like any other picture.</td>
+<td width="50%" valign="top"><b>Art to Object</b><br>Every picture is an immutable Ruby object. Hold it in a variable, pass it to a method, or reuse it across a composition — <code>flower.scale(0.6)</code> returns a new flower and leaves the original unchanged, with no <code>setup</code> or <code>draw</code> loop to wire up.</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><b>Play straight away</b><br>After <code>gem install asobi</code>, type <code>asobi</code> and a flower spins in your browser. Leave out a number and asobi picks a size that fits. Save the file and the picture updates.</td>
-<td width="50%" valign="top"><b>Nothing but Ruby</b><br>asobi needs no other software. The same code runs in the <a href="https://asobi.myura.me/playground.html">browser playground</a>, so you can try it without installing anything.</td>
+<td width="50%" valign="top"><b>Reads like English</b><br><code>petal.repeat(8).in_fan.colored(:crimson, :navy)</code> reads from left to right: repeat a petal eight times, fan the copies out, colour them crimson and navy.</td>
+<td width="50%" valign="top"><b>Nothing but Ruby</b><br>Zero external dependencies. Run <code>gem install asobi</code> and <code>asobi</code> to live-code in your browser with automatic reload, or run sketches straight in the <a href="https://asobi.myura.me/playground.html">browser playground</a>.</td>
 </tr>
 </table>
 
@@ -127,9 +127,9 @@ show flower.beside(flower.scale(0.6), gap: 12)
 
 Lengths are relative to the other shapes in the sketch, and the preview fits the drawing to the screen. Angles are measured in degrees clockwise, so `rotate(90)` makes a quarter turn.
 
-### Turn Ruby values into pictures
+### Object to Art: turn Ruby values into pictures
 
-With `to_art`, a number becomes a disc, and an array becomes a row of pictures in element order. Give it a shape with `as:` to use each number as the size of that shape. Here the Fibonacci sequence becomes a row of growing stars. From then on it is a picture like any other, so you can colour it and set it in motion.
+With `to_art`, any Ruby value becomes a shape: numbers become discs, strings and symbols become typography, arrays and ranges become visual rows in element order, and hashes become palette swatches. Pass `as:` to use each number as the size of another shape — here the Fibonacci sequence becomes a row of growing stars that you can colour and set in motion.
 
 <table>
 <tr>
@@ -146,9 +146,9 @@ show stars.spin(every: 4).one_by_one, on: :black
 </tr>
 </table>
 
-### Give your own class a visual form
+### Art to Object: give your own class a visual form
 
-Define `to_art` to return the picture for an instance, and you can pass that instance to `show`. Include `Asobi::Art` when you also want to call methods such as `spin` or `beside` on the instance itself.
+Define `to_art` to return the picture for an instance, and you can pass any domain object directly to `show`. Include `Asobi::Art` when you want the reverse direction too — calling composition and animation methods like `spin` or `beside` straight on the object itself.
 
 <table>
 <tr>
@@ -308,10 +308,11 @@ stars.colored(:navy).save("stars.svg")
 
 | To do this | Go to |
 | --- | --- |
-| Learn to build a picture step by step | [Guide](https://asobi.myura.me/guide.html) |
-| Look up arguments and defaults | [Method reference](https://asobi.myura.me/reference.html) |
-| Try asobi without installing it | [Playground](https://asobi.myura.me/playground.html) |
+| Learn **Object to Art / Art to Object** step by step | [Guide](https://asobi.myura.me/guide.html) ([Markdown](https://asobi.myura.me/guide.md)) |
+| Look up shapes, layouts, motion, and defaults | [Method reference](https://asobi.myura.me/reference.html) ([Markdown](https://asobi.myura.me/reference.md)) |
+| Try asobi in the browser without installing it | [Playground](https://asobi.myura.me/playground.html) |
 | Read complete one-file sketches | [Examples](examples/README.md) |
+| Give AI coding agents full API context | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
 | See why asobi is designed this way | [Design notes (Japanese)](DESIGN.md) |
 | See what changed in each release | [Changelog](CHANGELOG.md) |
 
@@ -337,4 +338,4 @@ Want to fix a bug, improve the docs, or share a sketch? [Fork asobi](https://git
 
 ## License
 
-[MIT](LICENSE) · [RubyGems](https://rubygems.org/gems/asobi) · [Official website](https://asobi.myura.me/)
+[MIT](LICENSE) · [RubyGems](https://rubygems.org/gems/asobi) · [Official website](https://asobi.myura.me/) · [llms.txt](https://asobi.myura.me/llms.txt)
