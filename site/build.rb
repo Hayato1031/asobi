@@ -60,6 +60,11 @@ module AsobiSite
   AUTHOR_URL = "https://github.com/Hayato1031"
   OG_IMAGE_URL = "#{SITE_URL}/assets/og-image.png"
   MARKER = ".asobi-site" # marks a directory this builder may wipe and rewrite
+  # The one song the site ships (as assets/beat.wav): play "beat.wav" in an
+  # example on the pages and in the playground plays this file. Its src in a
+  # Reel is from the site's root; the page's script puts its root in front.
+  SONG = File.join(ROOT, "examples", "reactions", "beat.wav")
+  SONG_SRC = "assets/beat.wav"
 
   class BuildError < StandardError; end
 
@@ -75,7 +80,7 @@ module AsobiSite
   }.freeze
 
   LANGUAGES = { ja: "日本語", en: "English" }.freeze
-  GROUPS = %w[shapes combine change color effect arrange to_art motion show].freeze
+  GROUPS = %w[shapes combine change color effect arrange to_art motion react show].freeze
   PAGES = { "index" => :home, "guide" => :guide, "reference" => :reference,
             "examples" => :examples, "playground" => :playground }.freeze
   NAV = %w[guide reference examples playground].freeze
@@ -95,6 +100,7 @@ module AsobiSite
       loading_ruby: "Loading Ruby…", ruby_ready: "Ruby is ready", running: "running…",
       ruby_failed: "Ruby could not be loaded. Check the connection and reload the page.",
       too_slow: "This sketch took more than %d seconds, so it was stopped. Is there a loop that never ends?",
+      crashed: "Ruby stopped working while it ran this sketch, so it was started again. Change the code to try once more.",
       editor_hint: "Edit the code; the picture follows. Tab inserts two spaces. Press Esc, then Tab, to leave the editor.",
       words_hint: "Each word opens its reference in a new tab.",
       reset: "Start again",
@@ -108,7 +114,8 @@ module AsobiSite
       pr_invitation: "Fixes, examples and documentation are welcome too. Fork the repository, make your changes and open a pull request to main.",
       report_bug: "Report a bug", suggest_feature: "Suggest a feature", fork_repo: "Fork on GitHub",
       groups: { "shapes" => "Shapes", "combine" => "Combine", "change" => "Change", "color" => "Colour",
-                "effect" => "Effects", "arrange" => "Arrange", "to_art" => "Object to Art", "motion" => "Motion", "show" => "Show" },
+                "effect" => "Effects", "arrange" => "Arrange", "to_art" => "Object to Art", "motion" => "Motion",
+                "react" => "React and sound", "show" => "Show" },
       group_summaries: {
         "shapes" => "Built-in geometric and organic shapes plus colour helpers (`hsl`, `gray`), all centred at the origin with optional arguments.",
         "combine" => "Layer, repeat, and align pictures side by side or stacked—everything returns a single immutable picture.",
@@ -118,6 +125,7 @@ module AsobiSite
         "arrange" => "Distribute groups of pictures in rows, columns, grids, rings, fans, spirals, or stable random scatter.",
         "to_art" => "Object to Art: convert numbers, strings, arrays, ranges, hashes, and your own Ruby classes into composable pictures.",
         "motion" => "Pure-function animations (`seconds -> art`) that loop seamlessly, stagger `one_by_one`, and leave fading trails.",
+        "react" => "Let a click, the pointer, a key, the microphone or a song turn a motion, and make notes and drum sounds as it does.",
         "show" => "Display live-reloading sketches in the browser, export SVG or standalone HTML, and measure bounding boxes."
       },
       creative_coding: "Creative coding", chapters_count: "%02d chapters", pieces_count: "%02d pieces", groups_count: "%d groups",
@@ -126,7 +134,7 @@ module AsobiSite
       examples_lead: "Finished pieces. Open any of them in the playground and change it.",
       playground_title: "Playground",
       get_started: "Get started", play: "Play", copy: "Copy", copied_short: "Copied",
-      show_code: "Code", now_playing: "Now playing", live: "live", still: "still", frame: "frame",
+      show_code: "Code", now_playing: "Now playing", live: "live", still: "still", reacts: "reacts", frame: "frame",
       every: "every %ss", frames: "%d frames", stage_label: "A piece playing, with its code",
       philosophy: "What asobi believes",
       cycle_label: "Object ⇄ Art",
@@ -159,8 +167,8 @@ module AsobiSite
       },
       seo_descriptions: {
         "index" => "asobi is a zero-dependency Ruby creative coding gem. Turn numbers, arrays, and your own classes into SVG art and loops with to_art, then compose them as immutable Ruby objects.",
-        "guide" => "Learn Ruby creative coding with asobi in %d chapters: install and live reload, shapes, layouts, colour, to_art object conversion, looping motion, glow effects, and custom classes.",
-        "reference" => "Complete %d-word API reference for asobi across %d groups with live SVG examples: shapes, combine, change, colour, effects, arrange, to_art, motion, and show.",
+        "guide" => "Learn Ruby creative coding with asobi in %d chapters: install and live reload, shapes, layouts, colour, to_art object conversion, looping motion, clicks and sound, glow effects, and custom classes.",
+        "reference" => "Complete %d-word API reference for asobi across %d groups with live SVG examples: shapes, combine, change, colour, effects, arrange, to_art, motion, react and sound, and show.",
         "examples" => "Browse %d interactive Ruby creative coding examples built with asobi—including custom classes with to_art, solar orbits, Fibonacci stars, aurora, and paper cut-outs.",
         "playground" => "Write and run asobi Ruby sketches directly in your browser using ruby.wasm. Convert objects with to_art, animate SVG loops, and share creations via URL."
       }
@@ -176,6 +184,7 @@ module AsobiSite
       loading_ruby: "Ruby を読み込み中…", ruby_ready: "Ruby の準備ができました", running: "実行中…",
       ruby_failed: "Ruby を読み込めませんでした。通信を確かめて、ページを読み込み直してください。",
       too_slow: "%d 秒以上かかったので止めました。終わらないくり返しがないか確かめてください。",
+      crashed: "このスケッチの実行中に Ruby が止まってしまったので、起動し直しました。コードを書き換えると、もう一度動かします。",
       editor_hint: "コードを書き換えると絵が変わります。Tab で空白2つ。エディタから出るには Esc のあと Tab。",
       words_hint: "言葉を選ぶと、そのリファレンスが新しいタブで開きます。",
       reset: "最初に戻す",
@@ -189,7 +198,8 @@ module AsobiSite
       pr_invitation: "コードの修正、作例の追加、ドキュメントの改善も歓迎します。リポジトリをフォークして変更を加え、main 宛てにプルリクエストを送ってください。",
       report_bug: "不具合を報告する", suggest_feature: "機能を提案する", fork_repo: "GitHub でフォークする",
       groups: { "shapes" => "形", "combine" => "合わせる", "change" => "変える", "color" => "色",
-                "effect" => "効果", "arrange" => "並べる", "to_art" => "Object to Art（オブジェクトを絵に）", "motion" => "動き", "show" => "画面に出す" },
+                "effect" => "効果", "arrange" => "並べる", "to_art" => "Object to Art（オブジェクトを絵に）", "motion" => "動き",
+                "react" => "反応と音", "show" => "画面に出す" },
       group_summaries: {
         "shapes" => "原点を中心にした基本図形と色のヘルパー（`hsl`・`gray`）。数字はすべて省略できます。",
         "combine" => "絵を重ねる・横に並べる・縦に積む・増やす。組み合わせた結果も1枚の不変の絵です。",
@@ -199,6 +209,7 @@ module AsobiSite
         "arrange" => "増やした絵を一列・縦・格子・輪・扇・らせん・安定したランダム配置に並べます。",
         "to_art" => "Object to Art：数値・文字列・配列・範囲・ハッシュや自作クラスを絵に変換します。",
         "motion" => "時刻（秒）から絵を返す純粋関数としてループアニメーションを作り、時間差や残像を加えます。",
+        "react" => "クリック・マウスの位置・キー・マイク・曲で動きを進め、そのときに音階や太鼓の音を鳴らします。",
         "show" => "ブラウザへのライブ表示・SVG や単体 HTML への保存・外接サイズ計測を行います。"
       },
       creative_coding: "クリエイティブコーディング", chapters_count: "全%d章", pieces_count: "全%d作品", groups_count: "%dグループ",
@@ -207,7 +218,7 @@ module AsobiSite
       examples_lead: "完成した作品。どれも遊び場で開いて書き換えられます。",
       playground_title: "遊び場",
       get_started: "はじめる", play: "遊ぶ", copy: "コピー", copied_short: "コピーしました",
-      show_code: "コード", now_playing: "再生中", live: "再生中", still: "静止画", frame: "コマ",
+      show_code: "コード", now_playing: "再生中", live: "再生中", still: "静止画", reacts: "反応する", frame: "コマ",
       every: "%s秒で1周", frames: "%dコマ", stage_label: "作品とそのコード",
       philosophy: "asobi の考え",
       cycle_label: "Object ⇄ Art",
@@ -240,8 +251,8 @@ module AsobiSite
       },
       seo_descriptions: {
         "index" => "asobi（遊び）は Ruby 3.2 以上だけで動くクリエイティブコーディング用 gem。数値・配列・自作クラスを to_art で SVG の静止画やループアニメーションに変換し、不変のオブジェクトとして自在に合成できます。",
-        "guide" => "Ruby クリエイティブコーディング gem「asobi」の入門ガイド（全%d章）。インストールとライブ表示から、図形、to_art による変換、ループアニメーション、発光エフェクト、自作クラスの描画まで学べます。",
-        "reference" => "asobi の全%d語（%dグループ）を実働する SVG 作例付きで網羅した API リファレンス。形・合わせる・変える・色・効果・並べる・to_art・動き・画面に出すを収録。",
+        "guide" => "Ruby クリエイティブコーディング gem「asobi」の入門ガイド（全%d章）。インストールとライブ表示から、図形、to_art による変換、ループアニメーション、クリックや音への反応、発光エフェクト、自作クラスの描画まで学べます。",
+        "reference" => "asobi の全%d語（%dグループ）を実働する SVG 作例付きで網羅した API リファレンス。形・合わせる・変える・色・効果・並べる・to_art・動き・反応と音・画面に出すを収録。",
         "examples" => "asobi で作成した全%d作品のクリエイティブコーディング作例集。自作クラス Planet の to_art やフィボナッチの星、オーロラ、切り絵のコードをブラウザの遊び場で試せます。",
         "playground" => "インストール不要で ruby.wasm 上で動く asobi のブラウザ遊び場。Ruby のオブジェクトを to_art で絵やアニメーションに変え、URL で作品をそのまま共有できます。"
       }
@@ -249,6 +260,11 @@ module AsobiSite
   }.freeze
 
   PLAY_TIMEOUT = 15 # seconds before the playground gives up on a sketch
+  # Making every frame of a motion can take longer than running the sketch
+  # (its preview is already on screen by then), so that step has more time.
+  # It is made in slices, each followed by a "still working" message; the
+  # playground stops it only when nothing comes for this long.
+  PLAY_WHOLE_TIMEOUT = 60
 
   module_function
 
@@ -273,6 +289,9 @@ module AsobiSite
     s += "=" * ((4 - s.length % 4) % 4)
     s.unpack1("m0").force_encoding(Encoding::UTF_8)
   end
+
+  # The id of the site's song (the same as play gives it: Asobi::Song).
+  def song_id = @song_id ||= Digest::SHA256.file(SONG).hexdigest[0, 12]
 
   # FNV-1a (32 bit) of the UTF-8 bytes: names a reel file. The playground
   # computes the same in JavaScript to find a pre-rendered picture.
@@ -353,6 +372,8 @@ module AsobiSite
   Snippet = Struct.new(:code, :file, :entry, :label, :result, keyword_init: true)
   Result = Struct.new(:key, :reel, keyword_init: true) do
     def moving? = reel["frames"].size > 1
+    # Does it react (a click, the pointer, a key, sound) or play a song?
+    def reacts? = reel.key?("parts") || reel.key?("song")
   end
 
   # Reads and checks site/data/*.yml (or a fixture directory).
@@ -643,7 +664,12 @@ module AsobiSite
         $LOAD_PATH.unshift(#{VIRTUAL_LIB.dump})
         #{features.inspect}.each { |f| $LOADED_FEATURES << f unless $LOADED_FEATURES.include?(f) }
       RUBY
-      text = prelude + parts.join("\n") + "\n" + epilogue + "\n" + File.read(File.join(PLAYGROUND, "runner.rb"), encoding: "UTF-8")
+      runner = File.read(File.join(PLAYGROUND, "runner.rb"), encoding: "UTF-8")
+      unless runner.include?(%("beat.wav" => Song.new(path: "beat.wav", id: "#{AsobiSite.song_id}", src: "#{SONG_SRC}")))
+        raise BuildError, "site/playground/runner.rb must offer beat.wav with its id #{AsobiSite.song_id} and src #{SONG_SRC} " \
+                          "(the id is the first 12 characters of the SHA-256 of #{SONG.delete_prefix("#{ROOT}/")})"
+      end
+      text = prelude + parts.join("\n") + "\n" + epilogue + "\n" + runner
       check(text)
       text
     end
@@ -762,6 +788,7 @@ module AsobiSite
       language = Asobi::Messages.instance_variable_get(:@language)
       Asobi.language = :en
       scratch = Dir.mktmpdir("asobi-site") # a sketch that saves a file saves it here, not in the project
+      FileUtils.cp(SONG, scratch)           # so play "beat.wav" finds the site's song
       snippets.group_by(&:code).each do |code, same|
         first = same.first
         name = first.label.to_s.gsub(/[^\w]+/, "_") + ".rb"
@@ -774,7 +801,7 @@ module AsobiSite
           same.each { failures << [_1, reel["error"]] }
           next
         end
-        reel = lighter(reel, code, same.first)
+        reel = site_song(lighter(reel, code, same.first), same.first)
         key = AsobiSite.code_key(code)
         if (other = @results.values.find { _1.key == key })
           raise BuildError, "two different examples have the same picture key #{key}; change one of them slightly (#{other.reel["code"].lines.first})"
@@ -798,6 +825,18 @@ module AsobiSite
 
     attr_reader :warnings
 
+    # A page plays the song from the site itself (assets/beat.wav), not from
+    # "/song/ID", which only the live view serves.
+    def site_song(reel, snippet)
+      song = reel["song"]
+      return reel unless song
+      unless song["id"] == AsobiSite.song_id
+        raise BuildError, "#{snippet.file}, #{snippet.entry}: the site has only one song; use play \"beat.wav\""
+      end
+
+      reel.merge("song" => song.merge("src" => SONG_SRC))
+    end
+
     # Pages must stay light. A motion whose reel is heavier than REEL_BUDGET
     # is drawn again at a lower fps (the picture is the same, the movement
     # less smooth), and the build says so.
@@ -810,7 +849,7 @@ module AsobiSite
       every = shown.thing.every.to_f
       fit = [(REEL_BUDGET * frames / size), 2].max
       fps = [(fit / every).floor, 1].max
-      light = Asobi::Reel.of(shown.thing, fps:, on: shown.on, paper: shown.paper, grain: shown.grain, code:)
+      light = Asobi::Reel.of(shown.thing, **shown.options, fps:, code:, song: Asobi::Sketch.song) # everything show and play asked for
       (@warnings ||= []) << "#{snippet.file}, #{snippet.entry}: its reel was #{size / 1000} kB (#{frames} frames); " \
                             "drawn at #{light["frames"].size} frames (#{JSON.generate(light).bytesize / 1000} kB) instead. " \
                             "Fewer or simpler shapes, or a shorter every:, keep it smooth."
@@ -836,6 +875,7 @@ module AsobiSite
       Dir.glob(File.join(ASSETS, "*")).each { FileUtils.cp(_1, File.join(@out, "assets")) }
       %w[ruby-engine.js ruby-worker.js].each { FileUtils.cp(File.join(PLAYGROUND, _1), File.join(@out, "assets")) }
       FileUtils.cp(Asobi::Reel::PLAYER, File.join(@out, "assets", "player.js"))
+      FileUtils.cp(SONG, File.join(@out, SONG_SRC))
       Decor.write(File.join(@out, "assets"))
       ruby = Bundle.source
       File.write(File.join(@out, "assets", "asobi.rb"), ruby)
@@ -914,7 +954,7 @@ module AsobiSite
           {
             "name" => "asobi",
             "type" => "skill-md",
-            "description" => "Create generative SVG art and looping animations in Ruby using the asobi gem (Object to Art. Art to Object.).",
+            "description" => "Create generative SVG art, looping animations, and pictures that react to clicks and sound in Ruby using the asobi gem (Object to Art. Art to Object.).",
             "url" => skill_url,
             "digest" => skill_digest
           }
@@ -1079,7 +1119,7 @@ module AsobiSite
       <<~MD
         ---
         name: asobi
-        description: Write creative coding sketches, generative SVG art, and pure-function looping animations in Ruby using the asobi gem (Object to Art. Art to Object.). Use when converting Ruby numbers, strings, arrays, hashes, or custom classes into SVG or standalone looping HTML.
+        description: Write creative coding sketches, generative SVG art, and pure-function looping animations in Ruby using the asobi gem (Object to Art. Art to Object.). Use when converting Ruby numbers, strings, arrays, hashes, or custom classes into SVG or standalone looping HTML, or when making pictures react to clicks, keys, a microphone or music and play sound.
         ---
 
         # asobi (Ruby Creative Coding — Object to Art. Art to Object.)
@@ -1095,8 +1135,8 @@ module AsobiSite
         - Pure mode (no core extensions on `Numeric`/`String`/`Array`/`Hash`): `require "asobi/pure"` (`Asobi.art(obj)` instead of `obj.to_art`).
         - Local live coding: `asobi sketch.rb` (opens browser live view and reloads on save).
         - Headless / Script export:
-          - `save art, "out.svg"` exports static SVG (or `save motion, "out.html"` for standalone looping HTML).
-          - `to_svg(art)` returns SVG markup as a String.
+          - `art.save("out.svg")` exports static SVG (or `motion.save("out.html")` for standalone looping HTML).
+          - `art.to_svg` returns SVG markup as a String.
           - Sketches evaluated interactively end with `show art, on: :black, grain: true`.
 
         ## Critical Rules & Gotchas
@@ -1105,6 +1145,16 @@ module AsobiSite
         - All parameters have sensible defaults (`circle` works with zero arguments).
         - Motion durations (`spin(every: 6)`, `orbit(40, every: 6)`) must be **non-negative** (`>= 0`). To spin or orbit counter-clockwise, pass `clockwise: false` instead of a negative `every:`.
         - Do not call `array.to_art` and then `.in_fan`: `array.to_art` lays items out in a row first; build centered items (`petal(...).repeat(n).in_fan`) or arrange with `.in_ring(r)`.
+
+        ## Reactions & Sound
+
+        - A reaction word comes right after a motion and says who turns its frames instead of the clock: `flower.pulse.when_clicked`, `flower.spin.while_hovered`, `flower.spin.when_pressed("a")`, `ring.pulse.on_beat` (the microphone) or `on_beat(:music)`.
+        - `by` picks the frame from a value: `by(:mouse_x)`, `by(:mouse_y)`, `by(:mic)`, `by(:mic, :low)` (also `:mid`, `:high`, `:pitch`), `by(:music)`, `by(:music, :low)`.
+        - The answer is still a picture: `dot.pulse.when_clicked.repeat(12).in_ring(60)` gives twelve dots that each react on their own.
+        - `play "song.mp3"` is a top-level word like `show`: one song per sketch, looped, read from the sketch's folder (`volume: 0.5` to turn it down). `:music` means the sound asobi itself plays.
+        - `sounding(sound)` comes right after `when_clicked`, `while_hovered`, `when_pressed` or `on_beat`, never after `by(...)` or a plain motion. Sounds: `:pop`, `:kick`, `:snare`, `:hat`, `:clap`, `:bell`, or a note such as `:c4`, `:cs4`, `"Bb3"`.
+        - Browsers start sound and the microphone only after a click or key press on the picture. A saved `.html` still reacts and carries its song (up to 20 MB); a saved `.svg` shows the picture at rest.
+        - `show art, controls: false` hides the buttons for projecting; in the player, `f` is full screen and `m` mutes.
 
         ## Vocabulary (#{@content.words.size} Words in #{GROUPS.size} Groups)
 
@@ -1153,6 +1203,7 @@ module AsobiSite
            - Custom classes: define `def to_art` (optionally `include Asobi::Art` to chain words like `spin`, `colored`, `move`).
         2. **Art to Object**: Every picture is an immutable Ruby value (`Data` / `Asobi::Art`). Calling `.colored(:crimson)` or `.rotate(45)` returns a new picture without mutating the original—never mutating a global canvas.
         3. **Pure-Function Motion**: Animations (`Asobi::Motion`) are pure functions of `seconds -> art`, allowing live browser reload without resetting motion phase and clean `.trail` afterimages.
+        4. **Reactions and Sound**: A word after a motion says who turns its frames instead of the clock: `when_clicked`, `while_hovered`, `when_pressed("a")`, `on_beat`, or `by(:mouse_x)` / `by(:mic, :low)` / `by(:music)`. `play "song.mp3"` loops a song, and `sounding(:kick)` or `sounding(:c4)` after a reaction plays a synthesized drum sound or note. Editing the code does not restart the song, for live coding and VJ sets.
 
         ## Quick Example
 
@@ -1509,6 +1560,8 @@ module AsobiSite
           "Object to Art via to_art on numbers, strings, arrays, ranges, hashes, and custom Ruby classes",
           "Immutable Ruby picture values (Asobi::Art)",
           "Pure-function looping animations (Asobi::Motion)",
+          "Reactions to clicks, the pointer, keys, the microphone and music (when_clicked, on_beat, by)",
+          "Songs and synthesized notes and drum sounds for live coding and VJ sets (play, sounding)",
           "Zero runtime dependencies beyond Ruby 3.2+ standard library",
           "Live browser reload, SVG and standalone HTML export, and ruby.wasm playground"
         ]
@@ -1672,7 +1725,7 @@ module AsobiSite
       svg = %(<svg class="pic-still" viewBox="#{[x, y, w, hgt].join(" ")}" preserveAspectRatio="xMidYMid meet" ) +
             %(stroke-linejoin="round" stroke-linecap="round" aria-hidden="true" focusable="false">) +
             %(<rect x="#{x}" y="#{y}" width="#{w}" height="#{hgt}" fill="#{h(bg)}"/>#{reel["frames"].first}</svg>)
-      moving = r.moving? && live ? %( data-reel="#{r.key}" data-fps="#{reel["fps"]}" data-count="#{reel["frames"].size}") : ""
+      moving = (r.moving? || r.reacts?) && live ? %( data-reel="#{r.key}" data-fps="#{reel["fps"]}" data-count="#{reel["frames"].size}") : ""
       kind = AsobiSite.light?(bg) ? "paper" : "screen"
       pic = %(<div class="pic" role="img" aria-label="#{h(ui(:picture_of, label))}" style="background:#{h(bg)};--r:#{ratio}"#{moving}>#{svg}</div>)
       %(<div class="shot #{kind} #{css}" style="--r:#{ratio}">#{pic}#{readout ? readout_for(r) : ""}</div>)
@@ -1683,7 +1736,10 @@ module AsobiSite
     def readout_for(result)
       reel = result.reel
       n = reel["frames"].size
-      return %(<p class="readout" aria-hidden="true"><span class="ro-dot still"></span>#{ui(:still)} · #{reel["view"][2].round}×#{reel["view"][3].round}</p>) if n < 2
+      if n < 2
+        word = result.reacts? ? ui(:reacts) : ui(:still)
+        return %(<p class="readout" aria-hidden="true"><span class="ro-dot still"></span>#{word} · #{reel["view"][2].round}×#{reel["view"][3].round}</p>)
+      end
 
       digits = n.to_s.size
       %(<p class="readout" aria-hidden="true"><span class="ro-dot"></span><span data-fc>#{"0" * digits}</span>/#{n} · ) +
@@ -1744,11 +1800,13 @@ module AsobiSite
     def default_play_code = AsobiSite.display_code(content.home["hero_code"])
 
     def play_config
-      ui_keys = %i[loading_ruby ruby_ready running ruby_failed copied copy_failed every still]
+      ui_keys = %i[loading_ruby ruby_ready running ruby_failed crashed copied copy_failed every still reacts]
       {
         "lang" => @lang.to_s,
-        "ui" => ui_keys.to_h { [_1.to_s, ui(_1)] }.merge("too_slow" => ui(:too_slow, PLAY_TIMEOUT)),
+        "ui" => ui_keys.to_h { [_1.to_s, ui(_1)] }.merge("too_slow" => ui(:too_slow, PLAY_TIMEOUT),
+                                                         "too_slow_whole" => ui(:too_slow, PLAY_WHOLE_TIMEOUT)),
         "timeout" => PLAY_TIMEOUT * 1000,
+        "finishTimeout" => PLAY_WHOLE_TIMEOUT * 1000,
         "assets" => "#{root}assets/",
         "reels" => "#{root}reels/",
         "rubyWasm" => RUBY_WASM,

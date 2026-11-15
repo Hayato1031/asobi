@@ -122,3 +122,16 @@
   code: |
     stripes = rect(10, 90).repeat(12).in_row(gap: 4).colored(from: :crimson, to: :gold, angle: 90)
     show stripes.spin(every: 6).clipped_by(heart(70)), on: :navy
+
+- id: chimes
+  title: { en: "Chimes", ja: "音の輪" }
+  text: { en: "Eight notes in a ring, and a bell in the middle. Click them to play a tune: in any order, they sound good together.", ja: "輪になった8つの音と、真ん中のベル。クリックして曲を弾いてみてください。どの順に鳴らしても、きれいに響きます。" }
+  code: |
+    notes = %i[c4 d4 e4 g4 a4 c5 d5 e5]
+    chimes = notes.each_with_index.map do |note, i|
+      chime = circle(13).colored(hsl(i * 45, 75, 62))
+      chime.pulse(every: 0.5, to: 1.4).when_clicked.sounding(note)
+    end
+    bell = star(points: 8, radius: 22, inner: 9).colored(:gold).spin(every: 1).when_clicked.sounding(:bell)
+    music_box = chimes.to_art.in_ring(58) + bell
+    show music_box.glowing, on: :midnightblue

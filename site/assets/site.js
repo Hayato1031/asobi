@@ -13,9 +13,17 @@
   var reels = {}, waiting = {}, requested = {};
   var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // The song the site ships has a src from the site's root ("assets/beat.wav"):
+  // put this page's root in front, so it plays from /ja/ too.
+  function siteSong(reel) {
+    var s = reel && reel.song;
+    if (s && typeof s.src === "string" && /^assets\//.test(s.src)) s.src = root + s.src;
+    return reel;
+  }
+
   // reels/<key>.js calls this.
   window.asobiReel = function (key, reel) {
-    reels[key] = reel;
+    reels[key] = siteSong(reel);
     (waiting[key] || []).forEach(function (fn) { fn(reel); });
     delete waiting[key];
   };

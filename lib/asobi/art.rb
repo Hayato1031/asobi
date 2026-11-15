@@ -205,8 +205,8 @@ module Asobi
     # Earlier moments drawn under a moving picture, fainter and fainter.
     # A still picture has no past: it stays as it is.
     def trail(count_ = nil, count: count_ || 5, gap: nil)
-      n = Check.whole(count, word: :trail, name: :count, example: "trail(count: 5, gap: 0.05)", min: 1)
-      Check.number(gap, word: :trail, name: :gap, example: "trail(count: 5, gap: 0.05)", min: 0) unless gap.nil?
+      n = Check.whole(count, word: :trail, name: :count, example: "trail(count: 5, gap: 0.1)", min: 1)
+      Check.number(gap, word: :trail, name: :gap, example: "trail(count: 5, gap: 0.1)", min: 0) unless gap.nil?
       return self unless defined?(Motion)
 
       found = Motion.reach(self)
@@ -234,6 +234,10 @@ module Asobi
 
     def to_svg(**options) = SVG.document(Asobi.art(self), **options)
 
+    # The SVG of this picture alone, without the page around it (what one
+    # frame of a reel is). Asobi::SVG writes it; the picture only asks.
+    def svg = SVG.fragment(Asobi.art(self))
+
     def save(path, **options)
       saver = SAVERS[File.extname(path.to_s).downcase]
       unless saver
@@ -246,7 +250,8 @@ module Asobi
   end
 
   # Marker for the built-in picture values. Each answers box(affine) (its
-  # bounding box under a transform, or nil when empty) and svg (a fragment).
+  # bounding box under a transform, or nil when empty); Asobi::Drawing
+  # knows how to draw each kind.
   module Node
     def to_art = self
   end
@@ -348,13 +353,14 @@ module Asobi
       end
     end
 
-    # Numbers as SVG likes them: short, no trailing zeros, never "-0".
+    # Numbers written short: no trailing zeros, never "-0".
     def fmt(number)
       rounded = number.to_f.round(3)
       rounded = 0.0 if rounded.zero?
       rounded == rounded.to_i ? rounded.to_i.to_s : rounded.to_s
     end
 
+    # Text safe to put inside markup (SVG, HTML): & < > " written out.
     def escape(text)
       text.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub('"', "&quot;")
     end
@@ -391,7 +397,9 @@ module Asobi
     def stroked?(style) = style[:stroke] && style[:stroke] != "none"
     def stroke_width(style) = style[:stroke_width] || 1.0
     def effects_only?(style) = style.key?(:effects) && (style.keys & PAINT).empty?
-    def plain?(style) = !style.key?(:effects) && style.values.none?(Gradient)
+    # Only colours, lines and opacity: no effects and no gradient (a
+    # gradient is only ever a fill or a stroke).
+    def plain?(style) = !style.key?(:effects) && !style[:fill].is_a?(Gradient) && !style[:stroke].is_a?(Gradient)
 
     # The style after the picture it belongs to is moved by +matrix+ (used
     # by a Many, whose pictures are moved one by one).
@@ -405,21 +413,6 @@ module Asobi
         end
       end
       changed.freeze
-    end
-
-    # SVG attributes. +urls+ gives the id for each Gradient.
-    def attributes(style, urls = {})
-      style.filter_map do |key, value|
-        next if key == :effects
-
-        text =
-          case value
-          when Numeric then Asobi.fmt(value)
-          when Gradient then "url(##{urls.fetch(value)})"
-          else Asobi.escape(value)
-          end
-        %( #{key.to_s.tr("_", "-")}="#{text}")
-      end.join
     end
   end
 end

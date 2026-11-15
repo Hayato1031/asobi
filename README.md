@@ -39,7 +39,7 @@ sky = burst.repeat(6).change_each { |b, t, i| b.scale(0.75 + i % 3 * 0.3) }
            .scattered(over: [290, 130], seed: 5).colored(*colors)
 bloom = sky.animate(3) { |b, t| b.scale(0.05 + t**0.35).opacity(1 - t**4) }
 
-show bloom.one_by_one.trail(4, gap: 0.05).glowing(3), on: "#070812", paper: [360, 200]
+show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 ```
 
 ## Contents
@@ -213,6 +213,48 @@ show glow, on: :black, grain: true
 </tr>
 </table>
 
+### React to clicks, the pointer and sound
+
+Write who drives a motion after it, and a click, the pointer or sound turns it instead of the clock. `when_clicked` plays the motion once on a click, `while_hovered` plays it while the pointer is over the picture, and `when_pressed("a")` plays it once when the key is pressed. `by` picks a moment of the motion from a value: `by(:mouse_x)` follows the pointer from left to right.
+
+```ruby
+dot = circle(8).colored(:deeppink)
+dots = dot.pulse(to: 2).when_clicked.repeat(8).in_ring(60)
+needle = star(radius: 30).colored(:gold).spin.by(:mouse_x)
+show dots + needle, on: :black
+```
+
+Only the dot you click swells, and the star turns as the pointer moves across. A picture that reacts is still a picture, so you can arrange it or set it in motion again. No Ruby runs in the browser, so a saved HTML file reacts in the same way.
+
+Pictures can follow sound too. This sketch is for VJ use: it moves with what the microphone hears.
+
+```ruby
+burst = star(points: 8, radius: 60, inner: 24).colored(:deeppink)
+bass = burst.pulse(to: 1.6).by(:mic, :low).spin(every: 8)
+kick = ring(radius: 90, thickness: 3).colored(:cyan).pulse(every: 0.4, to: 1.3).on_beat
+show bass.on(kick).glowing, on: :black, controls: false
+```
+
+`by(:mic, :low)` swells the star with the strength of the bass. `:mid` and `:high` follow the middle and high sounds, `:pitch` follows how high the sound is, and with no second word it follows the volume. `on_beat` plays the motion once on every beat. Browsers open the microphone only after a click, so click the page once. `controls: false` hides the record and code buttons, and **F** switches to full screen.
+
+### Make sound
+
+`play` plays a song file in a loop, and `sounding` plays a sound each time a reaction starts.
+
+```ruby
+play "beat.wav"
+notes = [:c4, :e4, :g4, :c5]
+keys = notes.map { |note| circle(18).colored(:gold).pulse(to: 1.4).when_clicked.sounding(note) }
+beat = ring(radius: 90, thickness: 3).colored(:cyan).pulse(every: 0.4, to: 1.2).on_beat(:music)
+show keys.to_art.in_row(gap: 16).on(beat), on: :black
+```
+
+Click the gold circles to hear C, E, G and C. Write a note as `:c4` or `"C#4"`. There are also six named sounds: `:pop`, `:kick`, `:snare`, `:hat`, `:clap` and `:bell`. asobi makes all of them in the browser, so you need no sound files.
+
+`by(:music)` and `on_beat(:music)` listen to the sound asobi itself plays. The ring in this sketch jumps on each beat of the song, so pictures can follow music without a microphone.
+
+`beat.wav` is a four-second loop in [examples/reactions](examples/reactions/). To use your own song, put the file in the same folder as the sketch and change the name. When you edit and save the sketch, the same song keeps playing without a break. Sound starts after you click the page once, and **M** mutes it.
+
 ### Save the file, see the change
 
 While a sketch runs, asobi watches its file. Save it in your editor and the picture in the browser is replaced without a page reload. The animation clock keeps running, so you can tune a number while watching the motion.
@@ -220,7 +262,9 @@ While a sketch runs, asobi watches its file. Save it in your editor and the pict
 | In the live preview | What happens |
 | --- | --- |
 | Press **C** | The sketch's source code appears over the picture, like subtitles. Press again to hide it. |
-| Press **R**, then **R** again | Start recording, then download the clip as MP4 or WebM in a supported browser. |
+| Press **R**, then **R** again | Start recording, then download the clip as MP4 or WebM in a supported browser. The clip includes the sound asobi plays. |
+| Press **F** | Switch to full screen. Press again to go back. |
+| Press **M** | Mute the sound asobi plays. Press again to hear it. |
 | Save a sketch with an error | The last picture stays visible, with the error message underneath. The message includes an example of how to fix it. |
 
 ## Sketch gallery
@@ -275,8 +319,10 @@ Look up arguments and defaults in the [method reference](https://asobi.myura.me/
 | **Colour** | `colored` `outlined` `stroke` `opacity` `hsl` `gray`, and `colored(from: :gold, to: :crimson)` for a gradient |
 | **Add effects** | `glowing` `blurred` `blended` `shadowed` `clipped_by` `trail`, and `grain: true` in `show` |
 | **Set in motion** | `spin` `pulse` `sway` `orbit` `fade` `bounce` `drift` `shift_color` `animate` `one_by_one` |
+| **React** | `when_clicked` `while_hovered` `when_pressed` `on_beat`, and `by` to follow a value (`:mouse_x` `:mouse_y` `:mic` `:music`) |
+| **Make sound** | `play` for a song, `sounding` for effect sounds and notes |
 | **Turn values into pictures** | `to_art` on numbers, arrays, ranges, hashes, strings and symbols, and the `to_art` you define in your own class |
-| **Show and save** | `show` (`on:` for the background, `paper:` for page dimensions), `save` for SVG or HTML, `at` for one moment of a motion |
+| **Show and save** | `show` (`on:` for the background, `paper:` for page dimensions, `controls: false` for no buttons), `save` for SVG or HTML, `at` for one moment of a motion |
 
 ## Export and record
 
@@ -292,6 +338,8 @@ show motion
 ```
 
 To save a particular frame, use `motion.at(1).save("frame.svg")` for the picture one second into the loop. For a video, press **R** in the live preview to record.
+
+A picture that reacts keeps reacting in the saved HTML file. A song you `play` is stored inside the file too (up to 20 MB), so one file carries the picture and its sound. An SVG file holds the still picture from before any reaction.
 
 ## Use asobi from an existing Ruby program
 

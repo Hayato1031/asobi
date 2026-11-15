@@ -26,6 +26,7 @@ With the gem installed, you can also run `asobi examples/flower.rb` or `ruby exa
 | `aurora.rb` | blurred, screen-blended waves |
 | `paper_cutouts.rb` | paper cut-outs with soft shadows |
 | `through_a_heart.rb` | gradient stripes seen through a heart-shaped window (`clipped_by`) |
+| `chimes.rb` | a ring of notes to click, and a bell (`when_clicked`, `sounding`) |
 
 ## Showcase
 
@@ -39,5 +40,17 @@ Bigger pieces live in `showcase/`. They take a moment longer to draw, so they ar
 | `showcase/orbits.rb` | your own `Planet` class with glowing tails (`to_art`, `trail`) |
 | `showcase/seigaiha.rb` | the Japanese wave pattern with a tide of colour (`shift_color`) |
 | `showcase/bubble_sort.rb` | every swap of a bubble sort, drawn as it happens |
+
+## Reactions and sound
+
+Pieces in `reactions/` react to clicks, keys, the pointer and sound, and some make sound. Click the page once to let sound start. Run one with `ruby exe/asobi examples/reactions/instrument.rb`.
+
+| file | what it shows |
+|---|---|
+| `reactions/click_and_hover.rb` | flowers that open when clicked, stars that turn while the pointer is over them |
+| `reactions/follow_the_pointer.rb` | a picture that turns and changes colour with the pointer (`by(:mouse_x)`, `by(:mouse_y)`) |
+| `reactions/mic_vj.rb` | a VJ sketch that follows the microphone (`by(:mic, :low)`, `on_beat`) |
+| `reactions/instrument.rb` | bars that play notes when clicked, and drums on the keys a, s, d, f (`sounding`) |
+| `reactions/music_vj.rb` | a VJ sketch that plays its own loop and follows it (`play`, `by(:music, :low)`, `on_beat(:music)`) |
 
 リポジトリのルートで `ruby exe/asobi examples/flower.rb` を実行すると、ブラウザに回転する花が表示されます。コードを書き換えて保存すると、表示も更新されます。[日本語の使い方](../README.ja.md)

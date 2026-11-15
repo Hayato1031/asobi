@@ -3,7 +3,7 @@
 module Asobi
   # 2D affine transform:  x' = a*x + c*y + e,  y' = b*x + d*y + f
   #
-  # Coordinates are SVG's: x to the right, y downwards. With y pointing down
+  # Coordinates are the screen's: x to the right, y downwards. With y pointing down
   # the usual rotation matrix turns things clockwise, which is what
   # rotate(45) promises.
   Affine = Data.define(:a, :b, :c, :d, :e, :f) do
@@ -86,7 +86,7 @@ module Asobi
     # Strictly overlapping (touching edges do not count).
     def overlap?(other) = x0 < other.x1 && other.x0 < x1 && y0 < other.y1 && other.y0 < y1
 
-    # [x, y, width, height], the order SVG's viewBox uses.
+    # [x, y, width, height]: its top-left corner and its size.
     def to_a = [x0, y0, width, height]
   end
 

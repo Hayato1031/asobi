@@ -11,11 +11,14 @@ require_relative "shapes"
 require_relative "art"
 require_relative "nodes"
 require_relative "many"
+require_relative "effects"
+require_relative "drawing"
 require_relative "svg"
+require_relative "memo"
 
-# Parts that live in their own files: pictures in motion, and the reel a
-# browser plays. Neither touches Ruby's own classes.
-%w[motion reel].each do |part|
+# Parts that live in their own files: pictures in motion, the reel a
+# browser plays, reactions and sounds. None touches Ruby's own classes.
+%w[motion reel reaction sound].each do |part|
   path = File.join(__dir__, "#{part}.rb")
   require path if File.exist?(path)
 end

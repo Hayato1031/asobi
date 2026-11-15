@@ -5,7 +5,10 @@ module Asobi
   # on the origin, and answers:
   #
   #   box(m)  the bounding Box once transformed by Affine m (nil if empty)
-  #   svg     an SVG fragment, without the outer <svg> tag
+  #
+  # They say what a picture is and how big it is, nothing about how it is
+  # drawn: Asobi::Drawing (drawing.rb) turns them into drawing instructions,
+  # and a renderer such as Asobi::SVG follows those.
   #
   # Data's own +with+ is removed: asobi has no word "with" (DESIGN §5).
   module Picture
@@ -21,7 +24,6 @@ module Asobi
 
   Circle = Picture.define(:r) do
     def box(m) = Asobi::Ellipse.box_of(r, r, m)
-    def svg = %(<circle r="#{Asobi.fmt(r)}"/>)
   end
 
   Ellipse = Picture.define(:rx, :ry) do
@@ -33,16 +35,10 @@ module Asobi
     end
 
     def box(m) = Asobi::Ellipse.box_of(rx, ry, m)
-    def svg = %(<ellipse rx="#{Asobi.fmt(rx)}" ry="#{Asobi.fmt(ry)}"/>)
   end
 
   Rect = Picture.define(:w, :h) do
     def box(m) = Asobi::Box.of_rect(w, h, m)
-
-    def svg
-      %(<rect x="#{Asobi.fmt(-w / 2.0)}" y="#{Asobi.fmt(-h / 2.0)}" ) +
-        %(width="#{Asobi.fmt(w)}" height="#{Asobi.fmt(h)}"/>)
-    end
   end
 
   # Words, centred on the origin. The box is an estimate: about 0.6 of the
@@ -57,18 +53,11 @@ module Asobi
     end
 
     def box(m) = string.empty? ? nil : Asobi::Box.of_rect(estimated_width, size * 1.2, m)
-
-    def svg
-      %(<text text-anchor="middle" dominant-baseline="central" xml:space="preserve" ) +
-        %(font-family="#{Asobi.escape(font || "sans-serif")}" font-size="#{Asobi.fmt(size)}">) +
-        "#{Asobi.escape(string)}</text>"
-    end
   end
 
   # Invisible, but takes up room. Useful as a gap in a row.
   Space = Picture.define(:w, :h) do
     def box(m) = Asobi::Box.of_rect(w, h, m)
-    def svg = ""
   end
 
   # Any outline made of straight and curved pieces, possibly several of them
@@ -164,13 +153,6 @@ module Asobi
       end
       Asobi::Box.new(xs.min, ys.min, xs.max, ys.max)
     end
-
-    def svg
-      letters = { move: "M", line: "L", cubic: "C", close: "Z" }
-      d = commands.map { |name, *n| [letters[name], *n.map { Asobi.fmt(_1) }].join(" ") }.join(" ")
-      rule = fill_rule == :evenodd ? %( fill-rule="evenodd") : ""
-      %(<path d="#{d}"#{rule}/>)
-    end
   end
 
   class Path
@@ -206,25 +188,10 @@ module Asobi
       inner = inner.grow(Asobi::Style.stroke_width(style) / 2.0 * m.stretch) if inner && Asobi::Style.stroked?(style)
       Asobi::Effects.grow(inner, style[:effects], m)
     end
-
-    def svg = Asobi::Effects.render(style, art.svg) { art.box(IDENTITY) }
   end
 
   # A picture moved, turned or resized. Built by Asobi.transform.
   Transformed = Picture.define(:art, :matrix) do
     def box(m) = art.box(m * matrix)
-
-    def svg
-      inner = art.svg
-      return "" if inner.empty?
-
-      t =
-        if matrix.translation?
-          "translate(#{Asobi.fmt(matrix.e)} #{Asobi.fmt(matrix.f)})"
-        else
-          "matrix(#{matrix.to_h.values.map { Asobi.fmt(_1) }.join(" ")})"
-        end
-      %(<g transform="#{t}">#{inner}</g>)
-    end
   end
 end

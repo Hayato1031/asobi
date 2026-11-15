@@ -452,6 +452,8 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 }
 .piece .overlay pre.subs { font-size: 13px; }
 .piece:hover .overlay, .piece:focus-within .overlay, .piece.show-code .overlay { opacity: 1; }
+/* a piece you play with keeps its picture clear under the pointer: its code shows with the Code button */
+.piece.reacts:hover:not(.show-code):not(:focus-within) .overlay { opacity: 0; }
 .piece.show-code .overlay { pointer-events: auto; }
 .piece-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s4); margin-top: var(--s4); }
 .piece-head h2 { font-size: 26px; }

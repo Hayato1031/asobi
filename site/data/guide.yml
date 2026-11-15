@@ -256,6 +256,60 @@
         show star(radius: 20).animate(4) { |picture, t| picture.rotate(t * 360).grow(to: 1 + t) }
       words: [animate]
 
+- id: react
+  title: { en: "Make it react", ja: "反応させる" }
+  steps:
+    - text:
+        en: "A motion can wait for you. Write `when_clicked` right after a motion: the picture rests until you click it, then plays the motion once."
+        ja: "動きは、あなたを待つこともできます。動きのすぐ後ろに `when_clicked` を書くと、クリックするまで止まっていて、クリックすると動きを1回再生します。"
+      code: |
+        flower = petal(30, 12).repeat(8).in_fan.colored(:crimson, :navy)
+        show flower.spin(every: 1).when_clicked
+      words: [when_clicked]
+    - text:
+        en: "`while_hovered` plays while the pointer is over the picture. `when_pressed` plays when you press a key. Name one, like `when_pressed(\"a\")`, or leave it out for any key."
+        ja: "`while_hovered` は、マウスが上にある間だけ動きます。`when_pressed` は、キーを押すと動きます。`when_pressed(\"a\")` のようにキーを決めることも、省いてどのキーでも動くようにすることもできます。"
+      code: |
+        twinkle = star(radius: 20).colored(:gold).spin(every: 1).while_hovered
+        ball = circle(20).colored(:dodgerblue).bounce(every: 0.6).when_pressed
+        show twinkle.beside(ball, gap: 30)
+      words: [while_hovered, when_pressed]
+    - text:
+        en: "`by(:mouse_x)` lets the pointer choose the moment. From the left edge to the right edge, the wheel turns once round. `:mouse_y` goes from top to bottom."
+        ja: "`by(:mouse_x)` にすると、マウスの位置で動きの瞬間が決まります。左の端から右の端まで動かすと、ちょうど1周します。`:mouse_y` は上から下です。"
+      code: |
+        wheel = petal(40, 14).repeat(12).in_fan.colored(:teal, :gold)
+        show wheel.spin.by(:mouse_x)
+      words: [by]
+    - text:
+        en: "`sounding` makes a sound each time a reaction plays: a drum, a bell, or a note like `:c4`. Browsers allow sound only after a click, so the sound starts with your first click."
+        ja: "`sounding` を付けると、反応するたびに音が鳴ります。太鼓やベルの音、`:c4` のような音階。ブラウザはクリックのあとでないと音を出させないので、最初のクリックから鳴ります。"
+      code: |
+        dots = %i[c4 d4 e4 g4 a4].map do |note|
+          circle(12).colored(:tomato).pulse(every: 0.3, to: 1.5).when_clicked.sounding(note)
+        end
+        show dots.to_art.in_row(gap: 8)
+      words: [sounding]
+    - text:
+        en: "The picture can listen, too. `by(:mic, :low)` follows the bass the microphone hears, and `on_beat` plays once on every beat. Click once, and the browser asks if asobi may listen."
+        ja: "絵は音を聞くこともできます。`by(:mic, :low)` はマイクに入る低い音に、`on_beat` は拍ごとに1回動きます。1回クリックすると、聞いてよいかブラウザがたずねます。"
+      code: |
+        burst = star(points: 8, radius: 30, inner: 12).colored(:deeppink)
+        bass = burst.pulse(to: 1.6).by(:mic, :low)
+        kick = ring(radius: 50, thickness: 3).colored(:cyan).pulse(every: 0.4, to: 1.3).on_beat
+        show bass.on(kick), on: :black
+      words: [on_beat]
+    - text:
+        en: "Last, `play` plays a song, round and round, and `:music` listens to it instead of the microphone. Put the song next to your sketch. Here and in the playground, try `\"beat.wav\"`, a short drum loop."
+        ja: "最後に、`play` で曲をくり返し流し、`:music` でマイクの代わりにその曲を聞きます。曲のファイルはスケッチと同じフォルダに置きます。このページと遊び場では、短いドラムのループ `\"beat.wav\"` で試せます。"
+      code: |
+        play "beat.wav"
+        burst = star(points: 8, radius: 30, inner: 12).colored(:orange)
+        bass = burst.pulse(to: 1.6).by(:music, :low)
+        kick = ring(radius: 50, thickness: 3).colored(:cyan).pulse(every: 0.4, to: 1.3).on_beat(:music)
+        show bass.on(kick).glowing, on: :black
+      words: [play]
+
 - id: glow
   title: { en: "Make it glow", ja: "光らせる" }
   steps:

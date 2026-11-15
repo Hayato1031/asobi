@@ -5,13 +5,17 @@ require "yaml"
 require "json"
 require "tmpdir"
 require "fileutils"
+require "digest"
 
 # The documentation must not rot: every code example in the data files, in
 # the examples/ folder and in the two READMEs is run for real.
 module DocsHelper
   ROOT = File.expand_path("..", __dir__)
   DATA = File.join(ROOT, "site", "data")
-  GROUPS = %w[shapes combine change color effect arrange to_art motion show].freeze
+  GROUPS = %w[shapes combine change color effect arrange to_art motion react show].freeze
+  # The one song the website ships (as assets/beat.wav): play "beat.wav" works
+  # in every documented example, as it does on the site and in the playground.
+  SONG = File.join(ROOT, "examples", "reactions", "beat.wav")
 
   module_function
 
@@ -21,8 +25,10 @@ module DocsHelper
 
   # Runs a sketch the way the live view does and answers its Reel (a Hash).
   # The sketch runs in a scratch folder, so a save inside it leaves no mess.
+  # beat.wav lies next to it, so play "beat.wav" works as on the site.
   def run(code)
     Dir.mktmpdir("asobi-docs") do |dir|
+      FileUtils.cp(SONG, dir)
       path = File.join(dir, "sketch.rb")
       File.write(path, %(require "asobi"\n#{code}), encoding: "UTF-8")
       Dir.chdir(dir) { Asobi::Sketch.evaluate(path) }
@@ -116,6 +122,7 @@ class DocsTest < Minitest::Test
                   in_row in_column in_grid in_ring in_fan in_spiral scattered change_each
                   to_art
                   spin pulse sway orbit fade bounce drift shift_color one_by_one animate at
+                  when_clicked while_hovered when_pressed on_beat by sounding play
                   show save turn]
     assert_empty expected - documented, "words with no entry in words.yml"
   end
@@ -222,6 +229,63 @@ class DocsTest < Minitest::Test
       assert_includes source, gallery["code"], "examples/#{id}.rb differs from its code in examples.yml"
       assert_runs source.sub(/^require "asobi"\n/, ""), "examples/#{id}.rb"
     end
+  end
+
+  # ------------------------------------------------------- examples/reactions
+  # Pieces that react (and make sound). They run where they are, so that a
+  # play "beat.wav" finds the file next to them. Like the showcase, the
+  # reel size limit does not apply; they only have to run.
+
+  REACTIONS = Dir[File.join(DocsHelper::ROOT, "examples", "reactions", "*.rb")].sort
+
+  REACTIONS.each do |path|
+    id = File.basename(path, ".rb")
+    define_method("test_runs_reactions_file_#{id}") do
+      source = DocsHelper.read(path)
+      assert_match(/\Arequire "asobi"$/, source, "reactions/#{id}.rb must start with require \"asobi\"")
+      assert_match(/^#/, source, "reactions/#{id}.rb needs a comment line")
+      reel = Dir.chdir(Dir.tmpdir) { Asobi::Sketch.evaluate(path) }
+      assert_nil reel["error"], "reactions/#{id}.rb failed:\n#{reel["error"]}"
+      refute_empty reel["parts"].to_h, "reactions/#{id}.rb must react"
+    ensure
+      Asobi::Sketch.forget
+    end
+  end
+
+  def test_the_instrument_makes_notes_and_named_sounds
+    reel = Asobi::Sketch.evaluate(File.join(DocsHelper::ROOT, "examples", "reactions", "instrument.rb"))
+    parts = reel["parts"].values
+    assert_equal %w[bell clap hat kick pop snare], parts.filter_map { _1["sound"] }.sort
+    assert_equal [60, 62, 64, 65, 67, 69, 71, 72], parts.filter_map { _1["note"] }
+    assert parts.any? { _1["turn"] == "key" && _1["sound"] }, "keys make sounds too"
+  ensure
+    Asobi::Sketch.forget
+  end
+
+  def test_the_music_vj_plays_its_beat
+    reel = Asobi::Sketch.evaluate(File.join(DocsHelper::ROOT, "examples", "reactions", "music_vj.rb"))
+    beat = File.join(DocsHelper::ROOT, "examples", "reactions", "beat.wav")
+    assert_equal({ "id" => Digest::SHA256.file(beat).hexdigest[0, 12], "src" => "/song/#{reel["song"]["id"]}" }, reel["song"])
+    assert_equal false, reel["controls"]
+    assert_equal "black", reel["background"]
+    turns = reel["parts"].values.map { _1.slice("turn", "from", "what") }
+    assert_includes turns, { "turn" => "value", "from" => "music", "what" => "low" }
+    assert_includes turns, { "turn" => "beat", "from" => "music" }
+  ensure
+    Asobi::Sketch.forget
+  end
+
+  # The loop music_vj.rb plays: small, and exactly 8 beats at 120 BPM so it
+  # loops without a bump.
+  def test_beat_wav_is_a_small_clean_loop
+    data = File.binread(File.join(DocsHelper::ROOT, "examples", "reactions", "beat.wav"))
+    assert_operator data.bytesize, :<=, 400_000
+    riff, _, wave, fmt, _, format, channels, rate, _, _, bits, chunk, length = data.unpack("a4Va4a4VvvVVvva4V")
+    assert_equal %w[RIFF WAVE fmt\  data], [riff, wave, fmt, chunk]
+    assert_equal [1, 1, 22_050, 16], [format, channels, rate, bits], "PCM, mono, 22050 Hz, 16 bit"
+    samples = data.byteslice(44, length).unpack("s<*")
+    assert_equal 8 * 0.5 * 22_050, samples.size, "8 beats of half a second"
+    assert_operator samples.first.abs + samples.last.abs, :<, 300, "quiet at both ends, so the loop does not click"
   end
 
   # -------------------------------------------------------------- READMEs

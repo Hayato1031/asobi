@@ -39,7 +39,7 @@ sky = burst.repeat(6).change_each { |b, t, i| b.scale(0.75 + i % 3 * 0.3) }
            .scattered(over: [290, 130], seed: 5).colored(*colors)
 bloom = sky.animate(3) { |b, t| b.scale(0.05 + t**0.35).opacity(1 - t**4) }
 
-show bloom.one_by_one.trail(4, gap: 0.05).glowing(3), on: "#070812", paper: [360, 200]
+show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 ```
 
 ## 目次
@@ -213,6 +213,48 @@ show glow, on: :black, grain: true
 </tr>
 </table>
 
+### クリック、マウス、音に反応する
+
+動きのあとに「だれが動かすか」を書くと、時計の代わりに、クリックやマウスや音がその動きを進めます。`when_clicked` はクリックで1回、`while_hovered` はマウスが乗っている間、`when_pressed("a")` はキーを押すと1回動きます。`by` は値に合わせて動きの途中を選びます。`by(:mouse_x)` ならマウスの左右です。
+
+```ruby
+dot = circle(8).colored(:deeppink)
+dots = dot.pulse(to: 2).when_clicked.repeat(8).in_ring(60)
+needle = star(radius: 30).colored(:gold).spin.by(:mouse_x)
+show dots + needle, on: :black
+```
+
+押した点だけが膨らみ、星はマウスの左右に合わせて回ります。反応を付けた答えも絵なので、並べることも、さらに動かすこともできます。ブラウザの中で Ruby は動いていないので、保存した HTML でも同じように反応します。
+
+音にも反応します。次の例は、マイクが聞いた音で動く VJ 用のスケッチです。
+
+```ruby
+burst = star(points: 8, radius: 60, inner: 24).colored(:deeppink)
+bass = burst.pulse(to: 1.6).by(:mic, :low).spin(every: 8)
+kick = ring(radius: 90, thickness: 3).colored(:cyan).pulse(every: 0.4, to: 1.3).on_beat
+show bass.on(kick).glowing, on: :black, controls: false
+```
+
+`by(:mic, :low)` は低音の強さで星を膨らませます。`:mid` と `:high` は中音と高音、`:pitch` は音の高さ、何も付けなければ音量です。`on_beat` は拍が聞こえるたびに1回動きます。ブラウザの決まりで、マイクは画面を1回クリックしてから開きます。`controls: false` を付けると録画とコードのボタンが出なくなり、**F** キーで全画面になります。
+
+### 音を鳴らす
+
+`play` は曲のファイルをくり返し流し、`sounding` は反応が始まるたびに音を鳴らします。
+
+```ruby
+play "beat.wav"
+notes = [:c4, :e4, :g4, :c5]
+keys = notes.map { |note| circle(18).colored(:gold).pulse(to: 1.4).when_clicked.sounding(note) }
+beat = ring(radius: 90, thickness: 3).colored(:cyan).pulse(every: 0.4, to: 1.2).on_beat(:music)
+show keys.to_art.in_row(gap: 16).on(beat), on: :black
+```
+
+金色の丸を押すと、ド・ミ・ソ・ドが鳴ります。音階は `:c4` や `"C#4"` のように書き、ほかに `:pop` `:kick` `:snare` `:hat` `:clap` `:bell` の6つの音があります。どれも asobi がブラウザの中で作る音なので、音のファイルは要りません。
+
+`by(:music)` と `on_beat(:music)` は、asobi 自身が鳴らしている音を聞きます。この例の輪は、流している曲の拍で広がります。マイクがなくても、曲に合わせて絵を動かせます。
+
+`beat.wav` は [examples/reactions](examples/reactions/) にある4秒のループです。自分の曲を使うときは、スケッチと同じフォルダに置いて、ファイル名を書き換えてください。スケッチを書き換えて保存しても、同じ曲なら途切れずに流れ続けます。音は画面を1回クリックすると出て、**M** キーで消せます。
+
 ### 保存するたびに、絵が変わる
 
 スケッチを実行している間、asobi はファイルを見張っています。エディタで保存すると、ページを読み込み直さなくても絵が差し替わります。アニメーションの時計は止まらないので、動きを見ながら数字を調整できます。
@@ -220,7 +262,9 @@ show glow, on: :black, grain: true
 | ライブ表示中の操作 | 結果 |
 | --- | --- |
 | **C** キーを押す | スケッチのソースコードを、絵の上に字幕のように重ねて表示します。もう一度押すと消えます。 |
-| **R** キーを押し、もう一度押す | 録画を開始し、2回目で動画をダウンロードします。対応ブラウザに応じて MP4 または WebM になります。 |
+| **R** キーを押し、もう一度押す | 録画を開始し、2回目で動画をダウンロードします。対応ブラウザに応じて MP4 または WebM になります。asobi が鳴らした音も入ります。 |
+| **F** キーを押す | 全画面に切り替えます。もう一度押すと戻ります。 |
+| **M** キーを押す | asobi が鳴らす音を消します。もう一度押すと戻ります。 |
 | エラーのあるスケッチを保存する | 直前に描けた絵が残り、その下にエラーメッセージが表示されます。メッセージには、直し方の例も書かれています。 |
 
 ## 作品ギャラリー
@@ -275,8 +319,10 @@ show glow, on: :black, grain: true
 | **色を付ける** | `colored` `outlined` `stroke` `opacity` `hsl` `gray`、グラデーションは `colored(from: :gold, to: :crimson)` |
 | **効果をかける** | `glowing` `blurred` `blended` `shadowed` `clipped_by` `trail`、ざらつきは `show` の `grain: true` |
 | **動かす** | `spin` `pulse` `sway` `orbit` `fade` `bounce` `drift` `shift_color` `animate` `one_by_one` |
+| **反応させる** | `when_clicked` `while_hovered` `when_pressed` `on_beat`、値に合わせる `by`（`:mouse_x` `:mouse_y` `:mic` `:music`） |
+| **音を鳴らす** | `play` で曲、`sounding` で効果音と音階 |
 | **値を絵にする** | 数値・配列・範囲・ハッシュ・文字列・シンボルの `to_art`、自作クラスに定義する `to_art` |
-| **表示する・保存する** | `show`（`on:` で背景色、`paper:` で用紙の寸法）、`save` で SVG または HTML、`at` で途中の1コマ |
+| **表示する・保存する** | `show`（`on:` で背景色、`paper:` で用紙の寸法、`controls: false` でボタンなし）、`save` で SVG または HTML、`at` で途中の1コマ |
 
 ## 作品の保存と録画
 
@@ -292,6 +338,8 @@ show motion
 ```
 
 アニメーションの途中を静止画にするには、`motion.at(1).save("frame.svg")` のように秒数を指定します。動画にするには、ライブ表示で **R** キーを押して録画します。
+
+反応する絵は、保存した HTML でも反応します。`play` で流す曲も HTML の中に入るので（20MB まで）、ファイル1つで音ごと渡せます。SVG には、反応する前の止まった絵が入ります。
 
 ## 既存の Ruby プログラムに組み込む
 

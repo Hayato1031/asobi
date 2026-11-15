@@ -235,6 +235,26 @@ class EffectsTest < Minitest::Test
     assert_box square(20).clipped_by.bounds, -8, -8, 8, 8
   end
 
+  # A window that shows nothing: nothing is drawn, not the picture unclipped.
+  def test_clipped_by_a_window_that_shows_nothing
+    [Asobi.nothing, [], text("")].each do |window|
+      picture = flower.clipped_by(window)
+      assert_box picture.bounds, 0, 0, 0, 0
+      assert_equal "", picture.svg
+      assert_equal "", picture.shadowed.glowing(2).svg
+      assert_equal "", [picture].to_art.blended.svg
+    end
+    assert_equal [circle(3)].to_art.svg, [flower.clipped_by(Asobi.nothing), circle(3)].to_art.svg
+    refute_includes Asobi::SVG.document(flower.clipped_by(Asobi.nothing)), "<path"
+  end
+
+  def test_clipped_by_a_window_that_shows_nothing_at_some_moments
+    window = circle(8).animate(2) { |picture, t| t < 0.5 ? picture : Asobi.nothing }
+    motion = flower.clipped_by(window).glowing(2)
+    assert_includes motion.at(0).svg, "<mask"
+    assert_equal "", motion.at(1.5).svg
+  end
+
   def test_clipped_by_with_motions
     a = square(20).clipped_by(circle(5).orbit(5))
     assert_instance_of Asobi::Motion, a
@@ -269,7 +289,8 @@ class EffectsTest < Minitest::Test
     assert_equal opacities.sort, opacities # oldest is faintest, drawn first
     assert_in_delta 0.1, opacities.first
     assert_in_delta 0.5, opacities.last
-    assert_equal m.at(1 - 0.05).opacity(0.5), frame.items[4]
+    # Two frames (1/15 of a second) back, by default.
+    assert_equal m.at(1 - 1 / 15.0).opacity(0.5).svg, frame.items[4].svg
     assert_equal t.at(0), t.at(t.every)
     assert_equal 9, m.trail(8).at(0).size
     assert_equal m.at(1 - 0.2).opacity(0.5), m.trail(count: 2, gap: 0.2).at(1).items[1]

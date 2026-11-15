@@ -22,7 +22,9 @@ module Asobi
 
   # The live view: a tiny HTTP server (standard library only) that serves the
   # player page and streams Reels to every open browser tab (Server-Sent
-  # Events). This is the only file that uses sockets and threads.
+  # Events). It also serves the song a sketch plays (play "song.mp3") at
+  # /song/ID, in pieces when the browser asks for them (Range), as media
+  # players do. This is the only file that uses sockets and threads.
   module Live
     HOST = "127.0.0.1"
     DEFAULT_PORT = 4567
@@ -36,17 +38,19 @@ module Asobi
 
     # Blocking. Evaluate the sketch, serve it, and follow the file until
     # Ctrl-C (or until the server is stopped). Yields the server once it is
-    # ready. +initial+ is a Reel already made from this run of the script.
+    # ready. +initial+ is a Reel already made from this run of the script
+    # (when it is a pending preview, Sketch.finish has the rest).
     def run(path, port: DEFAULT_PORT, open: true, initial: nil, out: $stdout)
       path = File.expand_path(path.to_s)
       server = Server.new(port:)
       seen = stamp(path)
-      server.push(initial || Sketch.evaluate(path))
+      first = server.push(initial || Sketch.evaluate(path, preview: true))
+      builder = finish_later(server) if first["pending"]
       out.puts Say.text(:live_ready, file: File.basename(path), url: server.url)
       out.flush
       open_browser(server.url) if open
       yield server if block_given?
-      watch(path, server, seen)
+      watch(path, server, seen, builder)
     rescue Interrupt
       out.puts
       out.puts Say.text(:live_bye)
@@ -66,7 +70,14 @@ module Asobi
     end
 
     # Poll the file; when it changes (and has settled), evaluate and push.
-    def watch(path, server, seen = stamp(path))
+    #
+    # A motion arrives in two pushes: first a quick preview (one frame,
+    # "pending"), then the whole Reel, made by a helper thread while this
+    # loop keeps watching. If the file is saved again before the whole Reel
+    # is ready, that Reel is already out of date: the helper is stopped and
+    # never pushes, and the newest file is evaluated instead. So the screen
+    # always ends on the newest file.
+    def watch(path, server, seen = stamp(path), builder = nil)
       until server.stopped?
         sleep POLL
         now = stamp(path)
@@ -80,8 +91,31 @@ module Asobi
           now = later
         end
         seen = now
-        server.push(Sketch.evaluate(path))
+        stop(builder) # a newer save: what it was making is out of date
+        first = server.push(Sketch.evaluate(path, preview: true))
+        builder = first["pending"] ? finish_later(server) : nil
       end
+    ensure
+      stop(builder)
+    end
+
+    # A thread that makes the whole Reel (Sketch.finish) and pushes it.
+    def finish_later(server)
+      thread = Thread.new do
+        whole = Sketch.finish
+        server.push(whole) if whole
+      end
+      thread.report_on_exception = false
+      thread
+    end
+
+    # Stop a finish_later thread and wait until it has really stopped, so
+    # it can never push after what comes next.
+    def stop(builder)
+      return unless builder
+
+      builder.kill
+      builder.join
     end
 
     def stamp(path)
@@ -108,6 +142,35 @@ module Asobi
 
     def page
       @page ||= File.read(PAGE, encoding: "UTF-8").sub(PLACEHOLDER) { Reel.player_js }
+    end
+
+    # The piece of a file of +size+ bytes that a Range header asks for:
+    #
+    #   nil                     no header, or one this server does not follow
+    #                           (several ranges, another unit): send it all
+    #   [from, to]              those bytes, both ends in ("bytes=0-99",
+    #                           "bytes=100-" to the end, "bytes=-100" the last 100)
+    #   [:unsatisfiable, nil]   nothing of the file is in it (416)
+    def byte_range(header, size)
+      found = /\Abytes=(\d*)-(\d*)\z/.match(header.to_s.strip)
+      return nil unless found
+
+      first, last = found.captures
+      return nil if first.empty? && last.empty?
+
+      if first.empty? # the last +last+ bytes
+        count = last.to_i
+        return [:unsatisfiable, nil] if count.zero? || size.zero?
+
+        return [[size - count, 0].max, size - 1]
+      end
+
+      from = first.to_i
+      to = last.empty? ? size - 1 : [last.to_i, size - 1].min
+      return nil if !last.empty? && last.to_i < from # not a range at all: ignored, as HTTP says
+      return [:unsatisfiable, nil] if from >= size
+
+      [from, to]
     end
 
     class Server
@@ -193,11 +256,12 @@ module Asobi
       end
 
       def serve(socket)
-        request = read_request(socket)
+        request, headers = read_request(socket)
         case request
         when %r{\AGET / }, %r{\AGET /\?\S* } then respond(socket, "200 OK", "text/html; charset=utf-8", Live.page)
         when %r{\AGET /events[ ?]} then stream(socket)
-        else respond(socket, "404 Not Found", "text/plain; charset=utf-8", "not found\n")
+        when %r{\AGET /song/([0-9a-f]{12})[ ?]} then song(socket, Regexp.last_match(1), headers["range"])
+        else not_found(socket)
         end
       rescue IOError, SystemCallError
         nil
@@ -205,18 +269,23 @@ module Asobi
         socket.close unless socket.closed?
       end
 
-      # The request line; the headers are read and dropped.
+      # The request line, and the headers as { "range" => "bytes=0-" }
+      # (names in small letters).
       def read_request(socket)
-        return nil unless IO.select([socket], nil, nil, 5)
+        return [nil, {}] unless IO.select([socket], nil, nil, 5)
 
         first = socket.gets("\n", 4096).to_s
+        headers = {}
         32.times do
           break unless IO.select([socket], nil, nil, 2)
 
           line = socket.gets("\n", 8192)
           break if line.nil? || line.strip.empty?
+
+          name, value = line.split(":", 2)
+          headers[name.strip.downcase] = value.strip if value
         end
-        first
+        [first, headers]
       end
 
       def respond(socket, status, type, body)
@@ -224,6 +293,40 @@ module Asobi
         socket.write "HTTP/1.1 #{status}\r\nContent-Type: #{type}\r\nContent-Length: #{body.bytesize}\r\n" \
                      "Cache-Control: no-store\r\nConnection: close\r\n\r\n"
         socket.write body
+      end
+
+      def not_found(socket) = respond(socket, "404 Not Found", "text/plain; charset=utf-8", "not found\n")
+
+      # The song with this id, if a sketch named it in play (Song.find);
+      # never a path taken from the URL. All of it, or the piece a Range
+      # header asks for (206), as browsers need for media.
+      def song(socket, id, range)
+        path = Song.find(id)
+        return not_found(socket) unless path
+
+        file = File.open(path, "rb")
+      rescue SystemCallError
+        not_found(socket) # the file went away
+      else
+        begin
+          size = file.size
+          type = Song::KINDS.fetch(File.extname(path).downcase, "application/octet-stream")
+          from, to = Live.byte_range(range, size)
+          if from == :unsatisfiable
+            return socket.write("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */#{size}\r\n" \
+                                "Content-Length: 0\r\nAccept-Ranges: bytes\r\nConnection: close\r\n\r\n")
+          end
+
+          status = from ? "206 Partial Content" : "200 OK"
+          from ||= 0
+          to ||= size - 1
+          head = +"HTTP/1.1 #{status}\r\nContent-Type: #{type}\r\nContent-Length: #{to - from + 1}\r\nAccept-Ranges: bytes\r\n"
+          head << "Content-Range: bytes #{from}-#{to}/#{size}\r\n" if status.start_with?("206")
+          socket.write head << "Cache-Control: no-store\r\nConnection: close\r\n\r\n"
+          IO.copy_stream(file, socket, to - from + 1, from) if to >= from
+        ensure
+          file.close
+        end
       end
 
       def stream(socket)

@@ -34,17 +34,45 @@ module Asobi
                                                          example: "Asobi.motion(2) { |seconds| circle.rotate(seconds * 180) }")
       end
 
-      setup(Motion.seconds(every, :motion, :every, "Asobi.motion(2) { |seconds| ... }"), block, nil)
+      setup(Motion.seconds(every, :motion, :every, "Asobi.motion(2) { |seconds| ... }"), block, nil, nil)
     end
 
     # Seconds until the motion is back where it started (a positive Float).
     attr_reader :every
+
+    # For a motion that goes out and comes back (pulse, sway, fade, bounce,
+    # drift, shift_color): the seconds into the loop where it is farthest
+    # from where it started. nil for a motion that goes one way round
+    # (spin, orbit, animate), and whenever asobi cannot be sure.
+    #
+    # A reaction that follows a value (flower.pulse.by(:mic)) uses it: louder
+    # means farther out, so its frames run from the start to here only.
+    #
+    # Picture words keep it (flower.pulse.colored(:red) is still out and
+    # back). Motions put together keep it only when they all have the same
+    # loop and the same farthest moment; otherwise it is nil (see
+    # Motion.shared_peak).
+    attr_reader :peak
 
     # The picture at +seconds+ (any number; it repeats every +every+ seconds).
     def at(seconds = 0)
       Check.number(seconds, word: :at, name: :seconds, example: "motion.at(0.5)")
       Motion.quietly(@seed) { Motion.node_at(@function.call(seconds.to_f), seconds.to_f) }
     end
+
+    # The picture at the very end of one loop. It looks like at(every),
+    # which is back at the start, except that every word is at the end of
+    # its loop: your own animate block gets t = 1.0 instead of 0.0. A
+    # reaction that follows a value shows it as its last frame (value 1.0).
+    def at_end
+      Thread.current[LOOP_END] = true
+      at(every)
+    ensure
+      Thread.current[LOOP_END] = nil
+    end
+
+    # The Thread.current slot that at_end sets while it works.
+    LOOP_END = :asobi_loop_end
 
     # One loop of pictures, evenly spaced over +every+ seconds, computed only
     # when asked for. There are every * fps of them (at least one).
@@ -60,15 +88,17 @@ module Asobi
     alias to_s inspect
 
     # The room the motion needs: the box around its pictures over one loop.
+    # (Worked out like a reel: see Asobi::Memo.)
     def bounds
       n = [[(every * 30).round, 1].max, 240].min
-      Box.union(Array.new(n) { |i| at(every * i / n).box(IDENTITY) }) || Box.new(0.0, 0.0, 0.0, 0.0)
+      boxes = Memo.during { Array.new(n) { |i| at(every * i / n).box(IDENTITY) } }
+      Box.union(boxes) || Box.new(0.0, 0.0, 0.0, 0.0)
     end
 
-    # A motion is not one picture: these answer a teaching error.
+    # A motion is not one picture: this answers a teaching error. (So do
+    # the words that draw one picture, such as to_svg: they ask Asobi.art,
+    # which refuses a motion with the same hint.)
     def box(_matrix = IDENTITY) = raise(Motion.not_a_picture(self))
-    def svg = raise(Motion.not_a_picture(self))
-    def to_svg(**) = raise(Motion.not_a_picture(self))
 
     # A page that plays by itself:  flower.spin.save("flower.html")
     def save(path, **options)
@@ -120,21 +150,41 @@ module Asobi
     # seconds ago, each fainter than the last. +gap+ is a short moment
     # (TRAIL_GAP seconds) unless given.
     #   flower.spin.trail, dot.orbit.trail(count: 8, gap: 0.03)
+    #
+    # Every frame of a trail draws count + 1 moments, but most of them were
+    # drawn before: with the default gap, the copy 2 frames back is the
+    # frame 2 frames back. So the moments are asked through Memo.at, which
+    # reuses a moment already worked out while the same reel is built.
+    #
+    # Memo.at only reuses a moment for exactly the same number of seconds,
+    # and arithmetic with fractions of a second is a hair off: the frame
+    # at 3.0 * 7 / 90 and the copy at 3.0 * 9 / 90 - 1 / 15.0 are both
+    # meant to be 7/30 of a second, but are not quite the same number. So
+    # with the default gap, every time the trail draws is first rounded to
+    # the nearest billionth of a second (which never shows), and the two
+    # become one moment. A gap you write yourself is used exactly as
+    # written, and so are the times it gives.
     def trail(count_ = nil, count: count_ || 5, gap: nil)
-      n = Check.whole(count, word: :trail, name: :count, example: "trail(count: 5, gap: 0.05)", min: 1)
-      gap = gap.nil? ? TRAIL_GAP : Check.number(gap, word: :trail, name: :gap, example: "trail(count: 5, gap: 0.05)", min: 0)
+      n = Check.whole(count, word: :trail, name: :count, example: "trail(count: 5, gap: 0.1)", min: 1)
+      tidy = gap.nil?
+      gap = tidy ? TRAIL_GAP : Check.number(gap, word: :trail, name: :gap, example: "trail(count: 5, gap: 0.1)", min: 0)
       source = self
-      stagger = @stagger && ->(g) { source.stagger_by(g).trail(count: n, gap:) }
+      stagger = @stagger && ->(g) { source.stagger_by(g).trail(count: n, gap: tidy ? nil : gap) }
+      # (no peak: the earlier moments drawn under it are never at rest)
+      moment = ->(seconds) { Memo.at(source, tidy ? seconds.round(9) : seconds) }
       Motion.build(every, stagger:) do |t|
         layers = n.downto(1).map do |k|
           fade = (TRAIL_FIRST - (TRAIL_FIRST - TRAIL_FAINTEST) * (k - 1) / [n - 1, 1].max).round(6)
-          Asobi.restyle(source.at(t - k * gap)) { |s| s.merge(opacity: ((s[:opacity] || 1.0) * fade).round(6)) }
+          Asobi.restyle(moment.call(t - k * gap)) { |s| s.merge(opacity: ((s[:opacity] || 1.0) * fade).round(6)) }
         end
-        Many.new(layers + [source.at(t)])
+        Many.new(layers + [moment.call(t)])
       end
     end
 
-    TRAIL_GAP = 0.05
+    # Two frames at 30 frames a second. Frames are 1/30 second apart, so
+    # each copy of a trail is a moment some frame shows anyway, and is
+    # worked out only once (see trail).
+    TRAIL_GAP = 1 / 15.0
     TRAIL_FIRST = 0.5     # the most recent copy
     TRAIL_FAINTEST = 0.1  # the oldest copy
 
@@ -143,8 +193,9 @@ module Asobi
     class << self
       # A Motion without the checks, for asobi's own words. +stagger+ is a
       # proc(gap) that rebuilds this motion with its last word staggered.
-      def build(every, stagger: nil, &function)
-        allocate.tap { _1.send(:setup, every.to_f, function, stagger) }
+      # +peak+ is the seconds where it is farthest out (see Motion#peak).
+      def build(every, stagger: nil, peak: nil, &function)
+        allocate.tap { _1.send(:setup, every.to_f, function, stagger, peak) }
       end
 
       # Like Asobi.art, but a Motion (or anything that becomes one) is
@@ -190,19 +241,26 @@ module Asobi
               combine(parts.map { _1.equal?(chosen) ? staggered : _1 }, &block)
             end
           end
-        build(lcm_period(motions.map(&:every)), stagger:) do |t|
+        peak = shared_peak(motions.map { [_1.every, _1.peak] })
+        build(lcm_period(motions.map(&:every)), stagger:, peak:) do |t|
           block.call(parts.map { _1.is_a?(Motion) ? _1.at(t) : _1 })
         end
       end
 
       # A motion word: +effect+ gets a picture and the phase (0.0 up to 1.0)
-      # and answers that picture at that point of the loop.
-      def word(receiver, period, &effect)
+      # and answers that picture at that point of the loop. +farthest+ is
+      # the phase where the word is farthest out, for a word that goes out
+      # and comes back (pulse: 0.5), or nil for one that goes one way round.
+      def word(receiver, period, farthest: nil, &effect)
         source = reach(receiver)
         period = period.to_f
         every = source.is_a?(Motion) ? lcm_period([source.every, period]) : period
+        loops = [[period, farthest && period * farthest]]
+        loops << [source.every, source.peak] if source.is_a?(Motion)
+        peak = shared_peak(loops)
         make = lambda do |gap|
-          build(every, stagger: gap ? nil : make) do |t|
+          # Staggered, the pictures are never all at rest at once: no peak.
+          build(every, stagger: gap ? nil : make, peak: gap ? nil : peak) do |t|
             node = source.is_a?(Motion) ? source.at(t) : source
             if gap && node.is_a?(Many) && node.size > 1
               step = gap == :even ? period / node.size : gap
@@ -231,10 +289,26 @@ module Asobi
       end
 
       # Where in its loop a motion of +period+ is at time +t+: 0.0 up to 1.0.
+      # Exactly at the end of a loop it is 0.0 (back at the start), or 1.0
+      # while at_end is at work.
       def phase(t, period)
         q = t / period
         f = q - q.floor
-        f < 1e-9 || f > 1 - 1e-9 ? 0.0 : f
+        return f unless f < 1e-9 || f > 1 - 1e-9
+
+        q.positive? && Thread.current[LOOP_END] ? 1.0 : 0.0
+      end
+
+      # The farthest moment that motions put together share, from their
+      # [every, peak] pairs: the peak when every one of them goes out and
+      # comes back with the same loop and the same farthest moment, else
+      # nil (then a reaction uses the whole loop, which is always right).
+      def shared_peak(loops)
+        every, peak = loops.first
+        return nil if peak.nil?
+
+        same = loops.all? { |e, p| p && (e - every).abs < 1e-9 && (p - peak).abs < 1e-9 }
+        same ? peak : nil
       end
 
       # The least common multiple of the periods, worked out in fractions;
@@ -292,10 +366,11 @@ module Asobi
 
     private
 
-    def setup(every, function, stagger)
+    def setup(every, function, stagger, peak)
       @every = every
       @function = function
       @stagger = stagger
+      @peak = peak
       # Each motion takes one seed from the run's random sequence when it is
       # made, so it is the same in every evaluation of the same sketch.
       @seed = ::Random.new(Asobi::Random.next_seed).rand(1 << 64)
@@ -319,14 +394,19 @@ module Asobi
     def pulse(every_ = nil, every: every_ || 1, to: 1.2)
       period = Motion.seconds(every, :pulse, :every, "pulse(every: 1, to: 1.2)")
       Check.number(to, word: :pulse, name: :to, example: "pulse(every: 1, to: 1.2)", min: 0)
-      Motion.word(self, period) { |art, p| Asobi.transform(art, Affine.scale(1 + (to - 1) * Asobi.swell(p))) }
+      Motion.word(self, period, farthest: 0.5) do |art, p|
+        Asobi.transform(art, Affine.scale(1 + (to - 1) * Asobi.swell(p)))
+      end
     end
 
     # Rock +by+ degrees one way, then the other.
     def sway(every_ = nil, every: every_ || 2, by: 10)
       period = Motion.seconds(every, :sway, :every, "sway(every: 2, by: 10)")
       Check.number(by, word: :sway, name: :by, example: "sway(every: 2, by: 10)")
-      Motion.word(self, period) { |art, p| Asobi.transform(art, Affine.rotate(by * Math.sin(2 * Math::PI * p))) }
+      # farthest a quarter of the way in, then back, then the other way
+      Motion.word(self, period, farthest: 0.25) do |art, p|
+        Asobi.transform(art, Affine.rotate(by * Math.sin(2 * Math::PI * p)))
+      end
     end
 
     # Go round a circle of +radius+ (clockwise from the top). Without
@@ -348,7 +428,7 @@ module Asobi
     def fade(every_ = nil, every: every_ || 2, to: 0.2)
       period = Motion.seconds(every, :fade, :every, "fade(every: 2, to: 0.2)")
       Check.number(to, word: :fade, name: :to, example: "fade(every: 2, to: 0.2)", min: 0, max: 1)
-      Motion.word(self, period) do |art, p|
+      Motion.word(self, period, farthest: 0.5) do |art, p|
         amount = (1 - (1 - to) * Asobi.swell(p)).round(9) # so fade(to: 0.2) reaches exactly 0.2
         next art if amount == 1
 
@@ -361,7 +441,9 @@ module Asobi
     def bounce(height_ = nil, height: height_ || 20, every: 1)
       period = Motion.seconds(every, :bounce, :every, "bounce(height: 20, every: 1)")
       Check.number(height, word: :bounce, name: :height, example: "bounce(height: 20, every: 1)")
-      Motion.word(self, period) { |art, p| Asobi.transform(art, Affine.translate(0, -height * 4 * p * (1 - p))) }
+      Motion.word(self, period, farthest: 0.5) do |art, p|
+        Asobi.transform(art, Affine.translate(0, -height * 4 * p * (1 - p)))
+      end
     end
 
     # Go there and come back, smoothly. With nothing given, to the right by
@@ -376,7 +458,7 @@ module Asobi
       amounts.each { |name, v| Check.number(v, word: :drift, name:, example: "drift(right: 40, every: 4)") }
       dx = amounts[:right] - amounts[:left]
       dy = amounts[:down] - amounts[:up]
-      Motion.word(self, period) do |art, p|
+      Motion.word(self, period, farthest: 0.5) do |art, p|
         s = Asobi.swell(p)
         Asobi.transform(art, Affine.translate(dx * s, dy * s))
       end
@@ -397,7 +479,7 @@ module Asobi
       period = Motion.seconds(every, :shift_color, :every, "shift_color(to: :crimson, every: 4)")
       Color.css(from)
       Color.css(to)
-      Motion.word(self, period) { |art, p| Asobi.paint(art, [Color.mix(from, to, Asobi.swell(p))]) }
+      Motion.word(self, period, farthest: 0.5) { |art, p| Asobi.paint(art, [Color.mix(from, to, Asobi.swell(p))]) }
     end
 
     # Your own motion. The block gets the picture and t, which runs from
