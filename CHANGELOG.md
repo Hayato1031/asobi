@@ -22,6 +22,7 @@
 - Website: the reference has a new group, "React and sound" (`when_clicked`, `while_hovered`, `when_pressed`, `on_beat`, `by`, `sounding`, `play`), the guide has a new chapter, "Make it react", and pictures that react can be clicked right on the pages. The site and the playground ship one song, so `play "beat.wav"` works there; any other file name in the playground explains that your own songs play when asobi runs on your computer.
 - On a page with many pictures, a picture makes sound only after you click that picture, so one example never starts another example's song.
 - Both READMEs describe reactions and sound.
+- The gem's summary and description on RubyGems, the home page FAQ, and the files for AI readers (`llms.txt`, the agent skill) now describe reactions and sound.
 
 ## 0.1.1
 

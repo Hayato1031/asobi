@@ -180,8 +180,8 @@ faq:
       en: "What is asobi?"
       ja: "asobi とは何ですか？"
     a:
-      en: "asobi (Japanese for “play”) is a zero-dependency Ruby 3.2+ gem for creative coding, generative SVG art, and looping animations. You can run sketches locally with live browser reload or try them in the browser playground powered by ruby.wasm."
-      ja: "asobi（遊び）は、Ruby 3.2 以上だけで動くクリエイティブコーディング用 gem です。SVG の静止画やループアニメーションを生成でき、ローカルでのライブコーディングにも、ruby.wasm によるブラウザ上の遊び場にも対応しています。"
+      en: "asobi (Japanese for “play”) is a zero-dependency Ruby 3.2+ gem for creative coding, generative SVG art, and looping animations that can react to clicks, the pointer, keys, a microphone, or a song. You can run sketches locally with live browser reload or try them in the browser playground powered by ruby.wasm."
+      ja: "asobi（遊び）は、Ruby 3.2 以上だけで動くクリエイティブコーディング用 gem です。SVG の静止画やループアニメーションを生成でき、クリック・マウス・キー・マイク・曲に反応させることもできます。ローカルでのライブコーディングにも、ruby.wasm によるブラウザ上の遊び場にも対応しています。"
   - q:
       en: "What does “Object to Art. Art to Object.” mean?"
       ja: "「Object to Art. Art to Object.」とはどういう意味ですか？"
@@ -194,6 +194,12 @@ faq:
     a:
       en: "p5.js and Processing draw imperatively inside `setup` and `draw` loops with mutable canvas state (`fill`, `translate`, `push`/`pop`), and Ruby 2D mutates drawable objects on an SDL window. asobi has no canvas state and no native library dependencies: every shape and motion is an immutable Ruby value composed with English-like words."
       ja: "p5.js や Processing は `setup` / `draw` の中でミュータブルなキャンバス状態（`fill`、`translate`、`push`/`pop`）を命令的に更新し、Ruby 2D は SDL ウィンドウ上の可変オブジェクトを書き換えます。asobi はキャンバス状態やネイティブ依存を持たず、すべての図形と動きを英語のように読める不変の Ruby オブジェクトとして組み立てます。"
+  - q:
+      en: "Can asobi react to clicks, music, or a microphone, and can it make sound?"
+      ja: "クリックや音楽、マイクに反応させたり、音を鳴らしたりできますか？"
+    a:
+      en: "Yes. A word after a motion says who turns its frames instead of the clock: `when_clicked`, `while_hovered`, `when_pressed(\"a\")`, `on_beat`, and `by(:mouse_x)`, `by(:mic, :low)` or `by(:music)`. `play \"song.mp3\"` plays a song in a loop, and `sounding(:kick)` or `sounding(:c4)` after a reaction plays a drum sound or a note made in the browser, with no sound files. Editing the code does not restart the song, so it suits live coding and VJ sets, and a saved HTML page still reacts and carries its song."
+      ja: "できます。動きのあとに1語足すと、時計の代わりに何がコマを進めるかを決められます。`when_clicked`、`while_hovered`、`when_pressed(\"a\")`、`on_beat`、そして `by(:mouse_x)`、`by(:mic, :low)`、`by(:music)` です。`play \"song.mp3\"` は曲をくり返し流し、反応のあとに `sounding(:kick)` や `sounding(:c4)` と書くと、太鼓の音や音階がブラウザの中で作られて鳴ります（音のファイルは不要）。コードを書き換えても曲は途切れないので、ライブコーディングや VJ に向いています。保存した HTML でも反応し、曲も一緒に入ります。"
   - q:
       en: "Do I need external tools like ImageMagick, SDL, or Node.js?"
       ja: "ImageMagick や SDL、Node.js などの外部ソフトは必要ですか？"

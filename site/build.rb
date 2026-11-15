@@ -954,7 +954,7 @@ module AsobiSite
           {
             "name" => "asobi",
             "type" => "skill-md",
-            "description" => "Create generative SVG art and looping animations in Ruby using the asobi gem (Object to Art. Art to Object.).",
+            "description" => "Create generative SVG art, looping animations, and pictures that react to clicks and sound in Ruby using the asobi gem (Object to Art. Art to Object.).",
             "url" => skill_url,
             "digest" => skill_digest
           }
@@ -1119,7 +1119,7 @@ module AsobiSite
       <<~MD
         ---
         name: asobi
-        description: Write creative coding sketches, generative SVG art, and pure-function looping animations in Ruby using the asobi gem (Object to Art. Art to Object.). Use when converting Ruby numbers, strings, arrays, hashes, or custom classes into SVG or standalone looping HTML.
+        description: Write creative coding sketches, generative SVG art, and pure-function looping animations in Ruby using the asobi gem (Object to Art. Art to Object.). Use when converting Ruby numbers, strings, arrays, hashes, or custom classes into SVG or standalone looping HTML, or when making pictures react to clicks, keys, a microphone or music and play sound.
         ---
 
         # asobi (Ruby Creative Coding — Object to Art. Art to Object.)
@@ -1135,8 +1135,8 @@ module AsobiSite
         - Pure mode (no core extensions on `Numeric`/`String`/`Array`/`Hash`): `require "asobi/pure"` (`Asobi.art(obj)` instead of `obj.to_art`).
         - Local live coding: `asobi sketch.rb` (opens browser live view and reloads on save).
         - Headless / Script export:
-          - `save art, "out.svg"` exports static SVG (or `save motion, "out.html"` for standalone looping HTML).
-          - `to_svg(art)` returns SVG markup as a String.
+          - `art.save("out.svg")` exports static SVG (or `motion.save("out.html")` for standalone looping HTML).
+          - `art.to_svg` returns SVG markup as a String.
           - Sketches evaluated interactively end with `show art, on: :black, grain: true`.
 
         ## Critical Rules & Gotchas
@@ -1145,6 +1145,16 @@ module AsobiSite
         - All parameters have sensible defaults (`circle` works with zero arguments).
         - Motion durations (`spin(every: 6)`, `orbit(40, every: 6)`) must be **non-negative** (`>= 0`). To spin or orbit counter-clockwise, pass `clockwise: false` instead of a negative `every:`.
         - Do not call `array.to_art` and then `.in_fan`: `array.to_art` lays items out in a row first; build centered items (`petal(...).repeat(n).in_fan`) or arrange with `.in_ring(r)`.
+
+        ## Reactions & Sound
+
+        - A reaction word comes right after a motion and says who turns its frames instead of the clock: `flower.pulse.when_clicked`, `flower.spin.while_hovered`, `flower.spin.when_pressed("a")`, `ring.pulse.on_beat` (the microphone) or `on_beat(:music)`.
+        - `by` picks the frame from a value: `by(:mouse_x)`, `by(:mouse_y)`, `by(:mic)`, `by(:mic, :low)` (also `:mid`, `:high`, `:pitch`), `by(:music)`, `by(:music, :low)`.
+        - The answer is still a picture: `dot.pulse.when_clicked.repeat(12).in_ring(60)` gives twelve dots that each react on their own.
+        - `play "song.mp3"` is a top-level word like `show`: one song per sketch, looped, read from the sketch's folder (`volume: 0.5` to turn it down). `:music` means the sound asobi itself plays.
+        - `sounding(sound)` comes right after `when_clicked`, `while_hovered`, `when_pressed` or `on_beat`, never after `by(...)` or a plain motion. Sounds: `:pop`, `:kick`, `:snare`, `:hat`, `:clap`, `:bell`, or a note such as `:c4`, `:cs4`, `"Bb3"`.
+        - Browsers start sound and the microphone only after a click or key press on the picture. A saved `.html` still reacts and carries its song (up to 20 MB); a saved `.svg` shows the picture at rest.
+        - `show art, controls: false` hides the buttons for projecting; in the player, `f` is full screen and `m` mutes.
 
         ## Vocabulary (#{@content.words.size} Words in #{GROUPS.size} Groups)
 
@@ -1193,6 +1203,7 @@ module AsobiSite
            - Custom classes: define `def to_art` (optionally `include Asobi::Art` to chain words like `spin`, `colored`, `move`).
         2. **Art to Object**: Every picture is an immutable Ruby value (`Data` / `Asobi::Art`). Calling `.colored(:crimson)` or `.rotate(45)` returns a new picture without mutating the original—never mutating a global canvas.
         3. **Pure-Function Motion**: Animations (`Asobi::Motion`) are pure functions of `seconds -> art`, allowing live browser reload without resetting motion phase and clean `.trail` afterimages.
+        4. **Reactions and Sound**: A word after a motion says who turns its frames instead of the clock: `when_clicked`, `while_hovered`, `when_pressed("a")`, `on_beat`, or `by(:mouse_x)` / `by(:mic, :low)` / `by(:music)`. `play "song.mp3"` loops a song, and `sounding(:kick)` or `sounding(:c4)` after a reaction plays a synthesized drum sound or note. Editing the code does not restart the song, for live coding and VJ sets.
 
         ## Quick Example
 
@@ -1549,6 +1560,8 @@ module AsobiSite
           "Object to Art via to_art on numbers, strings, arrays, ranges, hashes, and custom Ruby classes",
           "Immutable Ruby picture values (Asobi::Art)",
           "Pure-function looping animations (Asobi::Motion)",
+          "Reactions to clicks, the pointer, keys, the microphone and music (when_clicked, on_beat, by)",
+          "Songs and synthesized notes and drum sounds for live coding and VJ sets (play, sounding)",
           "Zero runtime dependencies beyond Ruby 3.2+ standard library",
           "Live browser reload, SVG and standalone HTML export, and ruby.wasm playground"
         ]
