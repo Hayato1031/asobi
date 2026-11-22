@@ -16,10 +16,10 @@ Turn Ruby values and your own classes into pictures with `to_art` — **Object t
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-3fb950)](#issues-and-pull-requests)
 [![Featured in Ruby Weekly #827](https://img.shields.io/badge/featured%20in-Ruby%20Weekly%20%23827-e0475b)](https://rubyweekly.com/issues/827)
 
-<a href="https://asobi.myura.me/playground.html"><img src="https://img.shields.io/badge/%E2%96%B6%20Try%20it%20in%20your%20browser-ff4d6d?style=for-the-badge" alt="Try it in your browser" height="36"></a>
-<a href="https://asobi.myura.me/guide.html"><img src="https://img.shields.io/badge/Guide-20232e?style=for-the-badge" alt="Guide" height="36"></a>
-<a href="https://asobi.myura.me/reference.html"><img src="https://img.shields.io/badge/Reference-20232e?style=for-the-badge" alt="Reference" height="36"></a>
-<a href="https://asobi.myura.me/examples.html"><img src="https://img.shields.io/badge/Examples-20232e?style=for-the-badge" alt="Examples" height="36"></a>
+<a href="https://asobi.myura.me/playground"><img src="https://img.shields.io/badge/%E2%96%B6%20Try%20it%20in%20your%20browser-ff4d6d?style=for-the-badge" alt="Try it in your browser" height="36"></a>
+<a href="https://asobi.myura.me/guide"><img src="https://img.shields.io/badge/Guide-20232e?style=for-the-badge" alt="Guide" height="36"></a>
+<a href="https://asobi.myura.me/reference"><img src="https://img.shields.io/badge/Reference-20232e?style=for-the-badge" alt="Reference" height="36"></a>
+<a href="https://asobi.myura.me/examples"><img src="https://img.shields.io/badge/Examples-20232e?style=for-the-badge" alt="Examples" height="36"></a>
 <a href="https://asobi.myura.me/#film"><img src="https://img.shields.io/badge/32--second%20film-20232e?style=for-the-badge" alt="32-second film" height="36"></a>
 
 <br>
@@ -63,7 +63,7 @@ show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 </tr>
 <tr>
 <td width="50%" valign="top"><b>Reads like English</b><br><code>petal.repeat(8).in_fan.colored(:crimson, :navy)</code> reads from left to right: repeat a petal eight times, fan the copies out, colour them crimson and navy.</td>
-<td width="50%" valign="top"><b>Nothing but Ruby</b><br>Zero external dependencies. Run <code>gem install asobi</code> and <code>asobi</code> to live-code in your browser with automatic reload, or run sketches straight in the <a href="https://asobi.myura.me/playground.html">browser playground</a>.</td>
+<td width="50%" valign="top"><b>Nothing but Ruby</b><br>Zero external dependencies. Run <code>gem install asobi</code> and <code>asobi</code> to live-code in your browser with automatic reload, or run sketches straight in the <a href="https://asobi.myura.me/playground">browser playground</a>.</td>
 </tr>
 </table>
 
@@ -300,14 +300,14 @@ The examples on the website can be edited right in the browser. Select an animat
 
 | Flower | Through a heart | Night sky |
 | :---: | :---: | :---: |
-| [![Crimson and navy petals turn around a gold centre.](docs/readme/flower.gif)](https://asobi.myura.me/examples.html#flower) | [![Red and gold stripes rotate behind a heart-shaped window.](docs/readme/through_a_heart.gif)](https://asobi.myura.me/examples.html#through_a_heart) | [![Gold stars twinkle beside a glowing crescent moon.](docs/readme/night_sky.gif)](https://asobi.myura.me/examples.html#night_sky) |
+| [![Crimson and navy petals turn around a gold centre.](docs/readme/flower.gif)](https://asobi.myura.me/examples#flower) | [![Red and gold stripes rotate behind a heart-shaped window.](docs/readme/through_a_heart.gif)](https://asobi.myura.me/examples#through_a_heart) | [![Gold stars twinkle beside a glowing crescent moon.](docs/readme/night_sky.gif)](https://asobi.myura.me/examples#night_sky) |
 | [`in_fan`](examples/flower.rb) | [`clipped_by`](examples/through_a_heart.rb) | [`fade`](examples/night_sky.rb) |
 
-Find more in the [examples folder](examples/README.md) and on the [examples page](https://asobi.myura.me/examples.html).
+Find more in the [examples folder](examples/README.md) and on the [examples page](https://asobi.myura.me/examples).
 
 ## Every word at a glance
 
-Look up arguments and defaults in the [method reference](https://asobi.myura.me/reference.html). When you leave out a number, asobi uses one that fits.
+Look up arguments and defaults in the [method reference](https://asobi.myura.me/reference). When you leave out a number, asobi uses one that fits.
 
 | To do this | Words |
 | --- | --- |
@@ -357,9 +357,9 @@ stars.colored(:navy).save("stars.svg")
 
 | To do this | Go to |
 | --- | --- |
-| Learn **Object to Art / Art to Object** step by step | [Guide](https://asobi.myura.me/guide.html) ([Markdown](https://asobi.myura.me/guide.md)) |
-| Look up shapes, layouts, motion, and defaults | [Method reference](https://asobi.myura.me/reference.html) ([Markdown](https://asobi.myura.me/reference.md)) |
-| Try asobi in the browser without installing it | [Playground](https://asobi.myura.me/playground.html) |
+| Learn **Object to Art / Art to Object** step by step | [Guide](https://asobi.myura.me/guide) ([Markdown](https://asobi.myura.me/guide.md)) |
+| Look up shapes, layouts, motion, and defaults | [Method reference](https://asobi.myura.me/reference) ([Markdown](https://asobi.myura.me/reference.md)) |
+| Try asobi in the browser without installing it | [Playground](https://asobi.myura.me/playground) |
 | Read complete one-file sketches | [Examples](examples/README.md) |
 | Give AI coding agents full API context | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
 | See why asobi is designed this way | [Design notes (Japanese)](DESIGN.md) |

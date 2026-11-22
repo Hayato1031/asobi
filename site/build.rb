@@ -1040,7 +1040,7 @@ module AsobiSite
             "displayName" => "asobi llms.txt Summary",
             "type" => "text/markdown",
             "url" => "#{SITE_URL}/llms.txt",
-            "description" => "Concise architectural summary, Object to Art concept, quick example, and 71-word index for LLMs.",
+            "description" => "Concise architectural summary, Object to Art concept, quick example, and #{@content.words.size}-word index for LLMs.",
             "representativeQueries" => [
               "what is the asobi Ruby gem",
               "asobi Object to Art concept overview",
@@ -1052,7 +1052,7 @@ module AsobiSite
             "displayName" => "asobi Complete Documentation (llms-full.txt)",
             "type" => "text/markdown",
             "url" => "#{SITE_URL}/llms-full.txt",
-            "description" => "Complete English documentation for asobi including guide, full 71-word reference, gallery examples, and FAQ.",
+            "description" => "Complete English documentation for asobi including guide, full #{@content.words.size}-word reference, gallery examples, and FAQ.",
             "representativeQueries" => [
               "full asobi Ruby API reference",
               "how to animate SVG in Ruby with asobi",
@@ -1138,6 +1138,11 @@ module AsobiSite
         </reference>;\ rel="service-doc"
         </.well-known/agent-skills/index.json>;\ rel="agent-skills"
       ].join(", ")
+      # Cloudflare applies EVERY rule whose pattern matches and joins equal
+      # header names with ", ", and a * matches slashes too. So /*.md already
+      # covers /ja/*.md and /.well-known/agent-skills/*.md: a second rule for
+      # them would send "text/markdown, text/markdown" and "*, *". Keep the
+      # rules disjoint (test/site_test.rb checks every file).
       File.write(File.join(@out, "_headers"), <<~HEADERS)
         /*
           #{all_pages_headers.join("\n  ")}
@@ -1158,12 +1163,6 @@ module AsobiSite
           Content-Type: application/json; charset=utf-8
           Access-Control-Allow-Origin: *
         /*.md
-          Content-Type: text/markdown; charset=utf-8
-          Access-Control-Allow-Origin: *
-        /ja/*.md
-          Content-Type: text/markdown; charset=utf-8
-          Access-Control-Allow-Origin: *
-        /.well-known/agent-skills/*.md
           Content-Type: text/markdown; charset=utf-8
           Access-Control-Allow-Origin: *
         /llms.txt

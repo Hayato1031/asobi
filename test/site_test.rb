@@ -4,6 +4,7 @@ require_relative "test_helper"
 require "tmpdir"
 require "fileutils"
 require "json"
+require "yaml"
 require "digest"
 require "open3"
 require "rbconfig"
@@ -962,6 +963,73 @@ class SiteTest < Minitest::Test
       AsobiSite::Builder.new(data: FIXTURES, out:, log: nil).build
       refute File.exist?(File.join(out, "reels", "rstale000.js"))
       assert File.file?(File.join(out, ".nojekyll"))
+    end
+  end
+
+  # ---- _headers --------------------------------------------------------------
+
+  # Cloudflare Pages applies every rule whose pattern matches a path and joins
+  # equal header names with ", " (a "*" matches slashes too). Emulate that.
+  def header_blocks
+    blocks = []
+    read("_headers").each_line do |line|
+      if line =~ /\A\S/
+        blocks << [line.strip, []]
+      elsif line =~ /\A\s+([^:\s]+):\s*(.*?)\s*\z/
+        blocks.last[1] << [$1, $2.strip]
+      end
+    end
+    blocks
+  end
+
+  def header_pattern_regexp(pattern)
+    /\A#{pattern.split("*", -1).map { Regexp.escape(_1) }.join(".*")}\z/m
+  end
+
+  def matching_header_blocks(path)
+    header_blocks.select { |pattern, _| header_pattern_regexp(pattern).match?(path) }
+  end
+
+  def test_no_file_gets_the_same_header_from_two_rules
+    root = File.join(@out, "")
+    paths = Dir.glob(File.join(@out, "**", "*"), File::FNM_DOTMATCH).select { File.file?(_1) }.flat_map do |f|
+      url = "/#{f.delete_prefix(root)}"
+      [url, (url.delete_suffix(".html") if url.end_with?(".html"))].compact
+    end
+    paths = (paths + ["/", "/ja/"]).uniq
+    refute_empty paths
+    paths.each do |path|
+      names = matching_header_blocks(path).flat_map { |_, hs| hs.map { |name, _| name.downcase } }
+      dupes = names.tally.select { _2 > 1 }.keys
+      assert_empty dupes, "#{path} gets #{dupes.join(", ")} from more than one _headers rule"
+    end
+  end
+
+  def test_markdown_files_get_one_content_type_and_one_cors_header
+    ["/ja/index.md", "/.well-known/agent-skills/asobi/SKILL.md"].each do |path|
+      assert File.file?(File.join(@out, path)), path
+      headers = matching_header_blocks(path).flat_map { |_, hs| hs }
+      assert_equal ["text/markdown; charset=utf-8"], headers.select { |n, _| n.casecmp?("content-type") }.map { |_, v| v }, path
+      assert_equal ["*"], headers.select { |n, _| n.casecmp?("access-control-allow-origin") }.map { |_, v| v }, path
+    end
+  end
+
+  # ---- word counts and links -------------------------------------------------
+
+  def test_ai_catalog_counts_the_real_vocabulary
+    size = YAML.safe_load_file(File.join(FIXTURES, "words.yml")).size
+    assert_equal size, read("llms.txt")[/Vocabulary Index \((\d+) words/, 1].to_i
+    assert_operator size, :>, 0
+    descriptions = JSON.parse(read(".well-known/ai-catalog.json")).fetch("entries").map { _1["description"] }
+    counted = descriptions.grep(/-word /)
+    refute_empty counted
+    counted.each { assert_includes _1, "#{size}-word" }
+  end
+
+  def test_readmes_link_to_the_site_without_html
+    %w[README.md README.ja.md].each do |name|
+      text = File.read(File.expand_path("../#{name}", __dir__), encoding: "UTF-8")
+      assert_empty text.scan(%r{asobi\.myura\.me/[^\s)"'>]*\.html}), name
     end
   end
 end
