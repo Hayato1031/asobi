@@ -14,6 +14,7 @@ Ruby の値や自作クラスを `to_art` で絵に変える（**Object to Art**
 [![Ruby 3.2 以上](https://img.shields.io/badge/Ruby-%E2%89%A5%203.2-cc342d?logo=ruby&logoColor=white)](https://www.ruby-lang.org/ja/)
 [![MIT License](https://img.shields.io/badge/license-MIT-8b9cf7)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-3fb950)](#不具合報告改善の提案issuepr)
+[![Ruby Weekly #827 に掲載](https://img.shields.io/badge/featured%20in-Ruby%20Weekly%20%23827-e0475b)](https://rubyweekly.com/issues/827)
 
 <a href="https://asobi.myura.me/ja/playground.html"><img src="https://img.shields.io/badge/%E2%96%B6%20%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E3%81%A7%E8%A9%A6%E3%81%99-ff4d6d?style=for-the-badge" alt="ブラウザで試す" height="36"></a>
 <a href="https://asobi.myura.me/ja/guide.html"><img src="https://img.shields.io/badge/%E5%85%A5%E9%96%80%E3%82%AC%E3%82%A4%E3%83%89-20232e?style=for-the-badge" alt="入門ガイド" height="36"></a>

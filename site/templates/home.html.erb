@@ -47,6 +47,32 @@
     <a href="<%= root %>assets/your-objects.mp4"><%= ui(:watch_film) %> (MP4)</a>
   </video>
 </section>
+<%- unless home["press"].empty? -%>
+<%- top, *more = home["press"] -%>
+
+<section class="band press-band" id="press" aria-labelledby="press-title">
+  <h2 class="label" id="press-title"><span class="n">★</span> <%= ui(:press_label) %></h2>
+  <div class="press-list">
+    <figure class="press-quote">
+      <blockquote cite="<%= h(top["url"]) %>" lang="<%= top["quote_lang"] %>"><p><%= h(top["quote"]) %></p></blockquote>
+<%- if top["translation"] && lang != top["quote_lang"] -%>
+      <p class="press-translation"><%= h(t(top["translation"])) %></p>
+<%- end -%>
+      <figcaption><a href="<%= h(top["url"]) %>"><%= h(top["name"]) %><span aria-hidden="true"> ↗</span></a><span class="press-date"><%= h(t(top["date"])) %></span></figcaption>
+    </figure>
+<%- unless more.empty? -%>
+    <div class="press-more">
+      <h3 class="label"><%= ui(:press_more) %></h3>
+      <ul>
+<%- more.each do |item| -%>
+        <li><span class="press-date"><%= h(t(item["date"])) %></span><a href="<%= h(item["url"]) %>"><%= h(item["name"]) %><span aria-hidden="true"> ↗</span></a></li>
+<%- end -%>
+      </ul>
+    </div>
+<%- end -%>
+  </div>
+</section>
+<%- end -%>
 
 <section class="band" aria-labelledby="beliefs-title">
   <div class="band-head"><p class="label"><span class="n"><%= next_sec.call %></span> / <%= ui(:philosophy) %></p><h2 id="beliefs-title" class="visually-hidden"><%= ui(:philosophy) %></h2></div>

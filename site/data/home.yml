@@ -30,6 +30,20 @@ stage: [neon_flower, aurora, through_a_heart, night_sky]
 # A glimpse of the gallery further down the home page.
 gallery: [planets, tiles, paper_cutouts]
 
+# Where asobi has been featured, newest first, shown just below the film.
+# The first entry is shown large, as a quote of the words they wrote, so it needs `quote`
+# (in their language; `translation` is shown on the pages in other languages).
+# Every other entry is one line in a list under it: date, then name and link.
+# To feature a new one, add it at the top; the old one moves into the list by itself.
+press:
+  - name: "Ruby Weekly #827"
+    url: "https://rubyweekly.com/issues/827"
+    date: { en: "Nov 19, 2026", ja: "2026年11月19日" }
+    quote: "Asobi is a bit like p5.js or Processing, but with a Ruby twist!"
+    quote_lang: en
+    translation:
+      ja: "asobi は p5.js や Processing にちょっと似ている。でも、Ruby ならではのひとひねりがある！"
+
 # The two-way loop: Object -> Art and Art -> Object, with real Ruby -> SVG examples.
 cycle:
   sides:
