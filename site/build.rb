@@ -101,6 +101,7 @@ module AsobiSite
       ruby_failed: "Ruby could not be loaded. Check the connection and reload the page.",
       too_slow: "This sketch took more than %d seconds, so it was stopped. Is there a loop that never ends?",
       crashed: "Ruby stopped working while it ran this sketch, so it was started again. Change the code to try once more.",
+      blocked: "This picture has something the playground does not draw, so it was not shown. The playground draws only what asobi's own words make.",
       editor_hint: "Edit the code; the picture follows. Tab inserts two spaces. Press Esc, then Tab, to leave the editor.",
       words_hint: "Each word opens its reference in a new tab.",
       reset: "Start again",
@@ -186,6 +187,7 @@ module AsobiSite
       ruby_failed: "Ruby を読み込めませんでした。通信を確かめて、ページを読み込み直してください。",
       too_slow: "%d 秒以上かかったので止めました。終わらないくり返しがないか確かめてください。",
       crashed: "このスケッチの実行中に Ruby が止まってしまったので、起動し直しました。コードを書き換えると、もう一度動かします。",
+      blocked: "この絵には playground が描かないものが入っているので、表示しませんでした。playground が描くのは、asobi の言葉で作った絵だけです。",
       editor_hint: "コードを書き換えると絵が変わります。Tab で空白2つ。エディタから出るには Esc のあと Tab。",
       words_hint: "言葉を選ぶと、そのリファレンスが新しいタブで開きます。",
       reset: "最初に戻す",
@@ -1089,7 +1091,28 @@ module AsobiSite
         </reference>;\ rel="service-doc"
         </.well-known/agent-skills/index.json>;\ rel="agent-skills"
       ].join(", ")
+      # On every page: scripts only from the site itself and the pinned
+      # ruby.wasm (the playground's Ruby comes from the address, so a
+      # picture that slips through must not be able to run anything).
+      # Embedding the site elsewhere stays allowed (no frame-ancestors).
+      # The microphone stays allowed: the player listens to it.
+      csp = [
+        "default-src 'self'",
+        "script-src 'self' 'wasm-unsafe-eval' #{RUBY_WASM.fetch("api")}",
+        "connect-src 'self' #{RUBY_WASM.fetch("wasm")}",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "media-src 'self' data: blob:",
+        "worker-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'"
+      ].join("; ")
       File.write(File.join(@out, "_headers"), <<~HEADERS)
+        /*
+          Content-Security-Policy: #{csp}
+          Strict-Transport-Security: max-age=31536000
+          Permissions-Policy: camera=(), geolocation=()
         /
           Link: #{link_header}, </index.md>; rel="alternate"; type="text/markdown"
         /ja/
@@ -1816,7 +1839,7 @@ module AsobiSite
     def default_play_code = AsobiSite.display_code(content.home["hero_code"])
 
     def play_config
-      ui_keys = %i[loading_ruby ruby_ready running ruby_failed crashed copied copy_failed every still reacts]
+      ui_keys = %i[loading_ruby ruby_ready running ruby_failed crashed blocked copied copy_failed every still reacts]
       {
         "lang" => @lang.to_s,
         "ui" => ui_keys.to_h { [_1.to_s, ui(_1)] }.merge("too_slow" => ui(:too_slow, PLAY_TIMEOUT),

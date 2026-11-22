@@ -116,16 +116,41 @@ Temporary files (the Chrome profile) go in `TMPDIR` and are removed at the end.
 - `playground-check.js` runs `playground.js` on a pretend page with a pretend worker: after Ruby
   breaks (`{ id, fatal }` or a worker `error` event) the page starts a fresh worker, shows a short
   message, does not run the crashed code again by itself, runs the newest waiting edit, and stops
-  (no loop) when the fresh worker cannot start.
+  (no loop) when the fresh worker cannot start. A worker answer whose frame is not asobi's own SVG
+  reaches the player as an error Reel with the `blocked` text, never as frames; odd worker messages
+  are ignored; on http/https a worker that cannot start never leads to Ruby on the page (only on
+  `file://`).
+- `safe-reel-check.js` checks `site/assets/safe-reel.js`, the playground's checker for what an
+  engine sends (a link can carry any Ruby, and that Ruby can change how asobi writes SVG). Every
+  Reel in the built site's `reels/` must pass with the same frames and parts; a list of attacks
+  (event handlers, `<script>`, `<foreignObject>`, `href`, `url(https://…)`, CSS escapes, entities,
+  comments, odd spacing and quotes) must not pass `markup`; `reel` rejects non-objects, missing
+  frames, a part named `__proto__`, a `url(…)` background and a bad view, drops a song from
+  elsewhere (keeping the picture), and keeps only `error` and `code` of an error Reel.
+
+      node test/web/safe-reel-check.js _site/assets/safe-reel.js _site/reels
+
+- `ruby-string-check.js` checks how `ruby-engine.js` hands a sketch to Ruby without the js gem
+  (which needs `'unsafe-eval'`): `rubyString(text)` is `["<hex>"].pack("H*").force_encoding("UTF-8")`
+  with hex digits only between the quotes, for ASCII, Japanese, emoji, quotes, backslashes, `#{}`,
+  newlines and an empty string; `test/site_test.rb` also evals each one in Ruby and compares.
+
+      node test/web/ruby-string-check.js _site/assets/ruby-engine.js
 
 # Playground crash, by hand (real ruby.wasm)
 
-Build and serve the site (`rake site`, then any static server on `_site/`), open `playground.html`
-and paste this sketch. It leaves Ruby broken the way a crash inside ruby.wasm did (the sketch lock
-stays held, so every later run would fail with `ThreadError: deadlock; recursive locking`) and makes
-the worker report a fatal failure:
+These steps use `JS.eval` from a sketch (ruby.wasm's js gem, which runs `Function(code)`). The
+deployed site's Content-Security-Policy (`_headers`, no `'unsafe-eval'`) stops that, so the sketch
+only gets an `EvalError`: do this on a plain local server that sends no headers, for example
+`rake site`, then `ruby -run -e httpd _site -p 8000` (or `python3 -m http.server -d _site`).
+The engine no longer loads the js gem itself, so the sketch asks for it (`require "js"`).
+
+Open `http://localhost:8000/playground.html` and paste this sketch. It leaves Ruby broken the way a
+crash inside ruby.wasm did (the sketch lock stays held, so every later run would fail with
+`ThreadError: deadlock; recursive locking`) and makes the worker report a fatal failure:
 
 ```ruby
+require "js"
 m = Mutex.new
 m.lock
 Asobi::Sketch.instance_variable_set(:@mutex, m)
