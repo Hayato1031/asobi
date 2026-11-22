@@ -50,15 +50,16 @@ class QueuedChannel {
   }
 }
 
-function startWorker() {
+function startWorker(extra = {}) {
   const out = [];
   const log = [];
-  const hash = Buffer.from(JSON.stringify({ api: "api.js", wasm: "ruby.wasm" })).toString("base64").replace(/=+$/, "");
+  const imports = [];
+  const hash = Buffer.from(JSON.stringify({ api: "api.js", wasm: "ruby.wasm", ...extra })).toString("base64").replace(/=+$/, "");
   const sandbox = {
     location: { hash: "#" + hash },
     atob: (s) => Buffer.from(s, "base64").toString("binary"),
     MessageChannel: QueuedChannel,
-    importScripts: () => { sandbox.AsobiRubyEngine = fakeEngine(log); },
+    importScripts: (...names) => { imports.push(names); sandbox.AsobiRubyEngine = fakeEngine(log); },
     postMessage: (m) => out.push(m)
   };
   sandbox.self = sandbox;
@@ -66,7 +67,7 @@ function startWorker() {
   vm.runInContext(source, sandbox);
   // Messages arrive as their own tasks, like in a real worker.
   const send = (m) => setTimeout(() => sandbox.onmessage({ data: m }), 0);
-  return { out, log, send };
+  return { out, log, send, imports };
 }
 
 async function until(fn, ms = 2000) {
@@ -107,6 +108,11 @@ async function until(fn, ms = 2000) {
     await sleep(30);
     result.fatal = { out: w.out, log: w.log };
   }
+
+  // 4. With a version, the site's own two scripts are asked for with ?v=<v>
+  //    and the pinned CDN file is not. A v that is not hex is ignored.
+  result.versioned = { imports: startWorker({ v: "0a1b" }).imports };
+  result.notHex = ["../x", "a&b", 12].map((v) => ({ imports: startWorker({ v }).imports }));
 
   console.log(JSON.stringify(result));
   process.exit(0);

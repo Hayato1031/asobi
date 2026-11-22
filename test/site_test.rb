@@ -403,13 +403,35 @@ class SiteTest < Minitest::Test
     refute_includes script, "'unsafe-eval'"
     refute_includes script, "https://cdn.jsdelivr.net"
     assert_includes script, AsobiSite::RUBY_WASM.fetch("api")
+    assert_includes script, "https://static.cloudflareinsights.com"
     assert_includes directives.fetch("connect-src").split, AsobiSite::RUBY_WASM.fetch("wasm")
+    assert_includes directives.fetch("connect-src").split, "https://cloudflareinsights.com"
     assert_equal "'none'", directives.fetch("object-src")
     refute directives.key?("frame-ancestors"), "embedding the site stays allowed"
     assert_includes block, "Strict-Transport-Security: max-age=31536000"
     assert_includes block, "Permissions-Policy: camera=(), geolocation=()"
     refute_match(/microphone/, block, "the player listens to the microphone")
     refute_includes headers, "X-Frame-Options"
+  end
+
+  # The worker's address changes with the headers and the worker's scripts,
+  # so a cache that kept old headers for the old address is not asked.
+  def test_worker_address_carries_a_version_of_the_headers_and_scripts
+    versions = %w[playground.html ja/playground.html].map do |page|
+      JSON.parse(read(page)[%r{id="play-config">(.*?)</script>}m, 1]).fetch("workerVersion")
+    end
+    assert_equal 1, versions.uniq.size
+    assert_match(/\A[0-9a-f]{12}\z/, versions.first)
+
+    block = read("_headers")[%r{^/\*\n((?:  .*\n)+)}, 1]
+    digest = Digest::SHA256.new
+    block.lines.each { digest << _1.strip << "\n" }
+    %w[ruby-worker.js ruby-engine.js asobi-ruby.js].each { digest << File.binread(File.join(@out, "assets", _1)) }
+    assert_equal 3, block.lines.size
+    assert_equal digest.hexdigest[0, 12], versions.first
+
+    assert_includes read("assets/playground.js"), "ruby-worker.js\" + (v ? \"?v=\" + v"
+    assert_includes read("assets/ruby-worker.js"), '"asobi-ruby.js" + q'
   end
 
   # The checker (site/assets/safe-reel.js) with every Reel the site built,
@@ -488,12 +510,19 @@ class SiteTest < Minitest::Test
     fatal = result["fatal"]["out"].last
     assert_equal 1, fatal["id"]
     assert_includes fatal["fatal"], "unreachable"
+
+    assert_equal [["api.js", "asobi-ruby.js?v=0a1b", "ruby-engine.js?v=0a1b"]], result["versioned"]["imports"]
+    assert_equal [[["api.js", "asobi-ruby.js", "ruby-engine.js"]]] * 3, result["notHex"].map { _1["imports"] }
   end
 
   # The page with a pretend worker (test/web/playground-check.js).
   def test_playground_recovers_after_ruby_crashes
     result = node_check("playground-check.js", File.join(@out, "assets", "playground.js"), File.join(@out, "playground.html"))
     crashed = result["crashed"]
+
+    version = JSON.parse(read("playground.html")[%r{id="play-config">(.*?)</script>}m, 1]).fetch("workerVersion")
+    assert_equal version, result["workerStart"]["v"], "the address and the hash carry the same version"
+    assert_equal "assets/ruby-worker.js?v=#{version}", result["workerStart"]["path"]
 
     then_ = result["fatalThen"]
     assert_equal [true, false], then_["workers"].map { _1["terminated"] }, "the broken worker is replaced"

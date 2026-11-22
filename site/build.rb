@@ -78,6 +78,12 @@ module AsobiSite
     "api" => "https://cdn.jsdelivr.net/npm/#{RUBY_WASM_API}@#{RUBY_WASM_VERSION}/dist/browser.umd.js",
     "wasm" => "https://cdn.jsdelivr.net/npm/#{RUBY_WASM_RUBY}@#{RUBY_WASM_VERSION}/dist/ruby+stdlib.wasm"
   }.freeze
+  # Cloudflare puts its Web Analytics script into the pages on the real
+  # domain; it sends what it counts to cloudflareinsights.com.
+  CLOUDFLARE_ANALYTICS = {
+    "script" => "https://static.cloudflareinsights.com",
+    "connect" => "https://cloudflareinsights.com"
+  }.freeze
 
   LANGUAGES = { ja: "日本語", en: "English" }.freeze
   GROUPS = %w[shapes combine change color effect arrange to_art motion react show].freeze
@@ -902,6 +908,47 @@ module AsobiSite
                  "self.ASOBI_RUBY = #{JSON.generate(ruby).gsub("</", "<\\/")};\n")
     end
 
+    # The headers for every page (the /* block of _headers), one line each.
+    # On every page: scripts only from the site itself and the pinned
+    # ruby.wasm (the playground's Ruby comes from the address, so a
+    # picture that slips through must not be able to run anything).
+    # Cloudflare's analytics script and the address it reports to are
+    # allowed too: Cloudflare puts that script into the pages on the real
+    # domain, and without them the counting stops.
+    # Embedding the site elsewhere stays allowed (no frame-ancestors).
+    # The microphone stays allowed: the player listens to it.
+    def all_pages_headers
+      @all_pages_headers ||= begin
+        csp = [
+          "default-src 'self'",
+          "script-src 'self' 'wasm-unsafe-eval' #{RUBY_WASM.fetch("api")} #{CLOUDFLARE_ANALYTICS.fetch("script")}",
+          "connect-src 'self' #{RUBY_WASM.fetch("wasm")} #{CLOUDFLARE_ANALYTICS.fetch("connect")}",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: blob:",
+          "media-src 'self' data: blob:",
+          "worker-src 'self'",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "form-action 'self'"
+        ].join("; ")
+        ["Content-Security-Policy: #{csp}", "Strict-Transport-Security: max-age=31536000",
+         "Permissions-Policy: camera=(), geolocation=()"].freeze
+      end
+    end
+
+    # Names the worker's address. A worker takes its policy from its own
+    # response, and a cache may keep answering an unchanged file with old
+    # headers; a new address is fetched fresh. So it changes with the headers
+    # and with the worker's three scripts (call it after write_assets).
+    def worker_version
+      @worker_version ||= begin
+        digest = Digest::SHA256.new
+        all_pages_headers.each { digest << "#{_1}\n" }
+        %w[ruby-worker.js ruby-engine.js asobi-ruby.js].each { digest << File.binread(File.join(@out, "assets", _1)) }
+        digest.hexdigest[0, 12]
+      end
+    end
+
     # One small script per picture: it registers itself when loaded, so it
     # works from file:// as well as from a server (no fetch of JSON).
     def write_reels
@@ -1091,28 +1138,9 @@ module AsobiSite
         </reference>;\ rel="service-doc"
         </.well-known/agent-skills/index.json>;\ rel="agent-skills"
       ].join(", ")
-      # On every page: scripts only from the site itself and the pinned
-      # ruby.wasm (the playground's Ruby comes from the address, so a
-      # picture that slips through must not be able to run anything).
-      # Embedding the site elsewhere stays allowed (no frame-ancestors).
-      # The microphone stays allowed: the player listens to it.
-      csp = [
-        "default-src 'self'",
-        "script-src 'self' 'wasm-unsafe-eval' #{RUBY_WASM.fetch("api")}",
-        "connect-src 'self' #{RUBY_WASM.fetch("wasm")}",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob:",
-        "media-src 'self' data: blob:",
-        "worker-src 'self'",
-        "object-src 'none'",
-        "base-uri 'self'",
-        "form-action 'self'"
-      ].join("; ")
       File.write(File.join(@out, "_headers"), <<~HEADERS)
         /*
-          Content-Security-Policy: #{csp}
-          Strict-Transport-Security: max-age=31536000
-          Permissions-Policy: camera=(), geolocation=()
+          #{all_pages_headers.join("\n  ")}
         /
           Link: #{link_header}, </index.md>; rel="alternate"; type="text/markdown"
         /ja/
@@ -1849,6 +1877,7 @@ module AsobiSite
         "assets" => "#{root}assets/",
         "reels" => "#{root}reels/",
         "rubyWasm" => RUBY_WASM,
+        "workerVersion" => @builder.worker_version,
         "defaultCode" => default_play_code,
         "defaultKey" => result_for(default_play_code).key,
         "words" => word_list

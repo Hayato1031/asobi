@@ -147,6 +147,15 @@ const brief = (p) => ({
     result.fatalAfter = brief(p);
   }
 
+  // The worker is started at an address with the version, and the hash says the same.
+  {
+    const p = page({});
+    await sleep(50);
+    const [path, hash] = p.workers[0].url.split("#");
+    const where = JSON.parse(Buffer.from(hash.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+    result.workerStart = { path, v: where.v };
+  }
+
   // 2. The worker itself breaks (an error event): the same.
   {
     const p = page({});
