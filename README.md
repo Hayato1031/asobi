@@ -47,12 +47,13 @@ show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 
 - [How asobi thinks](#how-asobi-thinks)
 - [Run your first sketch](#run-your-first-sketch)
+- [Why asobi](#why-asobi)
 - [Key features](#key-features)
 - [Sketch gallery](#sketch-gallery)
 - [Every word at a glance](#every-word-at-a-glance)
 - [Export and record](#export-and-record)
 - [Use asobi from an existing Ruby program](#use-asobi-from-an-existing-ruby-program)
-- [Documentation](#documentation) · [Development](#development) · [Issues and pull requests](#issues-and-pull-requests)
+- [FAQ](#faq) · [Documentation](#documentation) · [Development](#development) · [Issues and pull requests](#issues-and-pull-requests)
 
 ## How asobi thinks
 
@@ -102,6 +103,46 @@ show flower.spin(every: 8)
 To open another sketch, pass its path to `asobi`, for example `asobi sketch.rb`. A file that contains `require "asobi"` and calls `show` also runs with `ruby sketch.rb`. Add `--no-open` to the `asobi` command to open the URL printed in the terminal yourself. The server looks for a free port starting at 4567. Use `--port 5000` to start the search at 5000.
 
 </details>
+
+## Why asobi
+
+Here is one picture: 6×6 square tiles, rotating and shrinking, in two colors. This is all of it in asobi.
+
+```ruby
+require "asobi"
+tiles = square(18).repeat(36).change_each { |s, t| s.rotate(t * 90).grow(to: 1 - t * 0.5) }
+show tiles.in_grid(6, gap: 4).colored(:tomato, :navy)
+```
+
+And this is the same picture in p5.js, written out in full.
+
+```javascript
+function setup() {
+  createCanvas(400, 400);
+  angleMode(DEGREES);
+  rectMode(CENTER);
+  noStroke();
+  noLoop();
+}
+
+function draw() {
+  background(255);
+  translate(width / 2, height / 2);
+  const n = 6, size = 18, step = size + 4;
+  const origin = ((n - 1) * step) / 2;
+  for (let i = 0; i < 36; i++) {
+    const t = i / 36;
+    push();
+    translate((i % n) * step - origin, Math.floor(i / n) * step - origin);
+    rotate(t * 90);
+    fill(i % 2 === 0 ? "tomato" : "navy");
+    square(0, 0, size * (1 - t * 0.5));
+    pop();
+  }
+}
+```
+
+In asobi, `in_grid` does the layout, `change_each` does the gradual change, and `colored(:tomato, :navy)` alternates the two colors. [Open the asobi version in the playground](https://asobi.myura.me/playground#code=cmVxdWlyZSAiYXNvYmkiCnRpbGVzID0gc3F1YXJlKDE4KS5yZXBlYXQoMzYpLmNoYW5nZV9lYWNoIHsgfHMsIHR8IHMucm90YXRlKHQgKiA5MCkuZ3Jvdyh0bzogMSAtIHQgKiAwLjUpIH0Kc2hvdyB0aWxlcy5pbl9ncmlkKDYsIGdhcDogNCkuY29sb3JlZCg6dG9tYXRvLCA6bmF2eSkK) and change a number to see what moves.
 
 ## Key features
 
@@ -364,6 +405,32 @@ stars.colored(:navy).save("stars.svg")
 | Give AI coding agents full API context | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
 | See why asobi is designed this way | [Design notes (Japanese)](DESIGN.md) |
 | See what changed in each release | [Changelog](CHANGELOG.md) |
+
+## FAQ
+
+**Q: What is asobi?**
+
+asobi (Japanese for “play”) is a zero-dependency Ruby 3.2+ gem for creative coding, generative SVG art, and looping animations that can react to clicks, the pointer, keys, a microphone, or a song. You can run sketches locally with live browser reload or try them in the browser playground powered by ruby.wasm.
+
+**Q: What does “Object to Art. Art to Object.” mean?**
+
+Object to Art means any Ruby value—numbers, strings, arrays, hashes, or your own classes defining `to_art`—can become a picture. Art to Object means the returned picture is itself an immutable Ruby object (`Asobi::Art`), so you can store it in variables, pass it to methods, put it back into arrays, and chain layouts or animations without canvas state bugs.
+
+**Q: How is asobi different from p5.js, Processing, or Ruby 2D?**
+
+p5.js and Processing draw imperatively inside `setup` and `draw` loops with mutable canvas state (`fill`, `translate`, `push`/`pop`), and Ruby 2D mutates drawable objects on an SDL window. asobi has no canvas state and no native library dependencies: every shape and motion is an immutable Ruby value composed with English-like words.
+
+**Q: Can asobi react to clicks, music, or a microphone, and can it make sound?**
+
+Yes. A word after a motion says who turns its frames instead of the clock: `when_clicked`, `while_hovered`, `when_pressed("a")`, `on_beat`, and `by(:mouse_x)`, `by(:mic, :low)` or `by(:music)`. `play "song.mp3"` plays a song in a loop, and `sounding(:kick)` or `sounding(:c4)` after a reaction plays a drum sound or a note made in the browser, with no sound files. Editing the code does not restart the song, so it suits live coding and VJ sets, and a saved HTML page still reacts and carries its song.
+
+**Q: Do I need external tools like ImageMagick, SDL, or Node.js?**
+
+No. asobi uses only the Ruby standard library (Ruby 3.2 or newer). Run `gem install asobi` and `asobi` to start live coding in your browser, or open the online playground with zero installation.
+
+**Q: How do I turn my own Ruby class into art, and what formats can I export?**
+
+Define a `to_art` method returning any asobi picture on your class (and optionally `include Asobi::Art` to call methods like `spin` or `colored` directly on instances). You can save stills as clean SVG files with `save` (`art.svg`), save looping animations as standalone HTML (`art.html`), or record MP4/WebM video in the live browser view.
 
 ## Development
 

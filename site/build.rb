@@ -58,6 +58,16 @@ module AsobiSite
   GITHUB_URL = "https://github.com/Hayato1031/asobi"
   AUTHOR_NAME = "Hayato1031"
   AUTHOR_URL = "https://github.com/Hayato1031"
+  # The same person under other names, for the structured data (no real name).
+  AUTHOR_ALTERNATE_NAMES = ["myura", "みゅーら"].freeze
+  AUTHOR_SAME_AS = ["https://github.com/Hayato1031", "https://x.com/lit_myura", "https://rubygems.org/profiles/Myura"].freeze
+  AUTHOR = {
+    "@type" => "Person", "name" => AUTHOR_NAME, "url" => AUTHOR_URL,
+    "alternateName" => AUTHOR_ALTERNATE_NAMES, "sameAs" => AUTHOR_SAME_AS
+  }.freeze
+  SOFTWARE_KEYWORDS = "creative coding, generative art, live coding, SVG, animation, Ruby, ruby.wasm, VJ, zero dependencies"
+  # Must match required_ruby_version in asobi.gemspec (a test checks it).
+  SOFTWARE_REQUIREMENTS = "Ruby >= 3.2"
   OG_IMAGE_URL = "#{SITE_URL}/assets/og-image.png"
   MARKER = ".asobi-site" # marks a directory this builder may wipe and rewrite
   # The one song the site ships (as assets/beat.wav): play "beat.wav" in an
@@ -750,7 +760,13 @@ module AsobiSite
   class Builder
     attr_reader :content, :out
 
-    def initialize(data: File.join(SITE, "data"), out: File.join(ROOT, "_site"), log: $stdout)
+    def file_links? = @file_links
+
+    # file_links: keep ".html" (and "index.html") in the site's own links, so
+    # _site/ can be opened straight from the disk. Without it the links are
+    # clean (what Cloudflare Pages serves without a redirect).
+    def initialize(data: File.join(SITE, "data"), out: File.join(ROOT, "_site"), log: $stdout, file_links: false)
+      @file_links = file_links
       @data = File.expand_path(data)
       @out = File.expand_path(out)
       @log = log
@@ -1535,9 +1551,21 @@ module AsobiSite
     # Relative path from this page to the site root.
     def root = @lang == :en ? "" : "../"
 
-    def href(page, fragment = nil) = "#{page}.html#{fragment ? "##{fragment}" : ""}"
+    # A link to a page in this language: clean ("playground", "./" for the
+    # home page) unless the build is for opening the files from the disk.
+    def href(page, fragment = nil)
+      target = if @builder.file_links? then "#{page}.html"
+               else page == "index" ? "./" : page
+               end
+      "#{target}#{fragment ? "##{fragment}" : ""}"
+    end
 
-    def other_language_href = @lang == :en ? "ja/#{@page}.html" : "../#{@page}.html"
+    def other_language_href
+      folder = @lang == :en ? "ja/" : "../"
+      return "#{folder}#{"index.html" if @builder.file_links?}" if @page == "index"
+
+      "#{folder}#{@page}#{".html" if @builder.file_links?}"
+    end
     def other_lang = @lang == :en ? :ja : :en
 
     def title
@@ -1619,8 +1647,11 @@ module AsobiSite
         "license" => "https://opensource.org/licenses/MIT",
         "codeRepository" => GITHUB_URL,
         "installUrl" => RUBYGEMS_URL,
+        "sameAs" => [GITHUB_URL, RUBYGEMS_URL],
+        "keywords" => SOFTWARE_KEYWORDS,
+        "softwareRequirements" => SOFTWARE_REQUIREMENTS,
         "image" => OG_IMAGE_URL,
-        "author" => { "@type" => "Person", "name" => AUTHOR_NAME, "url" => AUTHOR_URL },
+        "author" => AUTHOR,
         "offers" => { "@type" => "Offer", "price" => "0", "priceCurrency" => "USD" },
         "featureList" => [
           "Object to Art via to_art on numbers, strings, arrays, ranges, hashes, and custom Ruby classes",
@@ -1690,7 +1721,7 @@ module AsobiSite
           "proficiencyLevel" => "Beginner",
           "dependencies" => "Ruby >= 3.2",
           "about" => { "@id" => "#{SITE_URL}/#software" },
-          "author" => { "@type" => "Person", "name" => AUTHOR_NAME, "url" => AUTHOR_URL }
+          "author" => AUTHOR
         }
       when "reference"
         {
@@ -1700,7 +1731,7 @@ module AsobiSite
           "url" => canonical,
           "inLanguage" => @lang.to_s,
           "about" => { "@id" => "#{SITE_URL}/#software" },
-          "author" => { "@type" => "Person", "name" => AUTHOR_NAME, "url" => AUTHOR_URL }
+          "author" => AUTHOR
         }
       when "examples"
         {
@@ -1889,9 +1920,10 @@ module AsobiSite
   def self.main(argv)
     options = { out: File.join(ROOT, "_site"), data: File.join(SITE, "data") }
     OptionParser.new do |o|
-      o.banner = "usage: ruby -Ilib site/build.rb [--out DIR] [--data DIR]"
+      o.banner = "usage: ruby -Ilib site/build.rb [--out DIR] [--data DIR] [--file-links]"
       o.on("--out DIR", "where to write the site (default: _site)") { options[:out] = _1 }
       o.on("--data DIR", "where the YAML lives (default: site/data)") { options[:data] = _1 }
+      o.on("--file-links", "keep .html in the site's own links, for opening _site/ straight from the disk") { options[:file_links] = true }
     end.parse!(argv)
     Builder.new(**options).build
     0
