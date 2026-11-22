@@ -113,6 +113,7 @@ module AsobiSite
       issue_invitation: "Found a bug? Share a sketch or the steps that reproduce it. For a feature idea, tell us what you’d like to draw or animate. English and Japanese are both welcome.",
       pr_invitation: "Fixes, examples and documentation are welcome too. Fork the repository, make your changes and open a pull request to main.",
       report_bug: "Report a bug", suggest_feature: "Suggest a feature", fork_repo: "Fork on GitHub",
+      press_label: "Featured in", press_more: "Also featured in",
       groups: { "shapes" => "Shapes", "combine" => "Combine", "change" => "Change", "color" => "Colour",
                 "effect" => "Effects", "arrange" => "Arrange", "to_art" => "Object to Art", "motion" => "Motion",
                 "react" => "React and sound", "show" => "Show" },
@@ -197,6 +198,7 @@ module AsobiSite
       issue_invitation: "不具合を見つけたら、再現できるスケッチや手順を教えてください。機能の提案は「こんな絵を描きたい」「こんな動きを作りたい」からどうぞ。日本語・英語どちらも歓迎です。",
       pr_invitation: "コードの修正、作例の追加、ドキュメントの改善も歓迎します。リポジトリをフォークして変更を加え、main 宛てにプルリクエストを送ってください。",
       report_bug: "不具合を報告する", suggest_feature: "機能を提案する", fork_repo: "GitHub でフォークする",
+      press_label: "紹介されたところ", press_more: "ほかの紹介",
       groups: { "shapes" => "形", "combine" => "合わせる", "change" => "変える", "color" => "色",
                 "effect" => "効果", "arrange" => "並べる", "to_art" => "Object to Art（オブジェクトを絵に）", "motion" => "動き",
                 "react" => "反応と音", "show" => "画面に出す" },
@@ -546,6 +548,19 @@ module AsobiSite
       cycle = check_cycle(raw["cycle"], here)
       comparison = check_comparison(raw["comparison"], here)
       faq = check_faq(raw["faq"], here)
+      press = list_of("home", raw["press"]).each_with_index.filter_map do |pr, i|
+        ph = "#{here}, press #{i + 1}"
+        next unless require_keys(pr, %w[name url date], ph)
+
+        if i.zero? && pr["quote"].to_s.strip.empty?
+          @errors << "#{ph}: the first entry is shown large as a quote, so it needs \"quote\""
+        end
+        quote_lang = (pr["quote_lang"] || "en").to_s
+        @errors << "#{ph}: quote_lang should be en or ja" unless %w[en ja].include?(quote_lang)
+        { "name" => pr["name"].to_s, "url" => pr["url"].to_s, "date" => text(pr["date"], "#{ph}, date"),
+          "quote" => pr["quote"].to_s, "quote_lang" => quote_lang.to_sym,
+          "translation" => text(pr["translation"], "#{ph}, translation", required: false) }
+      end
       ids = ->(key) { raw[key].nil? ? nil : Array(raw[key]).map(&:to_s) }
       { "tagline" => text(raw["tagline"], "#{here}, tagline"),
         "lead" => text(raw["lead"], "#{here}, lead", required: false),
@@ -557,7 +572,8 @@ module AsobiSite
         "steps" => steps,
         "cycle" => cycle,
         "comparison" => comparison,
-        "faq" => faq }
+        "faq" => faq,
+        "press" => press }
     end
 
     def check_cycle(raw, here)

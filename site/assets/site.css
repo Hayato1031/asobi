@@ -272,6 +272,40 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 .contribute { display: grid; justify-items: start; gap: var(--s4); scroll-margin-top: 60px; }
 .contribute h2 { font-size: clamp(32px, 4vw, 44px); }
 .contribute p { margin: 0; max-width: 46em; color: var(--ink-2); }
+/* Where asobi was featured: their words, large, right under the film. */
+.press-band { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--s5); align-items: baseline; scroll-margin-top: 60px; }
+.press-band > h2 { margin: 0; padding-top: 1.2em; }
+.press-list { display: grid; gap: var(--s7); }
+.press-quote { margin: 0; padding: var(--s7) 0 var(--s6); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.press-quote blockquote { margin: 0; }
+.press-quote blockquote p {
+  margin: 0; max-width: 22em; text-indent: -0.42em;
+  font-size: clamp(30px, 4.4vw, 60px); line-height: 1.12; font-weight: 700; letter-spacing: -0.025em; color: var(--ink);
+}
+.press-quote blockquote p::before { content: "“"; color: var(--signal); }
+.press-quote blockquote p::after { content: "”"; color: var(--signal); }
+.press-translation { margin: var(--s4) 0 0; max-width: 40em; font-size: clamp(16px, 1.5vw, 19px); line-height: 1.7; color: var(--ink-2); }
+.press-quote figcaption {
+  margin-top: var(--s6); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2) var(--s4);
+  font: 500 13px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+}
+.press-quote figcaption a { color: var(--ink); text-decoration-color: var(--signal); }
+.press-quote figcaption a:hover { color: var(--signal); }
+.press-more h3 { margin: 0 0 var(--s3); }
+.press-more ul { list-style: none; margin: 0; padding: 0; }
+.press-more li {
+  display: grid; grid-template-columns: 11em minmax(0, 1fr); gap: var(--s4); align-items: baseline;
+  padding: var(--s3) 0; border-bottom: 1px solid var(--rule);
+}
+.press-more .press-date { font: 500 13px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.press-more a { font-size: 17px; color: var(--ink); text-decoration: none; }
+.press-more a:hover { color: var(--signal); }
+@media (max-width: 600px) {
+  .press-band { grid-template-columns: 1fr; gap: var(--s2); }
+  .press-band > h2 { padding-top: 0; }
+  .press-quote { padding-top: var(--s5); }
+  .press-more li { grid-template-columns: 1fr; gap: var(--s1); }
+}
 .film { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--s6); align-items: center; scroll-margin-top: 60px; }
 .film h2 { font-size: clamp(32px, 4vw, 48px); }
 .film h2 + p { margin: var(--s3) 0 0; color: var(--ink-2); }

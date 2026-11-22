@@ -209,6 +209,7 @@ class SiteTest < Minitest::Test
     assert_match(/<section class="stage"[^>]*>.*?<svg class="pic-still"/m, home, "the first frame is there before any script runs")
     assert_includes home, "gem install asobi"
     assert_includes home, 'href="playground.html"'
+    refute_includes home, 'class="press"' # no press list unless home.yml has one
   end
 
   # ---- links between the parts --------------------------------------------------
@@ -768,6 +769,15 @@ class SiteTest < Minitest::Test
         faq:
           - q: { en: "What is Object to Art?", ja: "Object to Art とは？" }
             a: { en: "Turning values into art.", ja: "値を絵に変えること。" }
+        press:
+          - name: "Example Weekly #1"
+            url: "https://example.com/weekly/1"
+            date: { en: "Nov 19, 2026", ja: "2026年11月19日" }
+            quote: "A bit like a sketchbook."
+            translation: { ja: "スケッチブックみたい。" }
+          - name: "Older Blog"
+            url: "https://example.com/blog/older"
+            date: { en: "Nov 12, 2026", ja: "2026年11月12日" }
       YAML
       edit(File.join(data, "home.yml")) { _1 + extra }
       AsobiSite::Builder.new(data:, out:, log: nil).build
@@ -780,7 +790,23 @@ class SiteTest < Minitest::Test
         assert_includes rendered, 'id="compare"'
         assert_includes rendered, 'id="faq"'
         assert_includes rendered, 'class="compare-table"'
-        ld = rendered[%r{<script type="application/ld\+json">(.*?)</script>}m, 1]
+        # Where asobi was featured: the quote in its own language, right under the film.
+        assert_match(%r{id="film".*?</section>\s*<section class="band press-band" id="press".*?id="beliefs-title"}m, rendered, "#{file}: press sits between the film and the beliefs")
+        assert_includes rendered, %(<blockquote cite="https://example.com/weekly/1" lang="en"><p>A bit like a sketchbook.</p></blockquote>)
+        assert_includes rendered, %(<a href="https://example.com/weekly/1">Example Weekly #1)
+        if file.start_with?("ja/")
+          assert_includes rendered, %(<p class="press-translation">スケッチブックみたい。</p>)
+          assert_includes rendered, "2026年11月19日"
+        else
+          refute_includes rendered, "press-translation", "no translation on the page in the quote's own language"
+          assert_includes rendered, "Nov 19, 2026"
+        end
+        refute_match(%r{<div class="stage-copy">(?:(?!</div>).)*press}m, rendered, "#{file}: not on the stage")
+        # Only the first one is a large quote; the rest is a list under it.
+        assert_equal 1, rendered.scan("<blockquote").size
+        older_date = file.start_with?("ja/") ? "2026年11月12日" : "Nov 12, 2026"
+        assert_match(%r{<div class="press-more">.*?<li><span class="press-date">#{older_date}</span><a href="https://example\.com/blog/older">Older Blog}m, rendered)
+        ld =rendered[%r{<script type="application/ld\+json">(.*?)</script>}m, 1]
         faq_schema = JSON.parse(ld).fetch("@graph").find { _1["@type"] == "FAQPage" }
         assert faq_schema, "#{file}: missing FAQPage JSON-LD"
         q_text = file.start_with?("ja/") ? "Object to Art とは？" : "What is Object to Art?"
@@ -788,7 +814,15 @@ class SiteTest < Minitest::Test
       end
       assert_includes File.read(File.join(out, "llms-full.txt"), encoding: "UTF-8"), "## Frequently Asked Questions"
 
-      edit(File.join(data, "home.yml")) { _1.sub("show [10, 16].to_art", "show [10, 16].to_arttt") }
+      quote_line = %(    quote: "A bit like a sketchbook."\n)
+      edit(File.join(data, "home.yml")) { _1.sub(quote_line, "") }
+      error = assert_raises(AsobiSite::BuildError) { AsobiSite::Builder.new(data:, out:, log: nil).build }
+      assert_includes error.message, "home.yml, press 1: the first entry is shown large as a quote"
+
+      edit(File.join(data, "home.yml")) do
+        _1.sub(%(    date: { en: "Nov 19, 2026", ja: "2026年11月19日" }\n), "\\0#{quote_line}")
+          .sub("show [10, 16].to_art", "show [10, 16].to_arttt")
+      end
       error = assert_raises(AsobiSite::BuildError) { AsobiSite::Builder.new(data:, out:, log: nil).build }
       assert_includes error.message, "home.yml, cycle, side 1"
     end

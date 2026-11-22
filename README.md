@@ -14,6 +14,7 @@ Turn Ruby values and your own classes into pictures with `to_art` — **Object t
 [![Ruby 3.2 or newer](https://img.shields.io/badge/Ruby-%E2%89%A5%203.2-cc342d?logo=ruby&logoColor=white)](https://www.ruby-lang.org/)
 [![MIT License](https://img.shields.io/badge/license-MIT-8b9cf7)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-3fb950)](#issues-and-pull-requests)
+[![Featured in Ruby Weekly #827](https://img.shields.io/badge/featured%20in-Ruby%20Weekly%20%23827-e0475b)](https://rubyweekly.com/issues/827)
 
 <a href="https://asobi.myura.me/playground.html"><img src="https://img.shields.io/badge/%E2%96%B6%20Try%20it%20in%20your%20browser-ff4d6d?style=for-the-badge" alt="Try it in your browser" height="36"></a>
 <a href="https://asobi.myura.me/guide.html"><img src="https://img.shields.io/badge/Guide-20232e?style=for-the-badge" alt="Guide" height="36"></a>
