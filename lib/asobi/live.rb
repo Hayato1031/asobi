@@ -257,6 +257,8 @@ module Asobi
 
       def serve(socket)
         request, headers = read_request(socket)
+        return forbidden(socket) unless request.to_s.end_with?("\n") && local_host?(headers["host"])
+
         case request
         when %r{\AGET / }, %r{\AGET /\?\S* } then respond(socket, "200 OK", "text/html; charset=utf-8", Live.page)
         when %r{\AGET /events[ ?]} then stream(socket)
@@ -267,6 +269,18 @@ module Asobi
         nil
       ensure
         socket.close unless socket.closed?
+      end
+
+      # A web page on another site can point its own name at this computer
+      # (DNS rebinding) and then read the sketch. Browsers always send the
+      # name they were asked for, so only answer to our own names. A request
+      # whose Host line was never read (none sent, or pushed out of reach by a
+      # very long address) must not get in either.
+      def local_host?(host)
+        return false if host.nil?
+
+        name = host.start_with?("[") ? host[/\A\[[^\]]*\]/] : host.split(":", 2).first
+        %w[127.0.0.1 localhost [::1]].include?(name.to_s.downcase)
       end
 
       # The request line, and the headers as { "range" => "bytes=0-" }
@@ -283,7 +297,11 @@ module Asobi
           break if line.nil? || line.strip.empty?
 
           name, value = line.split(":", 2)
-          headers[name.strip.downcase] = value.strip if value
+          next unless value
+
+          name = name.strip.downcase
+          # A second Host is a bad request; keep a value no one accepts.
+          headers[name] = name == "host" && headers.key?(name) ? "twice" : value.strip
         end
         [first, headers]
       end
@@ -294,6 +312,8 @@ module Asobi
                      "Cache-Control: no-store\r\nConnection: close\r\n\r\n"
         socket.write body
       end
+
+      def forbidden(socket) = respond(socket, "403 Forbidden", "text/plain; charset=utf-8", "forbidden\n")
 
       def not_found(socket) = respond(socket, "404 Not Found", "text/plain; charset=utf-8", "not found\n")
 

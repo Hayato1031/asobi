@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The live view now answers only when it is asked for as `127.0.0.1` or `localhost`, so another web site cannot read the sketch through a made-up host name.
+
 ## 0.2.0
 
 asobi now reacts and makes sound: a click, the pointer, a key, the microphone or a song can turn a motion, for live coding and VJ sets. Animations also build much faster.

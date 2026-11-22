@@ -45,7 +45,7 @@ class LiveTest < Minitest::Test
 
   def get(path)
     socket = TCPSocket.new("127.0.0.1", @server.port)
-    socket.write "GET #{path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
+    socket.write "GET #{path} HTTP/1.1\r\nHost: 127.0.0.1:#{@server.port}\r\nConnection: close\r\n\r\n"
     Timeout.timeout(5) { socket.read }
   ensure
     socket&.close
@@ -54,7 +54,7 @@ class LiveTest < Minitest::Test
   # A raw socket on /events; answers an object with next_event.
   def events
     socket = TCPSocket.new("127.0.0.1", @server.port)
-    socket.write "GET /events HTTP/1.1\r\nHost: x\r\nAccept: text/event-stream\r\n\r\n"
+    socket.write "GET /events HTTP/1.1\r\nHost: 127.0.0.1:#{@server.port}\r\nAccept: text/event-stream\r\n\r\n"
     Timeout.timeout(5) { assert_match(%r{\AHTTP/1.1 200}, socket.gets) }
     Timeout.timeout(5) { loop { break if socket.gets.strip.empty? } } # headers
     stream = Object.new
@@ -304,6 +304,82 @@ class LiveTest < Minitest::Test
     assert_equal 120, stream.next_event["frames"].size
   end
 
+  # --- other host names (DNS rebinding) ----------------------------------------
+
+  # A raw request with this Host header (nil: none); answers the whole reply.
+  def get_as(host, path = "/")
+    socket = TCPSocket.new("127.0.0.1", @server.port)
+    header = host ? "Host: #{host}\r\n" : ""
+    socket.write "GET #{path} HTTP/1.1\r\n#{header}Connection: close\r\n\r\n"
+    Timeout.timeout(5) { socket.read }
+  ensure
+    socket&.close
+  end
+
+  def test_another_host_name_is_forbidden
+    write "show circle\n"
+    start_run
+    ["/", "/events", "/song/0123456789ab"].each do |path|
+      reply = get_as("evil.example:#{@server.port}", path)
+      assert_match(%r{\AHTTP/1.1 403 Forbidden}, reply, path)
+      assert_equal "forbidden\n", reply.split("\r\n\r\n", 2).last
+    end
+  end
+
+  def test_our_own_host_names_are_answered
+    write "show circle\n"
+    start_run
+    port = @server.port
+    ["localhost:#{port}", "LOCALHOST:#{port}", "127.0.0.1", "[::1]:#{port}"].each do |host|
+      assert_match(%r{\AHTTP/1.1 200}, get_as(host), host.inspect)
+    end
+  end
+
+  def test_no_host_header_is_forbidden
+    write "show circle\n"
+    start_run
+    assert_match(%r{\AHTTP/1.1 403}, get_as(nil))
+  end
+
+  # The address is longer than the request line we read, so the Host line
+  # behind it is never reached: it must be refused, not served.
+  def test_a_very_long_address_is_forbidden_whatever_the_host
+    write "show circle\n"
+    start_run
+    ["evil.example:#{@server.port}", "127.0.0.1:#{@server.port}"].each do |host|
+      socket = TCPSocket.new("127.0.0.1", @server.port)
+      socket.write "GET /events?#{"a" * 400_000} HTTP/1.1\r\nHost: #{host}\r\nConnection: close\r\n\r\n"
+      reply = Timeout.timeout(5) { socket.read }
+      assert_match(%r{\AHTTP/1.1 403}, reply, host)
+      refute_includes reply, "200 OK"
+    rescue Errno::EPIPE, Errno::ECONNRESET
+      nil # closed on us while we were still writing: nothing was served
+    ensure
+      socket&.close
+    end
+  end
+
+  def test_two_host_lines_are_forbidden_in_either_order
+    write "show circle\n"
+    start_run
+    local = "127.0.0.1:#{@server.port}"
+    [["evil.example", local], [local, "evil.example"]].each do |first, second|
+      socket = TCPSocket.new("127.0.0.1", @server.port)
+      socket.write "GET /events HTTP/1.1\r\nHost: #{first}\r\nHost: #{second}\r\nConnection: close\r\n\r\n"
+      assert_match(%r{\AHTTP/1.1 403}, Timeout.timeout(5) { socket.read }, [first, second].inspect)
+    ensure
+      socket&.close
+    end
+  end
+
+  def test_a_look_alike_host_name_is_forbidden
+    write "show circle\n"
+    start_run
+    ["127.0.0.1.evil.example", "localhost.evil.example:#{@server.port}"].each do |host|
+      assert_match(%r{\AHTTP/1.1 403}, get_as(host), host)
+    end
+  end
+
   # --- the song (play "song.mp3") ----------------------------------------------
 
   SONG = ((0..255).map(&:chr).join * 40).b # 10240 bytes that stand for a song
@@ -311,7 +387,7 @@ class LiveTest < Minitest::Test
   # A raw request with extra header lines; answers [status line, headers, body].
   def request(path, *headers)
     socket = TCPSocket.new("127.0.0.1", @server.port)
-    socket.write "GET #{path} HTTP/1.1\r\nHost: x\r\n#{headers.map { "#{_1}\r\n" }.join}Connection: close\r\n\r\n"
+    socket.write "GET #{path} HTTP/1.1\r\nHost: 127.0.0.1:#{@server.port}\r\n#{headers.map { "#{_1}\r\n" }.join}Connection: close\r\n\r\n"
     raw = Timeout.timeout(5) { socket.read }.b
     head, body = raw.split("\r\n\r\n", 2)
     status, *lines = head.split("\r\n")
