@@ -20,6 +20,7 @@ Gem::Specification.new do |spec|
   spec.metadata["documentation_uri"] = "https://asobi.myura.me/reference"
   spec.metadata["source_code_uri"] = "https://github.com/Hayato1031/asobi"
   spec.metadata["bug_tracker_uri"] = "https://github.com/Hayato1031/asobi/issues"
+  spec.metadata["rubygems_mfa_required"] = "true"
   spec.metadata["changelog_uri"] = "https://github.com/Hayato1031/asobi/blob/v#{spec.version}/CHANGELOG.md"
 
   spec.files = Dir["lib/**/*", "exe/*", "README.md", "README.ja.md", "CHANGELOG.md", "LICENSE", "DESIGN.md"]
