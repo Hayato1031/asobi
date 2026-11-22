@@ -126,6 +126,8 @@ module AsobiSite
       view_gem: "View on RubyGems",
       watch_film: "Watch the film", film_info: "Short film · 32 seconds · Music",
       film_description: "Three numbers become three circles. A Flower object trades its petals for stars, then spins and leaves a trail of light.",
+      play_info: "Short film · 60 seconds · Music",
+      play_description: "A dot waits for a click and plays its first note. Eight dots become an instrument, three keys a drum kit. Then a song starts, and ten sketches move to its kick, its chords and its hats.",
       contribute: "Help improve asobi",
       issue_invitation: "Found a bug? Share a sketch or the steps that reproduce it. For a feature idea, tell us what you’d like to draw or animate. English and Japanese are both welcome.",
       pr_invitation: "Fixes, examples and documentation are welcome too. Fork the repository, make your changes and open a pull request to main.",
@@ -212,6 +214,8 @@ module AsobiSite
       view_gem: "RubyGems で見る",
       watch_film: "紹介映像を見る", film_info: "紹介映像 · 32秒 · 音楽あり",
       film_description: "3つの数字が3つの円に。Flower オブジェクトの花びらが星に変わり、回転しながら光の軌跡を描きます。",
+      play_info: "紹介映像 · 60秒 · 音楽あり",
+      play_description: "クリックを待つ点が、最初の音を鳴らします。8つの点は楽器に、3つのキーはドラムに。そして曲が始まり、10枚のスケッチがキックと和音とハットに合わせて動きます。",
       contribute: "asobi の改善に参加する",
       issue_invitation: "不具合を見つけたら、再現できるスケッチや手順を教えてください。機能の提案は「こんな絵を描きたい」「こんな動きを作りたい」からどうぞ。日本語・英語どちらも歓迎です。",
       pr_invitation: "コードの修正、作例の追加、ドキュメントの改善も歓迎します。リポジトリをフォークして変更を加え、main 宛てにプルリクエストを送ってください。",
@@ -1619,6 +1623,7 @@ module AsobiSite
       ]
       if @page == "index"
         graph << software_schema(canonical)
+        graph << play_video_schema(canonical)
         graph << video_schema(canonical)
         faq = faq_schema
         graph << faq if faq
@@ -1662,6 +1667,20 @@ module AsobiSite
           "Zero runtime dependencies beyond Ruby 3.2+ standard library",
           "Live browser reload, SVG and standalone HTML export, and ruby.wasm playground"
         ]
+      }
+    end
+
+    def play_video_schema(canonical)
+      {
+        "@type" => "VideoObject",
+        "name" => "Play — asobi",
+        "description" => ui(:play_description),
+        "thumbnailUrl" => "#{SITE_URL}/assets/play-poster.png",
+        "contentUrl" => "#{SITE_URL}/assets/play.mp4",
+        "embedUrl" => "#{canonical}#play",
+        "uploadDate" => "2026-11-23T02:00:00+09:00",
+        "duration" => "PT60S",
+        "inLanguage" => "en"
       }
     end
 
