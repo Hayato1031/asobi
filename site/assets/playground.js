@@ -138,8 +138,10 @@
         }
       };
       try {
-        var where = JSON.stringify({ api: cfg.rubyWasm.api, wasm: cfg.rubyWasm.wasm });
-        worker = new Worker(cfg.assets + "ruby-worker.js#" + b64(where));
+        // A new address for a changed worker: a cache may keep old headers for the old one.
+        var v = cfg.workerVersion;
+        var where = JSON.stringify({ api: cfg.rubyWasm.api, wasm: cfg.rubyWasm.wasm, v: v });
+        worker = new Worker(cfg.assets + "ruby-worker.js" + (v ? "?v=" + v : "") + "#" + b64(where));
       } catch (e) { reject(e); return; }
       worker.onmessage = function (e) {
         var m = e.data;

@@ -112,11 +112,13 @@ Temporary files (the Chrome profile) go in `TMPDIR` and are removed at the end.
 
 - `worker-check.js` runs `ruby-worker.js` with a pretend Ruby engine: a motion's whole Reel is made
   in slices with `{ id, working: true }` between them; a newer request stops the build (`skipped`);
-  a failing engine answers `{ id, fatal }`.
+  a failing engine answers `{ id, fatal }`. With `v` in the address hash the worker asks for its two
+  own scripts with `?v=<v>` (not the CDN file); a `v` that is not hex is ignored.
 - `playground-check.js` runs `playground.js` on a pretend page with a pretend worker: after Ruby
   breaks (`{ id, fatal }` or a worker `error` event) the page starts a fresh worker, shows a short
   message, does not run the crashed code again by itself, runs the newest waiting edit, and stops
-  (no loop) when the fresh worker cannot start. A worker answer whose frame is not asobi's own SVG
+  (no loop) when the fresh worker cannot start. The worker is started at `ruby-worker.js?v=<workerVersion>`
+  with the same `v` in the hash. A worker answer whose frame is not asobi's own SVG
   reaches the player as an error Reel with the `blocked` text, never as frames; odd worker messages
   are ignored; on http/https a worker that cannot start never leads to Ruby on the page (only on
   `file://`).

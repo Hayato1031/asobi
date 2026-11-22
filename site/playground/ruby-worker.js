@@ -1,5 +1,7 @@
 /* asobi playground: runs Ruby off the page, so typing never freezes.
- * Started as  new Worker("assets/ruby-worker.js#<base64url of JSON {api, wasm}>").
+ * Started as  new Worker("assets/ruby-worker.js?v=<v>#<base64url of JSON {api, wasm, v}>").
+ * v names this version of the site's own scripts: they are asked for with ?v=<v>, so a
+ * cache that kept old ones under their plain address is not asked (v is only hex digits).
  *
  * Messages in:  { id, code, lang }                 one step: answers the whole Reel
  *               { id, code, lang, preview: true }  two steps: a motion's preview first
@@ -18,7 +20,8 @@ var config = JSON.parse(atob(self.location.hash.slice(1).replace(/-/g, "+").repl
 var ready;
 try {
   // ruby.wasm's browser API from the jsDelivr CDN (pinned version; the only external resource).
-  importScripts(config.api, "asobi-ruby.js", "ruby-engine.js");
+  var q = typeof config.v === "string" && /^[0-9a-f]{1,64}$/.test(config.v) ? "?v=" + config.v : "";
+  importScripts(config.api, "asobi-ruby.js" + q, "ruby-engine.js" + q);
   ready = self.AsobiRubyEngine.boot(config.wasm);
 } catch (e) {
   ready = Promise.reject(e);
