@@ -1,8 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.2.1
 
-- The live view now answers only when it is asked for as `127.0.0.1` or `localhost`, so another web site cannot read the sketch through a made-up host name.
+A security fix for the live view, and clearer pages for people finding asobi.
+
+- Security: the live view now answers only when it is asked for as `127.0.0.1` or `localhost`, so another web site cannot read the sketch through a made-up host name.
+- Publishing asobi to RubyGems now requires multi-factor authentication.
+- Both READMEs have a "Why asobi" section (one picture in asobi and in p5.js, side by side) and an FAQ, mention the Ruby Weekly feature, and link to the website without `.html`.
+- The summary and description on RubyGems say creative coding, generative art and zero dependencies.
 
 ## 0.2.0
 
