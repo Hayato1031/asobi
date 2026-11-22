@@ -47,12 +47,13 @@ show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 
 - [asobi の考え方](#asobi-の考え方)
 - [最初のスケッチを動かす](#最初のスケッチを動かす)
+- [asobi を選ぶ理由](#asobi-を選ぶ理由)
 - [主な機能](#主な機能)
 - [作品ギャラリー](#作品ギャラリー)
 - [使える言葉の一覧](#使える言葉の一覧)
 - [作品の保存と録画](#作品の保存と録画)
 - [既存の Ruby プログラムに組み込む](#既存の-ruby-プログラムに組み込む)
-- [ドキュメント](#ドキュメント) · [開発](#開発) · [Issue・PR](#不具合報告改善の提案issuepr)
+- [よくある質問](#よくある質問) · [ドキュメント](#ドキュメント) · [開発](#開発) · [Issue・PR](#不具合報告改善の提案issuepr)
 
 ## asobi の考え方
 
@@ -102,6 +103,46 @@ show flower.spin(every: 8)
 ほかの作品を開くには、`asobi sketch.rb` のようにファイルを指定します。`require "asobi"` と `show` を書いたスケッチは `ruby sketch.rb` でも開けます。ブラウザを自分で開く場合は `asobi` コマンドに `--no-open` を付けて、ターミナルに表示された URL にアクセスしてください。`--port 5000` を付けると、5000 番から空いているポートを探します（既定は 4567 番）。
 
 </details>
+
+## asobi を選ぶ理由
+
+例として、1枚の絵を取り上げます。回りながら小さくなる 6×6 の正方形のタイルを、2色で描きます。asobi では、これだけで書けます。
+
+```ruby
+require "asobi"
+tiles = square(18).repeat(36).change_each { |s, t| s.rotate(t * 90).grow(to: 1 - t * 0.5) }
+show tiles.in_grid(6, gap: 4).colored(:tomato, :navy)
+```
+
+同じ絵を p5.js で省略せずに書くと、次のようになります。
+
+```javascript
+function setup() {
+  createCanvas(400, 400);
+  angleMode(DEGREES);
+  rectMode(CENTER);
+  noStroke();
+  noLoop();
+}
+
+function draw() {
+  background(255);
+  translate(width / 2, height / 2);
+  const n = 6, size = 18, step = size + 4;
+  const origin = ((n - 1) * step) / 2;
+  for (let i = 0; i < 36; i++) {
+    const t = i / 36;
+    push();
+    translate((i % n) * step - origin, Math.floor(i / n) * step - origin);
+    rotate(t * 90);
+    fill(i % 2 === 0 ? "tomato" : "navy");
+    square(0, 0, size * (1 - t * 0.5));
+    pop();
+  }
+}
+```
+
+asobi では、`in_grid` が並べ方を、`change_each` が少しずつの変化を、`colored(:tomato, :navy)` が2色の交互の塗り分けを受け持ちます。[遊び場で asobi 版を開き](https://asobi.myura.me/ja/playground#code=cmVxdWlyZSAiYXNvYmkiCnRpbGVzID0gc3F1YXJlKDE4KS5yZXBlYXQoMzYpLmNoYW5nZV9lYWNoIHsgfHMsIHR8IHMucm90YXRlKHQgKiA5MCkuZ3Jvdyh0bzogMSAtIHQgKiAwLjUpIH0Kc2hvdyB0aWxlcy5pbl9ncmlkKDYsIGdhcDogNCkuY29sb3JlZCg6dG9tYXRvLCA6bmF2eSkK)、数字を書き換えて何が動くか試してみてください。
 
 ## 主な機能
 
@@ -364,6 +405,32 @@ stars.colored(:navy).save("stars.svg")
 | AI エージェントに完全な API コンテキストを渡す | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
 | 設計の理由を知る | [設計書](DESIGN.md) |
 | 変更の履歴を見る | [CHANGELOG](CHANGELOG.md) |
+
+## よくある質問
+
+**Q: asobi とは何ですか？**
+
+asobi（遊び）は、Ruby 3.2 以上だけで動くクリエイティブコーディング用 gem です。SVG の静止画やループアニメーションを生成でき、クリック・マウス・キー・マイク・曲に反応させることもできます。ローカルでのライブコーディングにも、ruby.wasm によるブラウザ上の遊び場にも対応しています。
+
+**Q: 「Object to Art. Art to Object.」とはどういう意味ですか？**
+
+Object to Art は、数値・文字列・配列・ハッシュや `to_art` を定義した自作クラスなど、あらゆる Ruby オブジェクトがそのまま絵になることを表します。Art to Object は、返ってきた絵もキャンバスに消えず不変の Ruby オブジェクト（`Asobi::Art`）として扱えることを意味し、変数への代入、再合成、配列化、アニメーションを状態事故なしに行えます。
+
+**Q: p5.js や Processing、Ruby 2D との違いは何ですか？**
+
+p5.js や Processing は `setup` / `draw` の中でミュータブルなキャンバス状態（`fill`、`translate`、`push`/`pop`）を命令的に更新し、Ruby 2D は SDL ウィンドウ上の可変オブジェクトを書き換えます。asobi はキャンバス状態やネイティブ依存を持たず、すべての図形と動きを英語のように読める不変の Ruby オブジェクトとして組み立てます。
+
+**Q: クリックや音楽、マイクに反応させたり、音を鳴らしたりできますか？**
+
+できます。動きのあとに1語足すと、時計の代わりに何がコマを進めるかを決められます。`when_clicked`、`while_hovered`、`when_pressed("a")`、`on_beat`、そして `by(:mouse_x)`、`by(:mic, :low)`、`by(:music)` です。`play "song.mp3"` は曲をくり返し流し、反応のあとに `sounding(:kick)` や `sounding(:c4)` と書くと、太鼓の音や音階がブラウザの中で作られて鳴ります（音のファイルは不要）。コードを書き換えても曲は途切れないので、ライブコーディングや VJ に向いています。保存した HTML でも反応し、曲も一緒に入ります。
+
+**Q: ImageMagick や SDL、Node.js などの外部ソフトは必要ですか？**
+
+不要です。実行時の依存は Ruby 3.2 以上の標準ライブラリのみです。`gem install asobi` のあと `asobi` と打つだけでブラウザが開き、オンラインの遊び場ならインストールすら不要です。
+
+**Q: 自作のクラスを絵にする方法と、保存できる形式を教えてください。**
+
+クラスに絵を返す `to_art` メソッドを定義するだけです（`include Asobi::Art` を足すとインスタンスに直接 `spin` や `colored` を呼べます）。静止画は `save` で SVG（`art.svg`）に、動きは単体再生できる HTML（`art.html`）に書き出せ、ライブ画面の `r` キーで動画録画も可能です。
 
 ## 開発
 

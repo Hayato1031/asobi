@@ -70,7 +70,8 @@ class SiteTest < Minitest::Test
     PAGES.each do |page|
       [%w[en ja], %w[ja en]].each do |current, other|
         file = current == "en" ? "#{page}.html" : "ja/#{page}.html"
-        destination = current == "en" ? "ja/#{page}.html" : "../#{page}.html"
+        folder = current == "en" ? "ja/" : "../"
+        destination = page == "index" ? folder : "#{folder}#{page}"
         switch = read(file)[%r{<nav\b[^>]*class="lang"[^>]*>.*?</nav>}m]
         assert switch, "#{file}: missing language switch"
         assert_match(/<nav\b[^>]*aria-label="[^"]+"/, switch)
@@ -139,6 +140,9 @@ class SiteTest < Minitest::Test
 
         path, fragment = url.split("#", 2)
         target = path.empty? ? file : File.expand_path(path, File.dirname(file))
+        # Clean links: "./", "ja/" and "../" are a folder's index.html, "playground" is playground.html.
+        target = File.join(target, "index.html") if File.directory?(target)
+        target += ".html" if !File.file?(target) && File.extname(target).empty? && File.file?("#{target}.html")
         assert File.file?(target), "#{file.delete_prefix(@out)} links to #{url}, which does not exist"
         if fragment && !fragment.start_with?("code=") && target.end_with?(".html")
           assert_includes File.read(target), %(id="#{fragment}"), "#{file.delete_prefix(@out)}: no anchor ##{fragment} in #{path}"
@@ -150,6 +154,37 @@ class SiteTest < Minitest::Test
       end
     end
     assert_operator checked, :>, 100
+  end
+
+  # The site's own page links: relative, no scheme, not an asset or a script.
+  def own_page_hrefs(dir)
+    Dir.glob(File.join(dir, "**", "*.html")).flat_map do |file|
+      File.read(file, encoding: "UTF-8").scan(/\shref="([^"]*)"/).flatten.reject { _1.match?(%r{\A(?:[a-z]+:|//)}) }
+    end
+  end
+
+  def test_default_build_links_to_clean_urls
+    hrefs = own_page_hrefs(@out)
+    assert_operator hrefs.size, :>, 100
+    assert_empty hrefs.grep(/\.html(?:#|\z)/).uniq.first(5)
+    assert_empty hrefs.grep(/index(?:#|\z)/).uniq.first(5)
+    assert_includes read("index.html"), 'href="playground"'
+    assert_includes read("index.html"), 'href="ja/"'
+    assert_includes read("ja/index.html"), 'href="../"'
+    assert_includes read("ja/playground.html"), 'href="../playground"'
+  end
+
+  def test_file_links_build_keeps_html_for_opening_from_the_disk
+    Dir.mktmpdir("asobi-site-files") do |out|
+      AsobiSite::Builder.new(data: FIXTURES, out:, log: nil, file_links: true).build
+      hrefs = own_page_hrefs(out)
+      assert_includes hrefs, "playground.html"
+      assert_includes hrefs, "index.html"
+      assert_includes hrefs, "ja/index.html"
+      assert_includes hrefs, "../playground.html"
+      refute_includes hrefs, "./"
+      assert_includes hrefs.grep(/\Areference\.html#/).first.to_s, "reference.html#"
+    end
   end
 
   def test_only_external_resource_is_ruby_wasm_from_jsdelivr
@@ -209,7 +244,7 @@ class SiteTest < Minitest::Test
     end
     assert_match(/<section class="stage"[^>]*>.*?<svg class="pic-still"/m, home, "the first frame is there before any script runs")
     assert_includes home, "gem install asobi"
-    assert_includes home, 'href="playground.html"'
+    assert_includes home, 'href="playground"'
     refute_includes home, 'class="press"' # no press list unless home.yml has one
   end
 
@@ -219,21 +254,21 @@ class SiteTest < Minitest::Test
     assert_includes read("reference.html"), %(<a href="#ring"><code>ring</code></a>)
     assert_includes read("reference.html"), %(<a href="#star">) if read("reference.html").include?('id="star"')
     guide = read("guide.html")
-    assert_includes guide, %(<a href="reference.html#circle"><code>circle</code></a>)
+    assert_includes guide, %(<a href="reference#circle"><code>circle</code></a>)
     assert_includes guide, "<code>nothing_linked</code>"
-    refute_includes guide, "reference.html#nothing_linked"
+    refute_includes guide, "reference#nothing_linked"
     assert_includes read("reference.html"), 'id="op-plus"'
   end
 
   def test_playground_word_list_opens_reference_entries
     play = read("ja/playground.html")
-    assert_includes play, %(href="reference.html#circle" target="_blank")
-    assert_includes play, %(href="reference.html#op-plus")
+    assert_includes play, %(href="reference#circle" target="_blank")
+    assert_includes play, %(href="reference#op-plus")
   end
 
   def test_every_example_opens_in_the_playground_with_its_code
     ex = read("examples.html")
-    links = ex.scan(/href="playground\.html#code=([A-Za-z0-9_-]+)"/).flatten
+    links = ex.scan(/href="playground#code=([A-Za-z0-9_-]+)"/).flatten
     assert_equal 2, links.size
     codes = links.map { AsobiSite.decode_code(_1) }
     assert_includes codes.last, %(show text("あそび & <b>", size: 20), on: :ivory)
@@ -781,8 +816,23 @@ class SiteTest < Minitest::Test
           assert_includes types, "SoftwareApplication"
           assert_includes types, "SoftwareSourceCode"
           assert_includes types, "VideoObject"
+          software = graph.find { Array(_1["@type"]).include?("SoftwareApplication") }
+          assert_equal %w[https://github.com/Hayato1031/asobi https://rubygems.org/gems/asobi], software["sameAs"]
+          assert_equal %w[myura みゅーら], software.dig("author", "alternateName")
+          assert_includes software["keywords"], "generative art"
+          assert_includes software["keywords"], "zero dependencies"
+          requirement = Gem::Specification.load(File.expand_path("../asobi.gemspec", __dir__)).required_ruby_version
+          assert_equal "Ruby #{requirement}", software["softwareRequirements"]
+          # the JSON-LD says "Ruby >= 3.2": the same words as the gemspec's requirement
         else
           assert_includes types, "BreadcrumbList"
+          author = graph.filter_map { _1["author"] }.first
+          next title unless author
+
+          assert_equal "Hayato1031", author["name"], "#{directory}#{page}"
+          assert_equal "https://github.com/Hayato1031", author["url"]
+          assert_equal %w[myura みゅーら], author["alternateName"]
+          assert_equal %w[https://github.com/Hayato1031 https://x.com/lit_myura https://rubygems.org/profiles/Myura], author["sameAs"]
         end
         title
       end
@@ -1024,6 +1074,26 @@ class SiteTest < Minitest::Test
     counted = descriptions.grep(/-word /)
     refute_empty counted
     counted.each { assert_includes _1, "#{size}-word" }
+  end
+
+  def test_readmes_have_the_why_section_and_the_sites_faq
+    readme_dir = File.expand_path("..", __dir__)
+    faq = YAML.safe_load_file(File.join(AsobiSite::SITE, "data", "home.yml")).fetch("faq")
+    lines = <<~RUBY.lines.map(&:chomp)
+      require "asobi"
+      tiles = square(18).repeat(36).change_each { |s, t| s.rotate(t * 90).grow(to: 1 - t * 0.5) }
+      show tiles.in_grid(6, gap: 4).colored(:tomato, :navy)
+    RUBY
+    { "README.md" => ["## Why asobi", "## FAQ", "en", ""], "README.ja.md" => ["## asobi を選ぶ理由", "## よくある質問", "ja", "ja/"] }.each do |name, (why, faq_heading, lang, folder)|
+      text = File.read(File.join(readme_dir, name), encoding: "UTF-8")
+      assert_includes text, "#{why}\n", name
+      assert_includes text, "#{faq_heading}\n", name
+      assert_includes text, "```ruby\n#{lines.join("\n")}\n```", name
+      assert_includes text, "https://asobi.myura.me/#{folder}playground#code=#{AsobiSite.encode_code(lines.join("\n") + "\n")}", name
+      faq.each do |item|
+        assert_includes text, "**Q: #{item["q"][lang]}**\n\n#{item["a"][lang]}\n", "#{name}: FAQ differs from the site's"
+      end
+    end
   end
 
   def test_readmes_link_to_the_site_without_html

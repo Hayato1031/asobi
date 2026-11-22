@@ -6,8 +6,8 @@ Gem::Specification.new do |spec|
   spec.name = "asobi"
   spec.version = Asobi::VERSION
   spec.authors = ["Hayato1031"]
-  spec.summary = "Make SVG pictures and looping animations with Ruby objects, and let them react to clicks and sound."
-  spec.description = "asobi (Japanese for 'play') is a Ruby library for making pictures and looping animations. " \
+  spec.summary = "Creative coding in Ruby with zero dependencies: make generative art as SVG pictures and looping animations from Ruby objects, and let them react to clicks and sound."
+  spec.description = "asobi (Japanese for 'play') is a Ruby library for creative coding and generative art with zero dependencies: it makes pictures and looping animations. " \
                      "A picture is a Ruby object: repeat a petal eight times, arrange the petals into a flower, and spin the whole flower. " \
                      "Give your own objects a visual form by defining to_art. " \
                      "Let a motion react to a click, the pointer, a key, the microphone or a song, " \

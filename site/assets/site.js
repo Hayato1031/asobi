@@ -10,6 +10,8 @@
   var html = document.documentElement;
   var root = html.getAttribute("data-root") || "";
   var lang = html.lang === "ja" ? "ja" : "en";
+  // Clean page addresses on the web; ".html" when the files are opened from the disk.
+  var ext = location.protocol === "file:" ? ".html" : "";
   var reels = {}, waiting = {}, requested = {};
   var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -239,7 +241,7 @@
           var sum = el && el.querySelector(".summary");
           return jsonResult({
             word: word,
-            referenceUrl: new URL("reference.html#" + encodeURIComponent(word), location.href).href,
+            referenceUrl: new URL("reference" + ext + "#" + encodeURIComponent(word), location.href).href,
             markdownReferenceUrl: new URL("reference.md", location.href).href,
             signature: sig ? sig.textContent.trim() : null,
             summary: sum ? sum.textContent.trim() : null
@@ -260,7 +262,7 @@
         execute: function (args) {
           var code = String((args && args.code) || "");
           if (!code.trim()) return jsonResult({ error: "code is required" }, true);
-          var target = new URL("playground.html#code=" + AsobiCodeURL.encode(code), location.href).href;
+          var target = new URL("playground" + ext + "#code=" + AsobiCodeURL.encode(code), location.href).href;
           if (args && args.navigate) location.href = target;
           return jsonResult({ url: target, code: code });
         }
