@@ -246,6 +246,7 @@ class SiteTest < Minitest::Test
     assert_includes home, "gem install asobi"
     assert_includes home, 'href="playground"'
     refute_includes home, 'class="press"' # no press list unless home.yml has one
+    refute_includes home, 'id="film"' # no films unless home.yml has some
   end
 
   # ---- links between the parts --------------------------------------------------
@@ -815,7 +816,7 @@ class SiteTest < Minitest::Test
         if page == "index"
           assert_includes types, "SoftwareApplication"
           assert_includes types, "SoftwareSourceCode"
-          assert_includes types, "VideoObject"
+          refute_includes types, "VideoObject" # the fixture has no films; with films: see the home page test
           software = graph.find { Array(_1["@type"]).include?("SoftwareApplication") }
           assert_equal %w[https://github.com/Hayato1031/asobi https://rubygems.org/gems/asobi], software["sameAs"]
           assert_equal %w[myura みゅーら], software.dig("author", "alternateName")
@@ -946,6 +947,22 @@ class SiteTest < Minitest::Test
         faq:
           - q: { en: "What is Object to Art?", ja: "Object to Art とは？" }
             a: { en: "Turning values into art.", ja: "値を絵に変えること。" }
+        films:
+          - id: play
+            title: Play
+            version: "0.2"
+            seconds: 60
+            size: [1280, 720]
+            date: "2026-11-23"
+            description: { en: "A song moves the pictures.", ja: "曲が絵を動かす。" }
+          - id: your-objects
+            title: Your Objects
+            version: "0.1"
+            seconds: 32
+            size: [1920, 1080]
+            date: "2026-11-11"
+            first: true
+            description: { en: "Numbers become circles.", ja: "数字が円になる。" }
         press:
           - name: "Example Weekly #1"
             url: "https://example.com/weekly/1"
@@ -967,8 +984,16 @@ class SiteTest < Minitest::Test
         assert_includes rendered, 'id="compare"'
         assert_includes rendered, 'id="faq"'
         assert_includes rendered, 'class="compare-table"'
+        # The films: the one marked first stands alone; under it, one tab per version, the newest in view and marked new.
+        assert_match(%r{<section class="band film" id="film".*?<h2 id="film-title" lang="en">Your Objects</h2>.*?assets/your-objects\.mp4.*?</section>\s*<section class="band films" id="films"}m, rendered)
+        assert_match(/role="tablist".*?id="film-tab-play"[^>]*aria-selected="true".*?class="film-new".*?id="film-tab-your-objects"[^>]*aria-selected="false"/m, rendered,
+                     "#{file}: Play is in view and new, Your Objects is a tab away")
+        assert_equal 1, rendered.scan('class="film-new"').size
+        assert_match(%r{id="film-play" role="tabpanel".*?assets/play\.mp4.*?id="film-your-objects" role="tabpanel".*?assets/your-objects\.mp4}m, rendered)
+        assert_includes rendered, file.start_with?("ja") ? "紹介映像 · 60秒 · 音楽あり" : "Short film · 60 seconds · Music"
+        assert_includes rendered, 'href="#film"'
         # Where asobi was featured: the quote in its own language, right under the film.
-        assert_match(%r{id="film".*?</section>\s*<section class="band press-band" id="press".*?id="beliefs-title"}m, rendered, "#{file}: press sits between the film and the beliefs")
+        assert_match(%r{id="films".*?</section>\s*<section class="band press-band" id="press".*?id="beliefs-title"}m, rendered, "#{file}: press sits between the films and the beliefs")
         assert_includes rendered, %(<blockquote cite="https://example.com/weekly/1" lang="en"><p>A bit like a sketchbook.</p></blockquote>)
         assert_includes rendered, %(<a href="https://example.com/weekly/1">Example Weekly #1)
         if file.start_with?("ja/")
@@ -985,6 +1010,9 @@ class SiteTest < Minitest::Test
         assert_match(%r{<div class="press-more">.*?<li><span class="press-date">#{older_date}</span><a href="https://example\.com/blog/older">Older Blog}m, rendered)
         ld =rendered[%r{<script type="application/ld\+json">(.*?)</script>}m, 1]
         faq_schema = JSON.parse(ld).fetch("@graph").find { _1["@type"] == "FAQPage" }
+        videos = JSON.parse(ld).fetch("@graph").select { _1["@type"] == "VideoObject" }
+        assert_equal ["Play — asobi", "Your Objects — asobi"], videos.map { _1["name"] }, "#{file}: both films in the structured data"
+        assert_equal "PT60S", videos.first["duration"]
         assert faq_schema, "#{file}: missing FAQPage JSON-LD"
         q_text = file.start_with?("ja/") ? "Object to Art とは？" : "What is Object to Art?"
         assert_equal [q_text], faq_schema.fetch("mainEntity").map { _1["name"] }
@@ -995,6 +1023,12 @@ class SiteTest < Minitest::Test
       edit(File.join(data, "home.yml")) { _1.sub(quote_line, "") }
       error = assert_raises(AsobiSite::BuildError) { AsobiSite::Builder.new(data:, out:, log: nil).build }
       assert_includes error.message, "home.yml, press 1: the first entry is shown large as a quote"
+
+      # A film needs its two files in site/assets.
+      edit(File.join(data, "home.yml")) { _1.sub("  - id: play\n", "  - id: no-such-film\n") }
+      error = assert_raises(AsobiSite::BuildError) { AsobiSite::Builder.new(data:, out:, log: nil).build }
+      assert_includes error.message, "home.yml, films 1: site/assets/no-such-film.mp4 is missing"
+      edit(File.join(data, "home.yml")) { _1.sub("  - id: no-such-film\n", "  - id: play\n") }
 
       edit(File.join(data, "home.yml")) do
         _1.sub(%(    date: { en: "Nov 19, 2026", ja: "2026年11月19日" }\n), "\\0#{quote_line}")

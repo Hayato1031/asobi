@@ -26,6 +26,15 @@
 #                                  strip is left out.
 #   gallery: [flower, aurora]      ids from examples.yml shown as a glimpse of
 #                                  the gallery (default: the first three).
+#   films:                         the films of the home page, newest first:
+#     - id: play                   site/assets/<id>.mp4 and <id>-poster.png.
+#       title: Play                One film per version of asobi. They share
+#       version: "0.2"             one frame with a tab each, the newest in
+#       seconds: 60                view and marked "New". The one with
+#       size: [1280, 720]          `first: true` (what asobi is) also stands
+#       date: "2026-11-23"         alone above them. To add a film: put its
+#       description: {en:, ja:}    two files in site/assets and add an entry
+#                                  at the top.
 #
 # Decoration made by asobi itself (Decor below, drawn with the library at
 # build time): the favicon, the registration mark on paper cards, the
@@ -124,10 +133,8 @@ module AsobiSite
       footer_playground: "Your sketch runs in your browser. Use “Copy link” to share it.",
       footer_license: "MIT License",
       view_gem: "View on RubyGems",
-      watch_film: "Watch the film", film_info: "Short film · 32 seconds · Music",
-      film_description: "Three numbers become three circles. A Flower object trades its petals for stars, then spins and leaves a trail of light.",
-      play_info: "Short film · 60 seconds · Music",
-      play_description: "A dot waits for a click and plays its first note. Eight dots become an instrument, three keys a drum kit. Then a song starts, and ten sketches move to its kick, its chords and its hats.",
+      watch_film: "Watch the film", film_info: "Short film · %d seconds · Music",
+      films_label: "Films, version by version", film_version: "asobi %s", film_new: "New",
       contribute: "Help improve asobi",
       issue_invitation: "Found a bug? Share a sketch or the steps that reproduce it. For a feature idea, tell us what you’d like to draw or animate. English and Japanese are both welcome.",
       pr_invitation: "Fixes, examples and documentation are welcome too. Fork the repository, make your changes and open a pull request to main.",
@@ -212,10 +219,8 @@ module AsobiSite
       footer_playground: "スケッチはブラウザで動きます。「リンクをコピー」で共有できます。",
       footer_license: "MIT ライセンス",
       view_gem: "RubyGems で見る",
-      watch_film: "紹介映像を見る", film_info: "紹介映像 · 32秒 · 音楽あり",
-      film_description: "3つの数字が3つの円に。Flower オブジェクトの花びらが星に変わり、回転しながら光の軌跡を描きます。",
-      play_info: "紹介映像 · 60秒 · 音楽あり",
-      play_description: "クリックを待つ点が、最初の音を鳴らします。8つの点は楽器に、3つのキーはドラムに。そして曲が始まり、10枚のスケッチがキックと和音とハットに合わせて動きます。",
+      watch_film: "紹介映像を見る", film_info: "紹介映像 · %d秒 · 音楽あり",
+      films_label: "バージョンごとの映像", film_version: "asobi %s", film_new: "新作",
       contribute: "asobi の改善に参加する",
       issue_invitation: "不具合を見つけたら、再現できるスケッチや手順を教えてください。機能の提案は「こんな絵を描きたい」「こんな動きを作りたい」からどうぞ。日本語・英語どちらも歓迎です。",
       pr_invitation: "コードの修正、作例の追加、ドキュメントの改善も歓迎します。リポジトリをフォークして変更を加え、main 宛てにプルリクエストを送ってください。",
@@ -583,6 +588,7 @@ module AsobiSite
           "quote" => pr["quote"].to_s, "quote_lang" => quote_lang.to_sym,
           "translation" => text(pr["translation"], "#{ph}, translation", required: false) }
       end
+      films = check_films(raw["films"], here)
       ids = ->(key) { raw[key].nil? ? nil : Array(raw[key]).map(&:to_s) }
       { "tagline" => text(raw["tagline"], "#{here}, tagline"),
         "lead" => text(raw["lead"], "#{here}, lead", required: false),
@@ -595,7 +601,31 @@ module AsobiSite
         "cycle" => cycle,
         "comparison" => comparison,
         "faq" => faq,
-        "press" => press }
+        "press" => press,
+        "films" => films }
+    end
+
+    # The films of the home page, newest first; each needs its two files in site/assets.
+    def check_films(value, here)
+      films = list_of("home", value).each_with_index.filter_map do |f, i|
+        fh = "#{here}, films #{i + 1}"
+        next unless require_keys(f, %w[id title version seconds size date description], fh)
+
+        id = f["id"].to_s
+        @errors << "#{fh}: id should be lowercase letters, digits and hyphens, got #{id.inspect}" unless id.match?(/\A[a-z0-9-]+\z/)
+        %W[#{id}.mp4 #{id}-poster.png].each do |file|
+          @errors << "#{fh}: site/assets/#{file} is missing" unless File.exist?(File.join(ASSETS, file))
+        end
+        size = Array(f["size"])
+        @errors << "#{fh}: size should be [width, height] in pixels" unless size.size == 2 && size.all?(Integer)
+        @errors << "#{fh}: seconds should be a whole number" unless f["seconds"].is_a?(Integer)
+        { "id" => id, "title" => f["title"].to_s, "version" => f["version"].to_s, "seconds" => f["seconds"].to_i,
+          "width" => size[0].to_i, "height" => size[1].to_i, "date" => f["date"].to_s,
+          "first" => f["first"] == true, "description" => text(f["description"], "#{fh}, description") }
+      end
+      @errors << "#{here}, films: two films have the same id" unless films.map { _1["id"] }.uniq.size == films.size
+      @errors << "#{here}, films: only one film can be `first: true`" if films.count { _1["first"] } > 1
+      films
     end
 
     def check_cycle(raw, here)
@@ -1623,8 +1653,7 @@ module AsobiSite
       ]
       if @page == "index"
         graph << software_schema(canonical)
-        graph << play_video_schema(canonical)
-        graph << video_schema(canonical)
+        content.home["films"].each { |film| graph << video_schema(film, canonical) }
         faq = faq_schema
         graph << faq if faq
       else
@@ -1670,30 +1699,16 @@ module AsobiSite
       }
     end
 
-    def play_video_schema(canonical)
+    def video_schema(film, canonical)
       {
         "@type" => "VideoObject",
-        "name" => "Play — asobi",
-        "description" => ui(:play_description),
-        "thumbnailUrl" => "#{SITE_URL}/assets/play-poster.png",
-        "contentUrl" => "#{SITE_URL}/assets/play.mp4",
-        "embedUrl" => "#{canonical}#play",
-        "uploadDate" => "2026-11-23T02:00:00+09:00",
-        "duration" => "PT60S",
-        "inLanguage" => "en"
-      }
-    end
-
-    def video_schema(canonical)
-      {
-        "@type" => "VideoObject",
-        "name" => "Your Objects — asobi",
-        "description" => ui(:film_description),
-        "thumbnailUrl" => "#{SITE_URL}/assets/your-objects-poster.png",
-        "contentUrl" => "#{SITE_URL}/assets/your-objects.mp4",
-        "embedUrl" => "#{canonical}#film",
-        "uploadDate" => "2026-11-11T22:50:00+09:00",
-        "duration" => "PT32S",
+        "name" => "#{film["title"]} — asobi",
+        "description" => t(film["description"]),
+        "thumbnailUrl" => "#{SITE_URL}/assets/#{film["id"]}-poster.png",
+        "contentUrl" => "#{SITE_URL}/assets/#{film["id"]}.mp4",
+        "embedUrl" => "#{canonical}#film-#{film["id"]}",
+        "uploadDate" => film["date"],
+        "duration" => "PT#{film["seconds"]}S",
         "inLanguage" => "en"
       }
     end
