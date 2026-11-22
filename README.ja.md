@@ -16,10 +16,10 @@ Ruby の値や自作クラスを `to_art` で絵に変える（**Object to Art**
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-3fb950)](#不具合報告改善の提案issuepr)
 [![Ruby Weekly #827 に掲載](https://img.shields.io/badge/featured%20in-Ruby%20Weekly%20%23827-e0475b)](https://rubyweekly.com/issues/827)
 
-<a href="https://asobi.myura.me/ja/playground.html"><img src="https://img.shields.io/badge/%E2%96%B6%20%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E3%81%A7%E8%A9%A6%E3%81%99-ff4d6d?style=for-the-badge" alt="ブラウザで試す" height="36"></a>
-<a href="https://asobi.myura.me/ja/guide.html"><img src="https://img.shields.io/badge/%E5%85%A5%E9%96%80%E3%82%AC%E3%82%A4%E3%83%89-20232e?style=for-the-badge" alt="入門ガイド" height="36"></a>
-<a href="https://asobi.myura.me/ja/reference.html"><img src="https://img.shields.io/badge/%E3%83%AA%E3%83%95%E3%82%A1%E3%83%AC%E3%83%B3%E3%82%B9-20232e?style=for-the-badge" alt="リファレンス" height="36"></a>
-<a href="https://asobi.myura.me/ja/examples.html"><img src="https://img.shields.io/badge/%E4%BD%9C%E4%BE%8B-20232e?style=for-the-badge" alt="作例" height="36"></a>
+<a href="https://asobi.myura.me/ja/playground"><img src="https://img.shields.io/badge/%E2%96%B6%20%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E3%81%A7%E8%A9%A6%E3%81%99-ff4d6d?style=for-the-badge" alt="ブラウザで試す" height="36"></a>
+<a href="https://asobi.myura.me/ja/guide"><img src="https://img.shields.io/badge/%E5%85%A5%E9%96%80%E3%82%AC%E3%82%A4%E3%83%89-20232e?style=for-the-badge" alt="入門ガイド" height="36"></a>
+<a href="https://asobi.myura.me/ja/reference"><img src="https://img.shields.io/badge/%E3%83%AA%E3%83%95%E3%82%A1%E3%83%AC%E3%83%B3%E3%82%B9-20232e?style=for-the-badge" alt="リファレンス" height="36"></a>
+<a href="https://asobi.myura.me/ja/examples"><img src="https://img.shields.io/badge/%E4%BD%9C%E4%BE%8B-20232e?style=for-the-badge" alt="作例" height="36"></a>
 <a href="https://asobi.myura.me/ja/#film"><img src="https://img.shields.io/badge/32%E7%A7%92%E3%81%AE%E7%B4%B9%E4%BB%8B%E6%98%A0%E5%83%8F-20232e?style=for-the-badge" alt="32秒の紹介映像" height="36"></a>
 
 <br>
@@ -63,7 +63,7 @@ show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 </tr>
 <tr>
 <td width="50%" valign="top"><b>英語として読める</b><br><code>petal.repeat(8).in_fan.colored(:crimson, :navy)</code> は「花びらを8回繰り返し、扇状に並べ、深紅と紺で塗る」と左から順に読めます。</td>
-<td width="50%" valign="top"><b>外部依存ゼロ・Ruby だけで動く</b><br>外部ソフトは不要です。<code>gem install asobi</code> のあと <code>asobi</code> と打つとブラウザでホットリロードしながら遊べ、同じコードが<a href="https://asobi.myura.me/ja/playground.html">ブラウザの遊び場</a>でもそのまま動きます。</td>
+<td width="50%" valign="top"><b>外部依存ゼロ・Ruby だけで動く</b><br>外部ソフトは不要です。<code>gem install asobi</code> のあと <code>asobi</code> と打つとブラウザでホットリロードしながら遊べ、同じコードが<a href="https://asobi.myura.me/ja/playground">ブラウザの遊び場</a>でもそのまま動きます。</td>
 </tr>
 </table>
 
@@ -300,14 +300,14 @@ show keys.to_art.in_row(gap: 16).on(beat), on: :black
 
 | 花 | ハートの窓 | 夜空 |
 | :---: | :---: | :---: |
-| [![金色の中心のまわりを、深紅と紺の花びらが回る。](docs/readme/flower.gif)](https://asobi.myura.me/ja/examples.html#flower) | [![ハート形の窓の向こうで、赤から金色へ変わるしま模様が回る。](docs/readme/through_a_heart.gif)](https://asobi.myura.me/ja/examples.html#through_a_heart) | [![光る三日月のそばで、金色の星がまたたく。](docs/readme/night_sky.gif)](https://asobi.myura.me/ja/examples.html#night_sky) |
+| [![金色の中心のまわりを、深紅と紺の花びらが回る。](docs/readme/flower.gif)](https://asobi.myura.me/ja/examples#flower) | [![ハート形の窓の向こうで、赤から金色へ変わるしま模様が回る。](docs/readme/through_a_heart.gif)](https://asobi.myura.me/ja/examples#through_a_heart) | [![光る三日月のそばで、金色の星がまたたく。](docs/readme/night_sky.gif)](https://asobi.myura.me/ja/examples#night_sky) |
 | [`in_fan`](examples/flower.rb) | [`clipped_by`](examples/through_a_heart.rb) | [`fade`](examples/night_sky.rb) |
 
-ほかの作例は [examples フォルダ](examples/README.md)と[サイトの作例ページ](https://asobi.myura.me/ja/examples.html)にあります。
+ほかの作例は [examples フォルダ](examples/README.md)と[サイトの作例ページ](https://asobi.myura.me/ja/examples)にあります。
 
 ## 使える言葉の一覧
 
-引数と既定値は[リファレンス](https://asobi.myura.me/ja/reference.html)で調べられます。数字を省くと、ちょうどよい値が使われます。
+引数と既定値は[リファレンス](https://asobi.myura.me/ja/reference)で調べられます。数字を省くと、ちょうどよい値が使われます。
 
 | やりたいこと | 言葉 |
 | --- | --- |
@@ -357,9 +357,9 @@ stars.colored(:navy).save("stars.svg")
 
 | 読みたいもの | 場所 |
 | --- | --- |
-| **Object to Art / Art to Object** を順番に学ぶ | [入門ガイド](https://asobi.myura.me/ja/guide.html) ([Markdown](https://asobi.myura.me/ja/guide.md)) |
-| 図形・配置・動きと既定値を調べる | [リファレンス](https://asobi.myura.me/ja/reference.html) ([Markdown](https://asobi.myura.me/ja/reference.md)) |
-| インストールせずにブラウザで試す | [遊び場](https://asobi.myura.me/ja/playground.html) |
+| **Object to Art / Art to Object** を順番に学ぶ | [入門ガイド](https://asobi.myura.me/ja/guide) ([Markdown](https://asobi.myura.me/ja/guide.md)) |
+| 図形・配置・動きと既定値を調べる | [リファレンス](https://asobi.myura.me/ja/reference) ([Markdown](https://asobi.myura.me/ja/reference.md)) |
+| インストールせずにブラウザで試す | [遊び場](https://asobi.myura.me/ja/playground) |
 | 1ファイルで動くスケッチを読む | [作例一覧](examples/README.md) |
 | AI エージェントに完全な API コンテキストを渡す | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
 | 設計の理由を知る | [設計書](DESIGN.md) |
