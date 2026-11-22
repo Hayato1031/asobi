@@ -13,14 +13,20 @@
 //   "error ..."   preview, then a worker error event  (the worker itself broke)
 //   "hold ..."    preview, then nothing until the test says so (later
 //                 requests wait behind it: a worker answers in order)
+//   "attack ..."  a preview and a whole Reel whose frame is not asobi's own
+//                 SVG (what a sketch that changes asobi's SVG writer sends)
 //   anything else preview, one "working", then the whole Reel
 "use strict";
 const fs = require("fs");
+const path = require("path");
 const vm = require("vm");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const [playJs, playHtml] = process.argv.slice(2);
 const source = fs.readFileSync(playJs, "utf8");
+// The page loads the checker (safe-reel.js, next to playground.js) first.
+const safeSource = fs.readFileSync(path.join(path.dirname(playJs), "safe-reel.js"), "utf8");
+const ATTACK = '<image href="x:" onerror="alert(1)"/>';
 const config = fs.readFileSync(playHtml, "utf8").match(/id="play-config">([\s\S]*?)<\/script>/)[1];
 
 function element(id) {
@@ -59,6 +65,14 @@ function page(options) {
       this.got.push(m);
       if (this.held !== null) return; // busy with "hold": never gets to this one
       setTimeout(() => {
+        if (m.code.startsWith("attack")) {
+          this.say("not an object");
+          this.say(null);
+          this.say({ id: "__proto__", json: "{}", pending: true });
+          this.say({ id: m.id, json: JSON.stringify({ frames: [ATTACK], fps: 30, view: [0, 0, 1, 1], pending: true }), pending: true });
+          this.say({ id: m.id, json: JSON.stringify({ frames: [ATTACK, "<g/>"], fps: 30, view: [0, 0, 1, 1], code: m.code, error: null }) });
+          return;
+        }
         this.say({ id: m.id, json: JSON.stringify({ frames: ["<g/>"], fps: 30, view: [0, 0, 1, 1], pending: true }), pending: true });
         if (m.code.startsWith("crash")) this.say({ id: m.id, fatal: "RuntimeError: unreachable" });
         else if (m.code.startsWith("error")) { if (!this.terminated) this.onerror({ message: "Uncaught Error", preventDefault: () => {} }); }
@@ -83,7 +97,7 @@ function page(options) {
     document, Worker: FakeWorker, JSON, Promise, Object, Number, String, Math, Date, Event: class { constructor(type) { this.type = type; } },
     setTimeout, clearTimeout, setInterval, clearInterval,
     performance: { now: () => Date.now() },
-    location: { hash: "", search: options.selftest === false ? "" : "?selftest=1", pathname: "/playground.html", href: "http://x/playground.html" },
+    location: { protocol: options.protocol || "https:", hash: "", search: options.selftest === false ? "" : "?selftest=1", pathname: "/playground.html", href: "http://x/playground.html" },
     history: { replaceState: () => {} },
     navigator: {},
     btoa: (s) => Buffer.from(s, "binary").toString("base64"),
@@ -96,6 +110,7 @@ function page(options) {
   };
   win.window = win;
   vm.createContext(win);
+  if (!options.noChecker) vm.runInContext(safeSource, win);
   vm.runInContext(source, win);
 
   const editor = elements.code;
@@ -117,7 +132,7 @@ const brief = (p) => ({
 });
 
 (async () => {
-  const result = { crashed: cfg.ui.crashed, ruby_failed: cfg.ui.ruby_failed };
+  const result = { crashed: cfg.ui.crashed, ruby_failed: cfg.ui.ruby_failed, blocked: cfg.ui.blocked };
 
   // 1. Ruby breaks while running a sketch ({ id, fatal }): a new worker, a
   //    friendly message, the crashed code is not run again, the next edit runs.
@@ -169,6 +184,45 @@ const brief = (p) => ({
     p.edit("fine b");
     await sleep(500);
     result.bootFails = brief(p);
+  }
+
+  // 5. A sketch whose SVG is not asobi's own (it changed the SVG writer):
+  //    the player gets an error Reel saying so, never those frames. Odd
+  //    messages from the worker (not objects, an id of "__proto__") are
+  //    ignored.
+  {
+    const p = page({});
+    await sleep(50);
+    p.edit("attack a");
+    await sleep(500);
+    result.attack = brief(p);
+    result.attack.shown = p.shown.map((r) => (r.error ? { error: r.error, code: r.code, frames: r.frames || null } : { frames: r.frames }));
+    result.attack.polluted = Object.prototype.previewed !== undefined;
+    p.edit("fine b");
+    await sleep(500);
+    result.attack.after = p.marker();
+  }
+
+  // 6. Without the checker on the page, nothing from the engine is shown.
+  {
+    const p = page({ noChecker: true });
+    await sleep(50);
+    p.edit("fine b");
+    await sleep(500);
+    result.noChecker = brief(p);
+    result.noChecker.frames = p.shown.filter((r) => r.frames).length;
+  }
+
+  // 7. On http/https a worker that cannot start does not lead to Ruby on
+  //    the page (it could reach the whole page): stop and say so. On
+  //    file:// the page engine is still the fallback.
+  {
+    const p = page({ failBootAfter: 0, protocol: "https:" });
+    await sleep(200);
+    result.httpsNoWorker = brief(p);
+    const f = page({ failBootAfter: 0, protocol: "file:" });
+    await sleep(200);
+    result.fileNoWorker = brief(f);
   }
 
   console.log(JSON.stringify(result));

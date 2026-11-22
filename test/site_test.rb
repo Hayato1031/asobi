@@ -354,6 +354,87 @@ class SiteTest < Minitest::Test
     assert_includes ja["ui"]["crashed"], "起動し直しました"
   end
 
+  # ---- what the playground lets through (a link can carry any Ruby) -----------
+
+  # The site's CSP has no 'unsafe-eval', and the js gem runs JS.eval
+  # (Function(code)) as it loads: the engine must never ask for it.
+  def test_ruby_engine_does_without_the_js_bridge
+    engine = read("assets/ruby-engine.js")
+    refute_match(/require\s*\(?\s*["']js["']/, engine)
+    refute_includes engine, ".wrap("
+  end
+
+  # Strings reach Ruby as Ruby source (test/web/ruby-string-check.js).
+  def test_ruby_engine_writes_strings_as_hex_ruby_literals
+    result = node_check("ruby-string-check.js", File.join(@out, "assets", "ruby-engine.js"))
+    assert_equal 9, result["cases"].size
+    result["cases"].each do |c|
+      assert c["shape"], "only hex between the quotes: #{c["expr"]}"
+      assert c["roundTrip"], "the hex is the UTF-8 bytes of #{c["text"].inspect}"
+      ruby = eval(c["expr"]) # rubocop:disable Security/Eval -- checked above: hex digits only
+      assert_equal c["text"], ruby
+      assert_equal Encoding::UTF_8, ruby.encoding
+      assert ruby.valid_encoding?
+    end
+    assert_equal ['"ja"', '"en"', '"en"', '"en"', '"en"'], result["lang"]
+  end
+
+  def test_playground_checks_what_the_engine_sends_in_both_languages
+    { "playground.html" => "was not shown", "ja/playground.html" => "表示しませんでした" }.each do |file, words|
+      html = read(file)
+      config = JSON.parse(html[%r{id="play-config">(.*?)</script>}m, 1])
+      assert_includes config["ui"]["blocked"], words, file
+      safe = html.index(%r{<script src="[^"]*assets/safe-reel\.js" defer></script>})
+      play = html.index(%r{<script src="[^"]*assets/playground\.js" defer></script>})
+      assert safe && play && safe < play, "#{file}: safe-reel.js loads before playground.js"
+    end
+    assert File.exist?(File.join(@out, "assets", "safe-reel.js"))
+  end
+
+  def test_headers_set_a_content_security_policy_for_every_page
+    headers = read("_headers")
+    block = headers[%r{^/\*\n((?:  .*\n)+)}, 1]
+    assert block, "a /* block"
+    csp = block[/^  Content-Security-Policy: (.*)$/, 1]
+    assert csp, "a Content-Security-Policy"
+    directives = csp.split(";").map(&:strip).to_h { |d| d.split(" ", 2) }
+    script = directives.fetch("script-src").split
+    refute_includes script, "'unsafe-inline'"
+    refute_includes script, "'unsafe-eval'"
+    refute_includes script, "https://cdn.jsdelivr.net"
+    assert_includes script, AsobiSite::RUBY_WASM.fetch("api")
+    assert_includes directives.fetch("connect-src").split, AsobiSite::RUBY_WASM.fetch("wasm")
+    assert_equal "'none'", directives.fetch("object-src")
+    refute directives.key?("frame-ancestors"), "embedding the site stays allowed"
+    assert_includes block, "Strict-Transport-Security: max-age=31536000"
+    assert_includes block, "Permissions-Policy: camera=(), geolocation=()"
+    refute_match(/microphone/, block, "the player listens to the microphone")
+    refute_includes headers, "X-Frame-Options"
+  end
+
+  # The checker (site/assets/safe-reel.js) with every Reel the site built,
+  # and with attacks (test/web/safe-reel-check.js).
+  def test_safe_reel_lets_asobis_own_reels_through_and_nothing_else
+    result = node_check("safe-reel-check.js", File.join(@out, "assets", "safe-reel.js"), File.join(@out, "reels"))
+
+    reels = result["reels"]
+    assert_operator reels["count"], :>, 0
+    assert_equal [], reels["rejected"], "every Reel the site built passes"
+    assert_equal [], reels["changed"], "with the same frames and parts"
+
+    assert_operator result["attacks"], :>=, 27
+    assert_equal [], result["attacksPassed"]
+    assert_equal [], result["fineRejected"]
+    result["reelRejects"].each { |name, ok| assert ok, "reel rejects: #{name}" }
+    assert result["prototypeClean"]
+
+    assert_equal({ "kept" => true, "song" => nil }, result["foreignSong"], "a song from elsewhere is dropped, the picture stays")
+    assert_equal({ "id" => "3ff79180f05b", "src" => "assets/beat.wav", "volume" => 0.5 }, result["ownSong"])
+    assert_equal({ "error" => "boom", "code" => "show x" }, result["errorReel"])
+    assert_equal %w[background code controls error fps frames parts view], result["partsCopy"]["keys"]
+    assert_equal({ "frames" => ["<g/>"], "turn" => "click", "fps" => 30, "sound" => "pop" }, result["partsCopy"]["p1"])
+  end
+
   # The whole Reel in slices (what the worker does), in a plain Ruby.
   def test_browser_bundle_finishes_in_slices
     script = <<~RUBY
@@ -436,6 +517,22 @@ class SiteTest < Minitest::Test
     assert_equal 2, fails["workers"].size, "no restart loop"
     assert_equal result["ruby_failed"], fails["status"]
     assert_equal 0, fails["scripts"], "no switch to the page engine"
+
+    blocked = result["blocked"]
+    attack = result["attack"]
+    assert_equal [blocked, blocked], attack["errors"], "the preview and the whole Reel"
+    assert(attack["shown"].none? { _1["frames"]&.any? { |f| f.include?("onerror") } }, "the frames never reach the player")
+    assert_equal({ "error" => blocked, "code" => "attack a", "frames" => nil }, attack["shown"].last)
+    refute attack["polluted"], "an id of __proto__ is ignored"
+    assert_nil attack["after"]["error"], "the next sketch runs as usual"
+    assert_equal 2, attack["after"]["frames"]
+
+    assert_equal 0, result["noChecker"]["frames"], "without the checker nothing from the engine is shown"
+
+    https = result["httpsNoWorker"]
+    assert_equal result["ruby_failed"], https["status"]
+    assert_equal 0, https["scripts"], "on https, never Ruby on the page"
+    assert_equal 1, result["fileNoWorker"]["scripts"], "on file://, the page engine is the fallback"
   end
 
   # The player's reacting parts and sound analysis, without a browser (test/web/player-check.js).

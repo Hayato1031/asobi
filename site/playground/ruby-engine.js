@@ -1,11 +1,19 @@
 /* asobi playground: the Ruby engine. Works in a Web Worker and, as a
- * fallback, on the page itself.
+ * fallback, on the page itself (file:// only).
  *
  * Needs, already loaded:
  *   - ruby.wasm's browser API (browser.umd.js of @ruby/wasm-wasi, which sets
  *     self["ruby-wasm-wasi"]) -- the one external resource of the site,
- *     from cdn.jsdelivr.net at a pinned version (see site/build.rb).
+ *     from cdn.jsdelivr.net at a pinned version (see site/build.rb). Only
+ *     the VM itself is used (DefaultRubyVM, vm.eval, call, toString): not
+ *     the JS bridge.
  *   - asobi-ruby.js (sets self.ASOBI_RUBY: the library as one Ruby source).
+ *
+ * The js gem is never required and vm.wrap is never used: both run JS.eval
+ * (Function(code)), and the site's Content-Security-Policy has no
+ * 'unsafe-eval'. Strings reach Ruby as Ruby source instead (rubyString:
+ * hex digits only between the quotes, so nothing in a sketch can end the
+ * literal).
  *
  *   AsobiRubyEngine.boot(wasmUrl) -> Promise
  *   AsobiRubyEngine.run(code, lang) -> JSON string of a Reel
@@ -26,7 +34,18 @@
  */
 (function (g) {
   "use strict";
-  var vm = null, runner = null, starter = null, waiter = null, finisher = null, stepper = null, dropper = null;
+  var vm = null, waiter = null, finisher = null, dropper = null;
+
+  // A JS string as a Ruby expression for the same string:
+  //   ["<hex of its UTF-8 bytes>"].pack("H*").force_encoding("UTF-8")
+  function rubyString(text) {
+    var bytes = new TextEncoder().encode(String(text)), hex = "";
+    for (var i = 0; i < bytes.length; i++) hex += (bytes[i] < 16 ? "0" : "") + bytes[i].toString(16);
+    return '["' + hex + '"].pack("H*").force_encoding("UTF-8")';
+  }
+
+  // The language as a plain literal: only "ja" or "en".
+  function rubyLang(lang) { return lang === "ja" ? '"ja"' : '"en"'; }
 
   function boot(wasmUrl) {
     var api = g["ruby-wasm-wasi"];
@@ -41,27 +60,24 @@
     }).then(function (made) {
       vm = made.vm;
       vm.eval(g.ASOBI_RUBY);
-      runner = vm.eval('require "js"\n->(source, lang) { Asobi::Web.run(source.to_s, lang.to_s) }');
-      starter = vm.eval('->(source, lang) { Asobi::Web.start(source.to_s, lang.to_s) }');
       waiter = vm.eval('-> { Asobi::Web.waiting? }');
       finisher = vm.eval('-> { Asobi::Web.finish }');
-      stepper = vm.eval('->(seconds) { Asobi::Web.finish_some(seconds.to_s) }');
       dropper = vm.eval('-> { Asobi::Web.drop }');
     });
   }
 
   function ready() {
-    if (!runner) throw new Error("Ruby is not ready");
+    if (!vm || !dropper) throw new Error("Ruby is not ready");
   }
 
   function run(code, lang) {
     ready();
-    return runner.call("call", vm.wrap(String(code)), vm.wrap(String(lang))).toString();
+    return vm.eval("Asobi::Web.run(" + rubyString(code) + ", " + rubyLang(lang) + ")").toString();
   }
 
   function start(code, lang) {
     ready();
-    var json = starter.call("call", vm.wrap(String(code)), vm.wrap(String(lang))).toString();
+    var json = vm.eval("Asobi::Web.start(" + rubyString(code) + ", " + rubyLang(lang) + ")").toString();
     return { json: json, pending: waiter.call("call").toString() === "true" };
   }
 
@@ -73,7 +89,8 @@
 
   function step(seconds) {
     ready();
-    var json = stepper.call("call", vm.wrap(String(seconds))).toString(); // Ruby's nil reads as ""
+    var n = Number(seconds);
+    var json = vm.eval("Asobi::Web.finish_some(" + rubyString(String(isFinite(n) ? n : 0)) + ")").toString(); // Ruby's nil reads as ""
     if (json !== "") return { done: true, json: json };
     if (waiter.call("call").toString() === "true") return { done: false };
     return { done: true, json: null };
@@ -85,4 +102,5 @@
   }
 
   g.AsobiRubyEngine = { boot: boot, run: run, start: start, finish: finish, step: step, drop: drop };
+  if (typeof module !== "undefined" && module.exports) module.exports = { rubyString: rubyString, rubyLang: rubyLang };
 })(typeof self !== "undefined" ? self : this);

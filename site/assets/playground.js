@@ -1,7 +1,10 @@
 /* asobi playground: code on one side, the picture on the other.
- * Ruby runs in the browser with ruby.wasm, in a Web Worker when the page
- * allows it (http/https), otherwise on the page itself (file://).
+ * Ruby runs in the browser with ruby.wasm, in a Web Worker. Only on file://
+ * (where a page cannot start a worker) does it run on the page itself: there
+ * Ruby can reach the whole page, so a site on http/https never does that.
  * The code lives in the address (#code=<base64url>), so a link shares it.
+ * Anyone can write that code, so whatever an engine answers is untrusted:
+ * it goes through AsobiSafeReel (safe-reel.js) before the player sees it.
  */
 (function () {
   "use strict";
@@ -74,6 +77,14 @@
   // trusted again: the run it was working on fails with { crashed: true },
   // the other waiting runs with { restart: true }, and lost() is called once
   // so that a fresh engine can be started.
+  // A Reel from an engine (a JSON string) as the page may show it: checked
+  // by AsobiSafeReel, or an error Reel saying it was not shown. Without the
+  // checker nothing from the engine is shown.
+  function fromEngine(json, code) {
+    var reel = window.AsobiSafeReel ? AsobiSafeReel.parse(json) : null;
+    return reel || { error: U.blocked, code: code };
+  }
+
   function b64(text) { return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
 
   function workerEngine(lost) {
@@ -132,10 +143,11 @@
       } catch (e) { reject(e); return; }
       worker.onmessage = function (e) {
         var m = e.data;
+        if (!m || typeof m !== "object") return; // only the worker's own kind of message
         if (m.type === "ready") { settled = true; resolve(api); return; }
         if (m.type === "failed") { settled = true; worker.terminate(); reject(new Error(m.message)); return; }
         if (m.fatal) { crash(m.fatal); return; }
-        var r = runs[m.id];
+        var r = Object.prototype.hasOwnProperty.call(runs, m.id) ? runs[m.id] : null; // not "__proto__"
         if (!r) return;
         if (m.working) { watch(); return; } // still making the whole Reel
         if (m.pending) {
@@ -168,7 +180,7 @@
     });
   }
 
-  // Fallback (file://, or no Worker): the same engine on the page.
+  // Fallback, on file:// only (see boot): the same engine on the page.
   // A motion's whole Reel is made in slices too, with a pause between them,
   // so the page keeps answering (and a newer run can stop the build).
   // After a crash it boots a fresh Ruby VM on the page.
@@ -239,7 +251,8 @@
     status(U.loading_ruby);
     var start = onPage ? pageEngine(lost)
       : workerEngine(lost).catch(function (e) {
-          if (afterCrash) throw e;
+          // Ruby on the page could reach the whole page: only for file://.
+          if (afterCrash || location.protocol !== "file:") throw e;
           onPage = true;
           return pageEngine(lost);
         });
@@ -297,11 +310,11 @@
     }
     function onFirst(json) {
       quiet();
-      showAnswer(run, JSON.parse(json));
+      showAnswer(run, fromEngine(json, code));
     }
     return engine.run(code, cfg.lang, onFirst).then(function (json) {
       if (json === null) return null;
-      var reel = JSON.parse(json);
+      var reel = fromEngine(json, code);
       if (showAnswer(run, reel) && !reel.error) shownFor = code;
       mark(reel);
       return reel;
