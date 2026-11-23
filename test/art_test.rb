@@ -96,11 +96,45 @@ class ArtTest < Minitest::Test
     assert_equal circle.colored(:red).move(up: 3), circle.move(up: 3).colored(:red)
   end
 
-  def test_group_colour_does_not_override_inner_colour
+  def test_latest_colour_wins_even_inside_a_group
     group = circle.colored(:red).beside(square).colored(:blue)
     svg = group.svg
     assert svg.start_with?(%(<g fill="blue">))
-    assert_includes svg, %(fill="red")
+    refute_includes svg, "red"
+
+    row = circle.colored(:red).repeat(5).in_row.colored(:blue)
+    assert_equal "blue", row.style[:fill]
+    assert_equal circle.repeat(5).in_row.colored(:blue), row
+
+    # stroke and opacity on inner shapes stay when fill is repainted
+    stroked = circle.colored(:red).stroke(:black, width: 2).opacity(0.5).repeat(3).in_row.colored(:blue)
+    assert_includes stroked.svg, %(fill="blue")
+    assert_includes stroked.svg, %(stroke="black")
+    assert_includes stroked.svg, %(opacity="0.5")
+    refute_includes stroked.svg, "red"
+
+    # line-only shapes inside a group get their line recoloured too
+    lines = line.repeat(3).in_row.colored(:cyan)
+    assert_equal 3, lines.svg.scan(%(stroke="cyan")).size
+    refute_includes lines.svg, %(stroke="black")
+
+    # cycling after a single colour, and a single colour after cycling
+    cycled = circle.repeat(4).in_row.colored(:gold).colored(:red, :blue)
+    refute_includes cycled.svg, "gold"
+    assert_equal %w[red blue red blue], cycled.map { _1.svg[/fill="(\w+)"/, 1] }
+    repainted = cycled.colored(:green)
+    assert_equal "green", repainted.style[:fill]
+    refute_includes repainted.svg, "red"
+    refute_includes repainted.svg, "blue"
+
+    # an outlined group keeps its lines under both multi-colour and single-colour repaints
+    outlines = circle.repeat(4).in_row.outlined(:black, width: 2).colored(:red, :blue)
+    assert_equal %w[red blue red blue], outlines.map { _1.svg[/stroke="(\w+)"/, 1] }
+    gold_outlines = outlines.colored(:gold)
+    assert_equal %w[gold gold gold gold], gold_outlines.map { _1.svg[/stroke="(\w+)"/, 1] }
+    refute_includes gold_outlines.svg, %(fill="gold")
+    refute_includes gold_outlines.svg, "red"
+    refute_includes gold_outlines.svg, "blue"
   end
 
   def test_colored_cycles_on_many_and_uses_first_on_single

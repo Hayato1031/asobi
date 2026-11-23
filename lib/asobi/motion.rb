@@ -425,14 +425,43 @@ module Asobi
     end
 
     # Fade to +to+ (0 is invisible, 1 is solid) and back.
-    def fade(every_ = nil, every: every_ || 2, to: 0.2)
+    # With +from:+, fades from +from+ to +to+ (1 if left out) and back,
+    # replacing any opacity the picture already had. Without +from:+,
+    # multiplies the picture's own opacity from 1 to +to+ (0.2 if left out).
+    def fade(every_ = nil, every: every_ || 2, from: nil, to: nil)
       period = Motion.seconds(every, :fade, :every, "fade(every: 2, to: 0.2)")
-      Check.number(to, word: :fade, name: :to, example: "fade(every: 2, to: 0.2)", min: 0, max: 1)
-      Motion.word(self, period, farthest: 0.5) do |art, p|
-        amount = (1 - (1 - to) * Asobi.swell(p)).round(9) # so fade(to: 0.2) reaches exactly 0.2
-        next art if amount == 1
+      if from.nil?
+        target = to.nil? ? 0.2 : Check.number(to, word: :fade, name: :to, example: "fade(every: 2, to: 0.2)", min: 0, max: 1)
+        Motion.word(self, period, farthest: 0.5) do |art, p|
+          amount = (1 - (1 - target) * Asobi.swell(p)).round(9) # so fade(to: 0.2) reaches exactly 0.2
+          next art if amount == 1
 
-        Asobi.restyle(art) { |s| s.merge(opacity: (s[:opacity] || 1.0) * amount) }
+          Asobi.restyle(art) { |s| s.merge(opacity: (s[:opacity] || 1.0) * amount) }
+        end
+      else
+        example = "fade(from: 0, to: 1, every: 2)"
+        start = Check.number(from, word: :fade, name: :from, example:, min: 0, max: 1)
+        target = to.nil? ? 1.0 : Check.number(to, word: :fade, name: :to, example:, min: 0, max: 1)
+        Motion.word(self, period, farthest: 0.5) do |art, p|
+          amount = (start + (target - start) * Asobi.swell(p)).round(9)
+          Asobi.restyle(art) { |s| s.merge(opacity: amount) }
+        end
+      end
+    end
+
+    # Stay at +from+ (0, invisible, by default) at rest, jump to +to+ (1)
+    # when it starts, and fade back down to +from+. Built for beats, clicks
+    # and keys (on_beat, when_clicked), and blinks on the clock too.
+    #   dot.flash.on_beat(:music)
+    #   ring.flash(from: 0.15, every: 0.4).on_beat(:music)
+    def flash(every_ = nil, every: every_ || 0.5, from: 0, to: 1)
+      period = Motion.seconds(every, :flash, :every, "flash(every: 0.5)")
+      example = "flash(every: 0.5, from: 0, to: 1)"
+      start = Check.number(from, word: :flash, name: :from, example:, min: 0, max: 1)
+      target = Check.number(to, word: :flash, name: :to, example:, min: 0, max: 1)
+      Motion.word(self, period) do |art, p|
+        amount = (p.zero? ? start : start + (target - start) * (1 - p)**2).round(9)
+        Asobi.restyle(art) { |s| s.merge(opacity: amount) }
       end
     end
 

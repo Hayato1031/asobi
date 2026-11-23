@@ -130,6 +130,8 @@ class ReactionTest < Minitest::Test
   def test_motions_know_whether_they_go_out_and_come_back
     assert_equal 0.5, dot.pulse.peak
     assert_equal 1.0, dot.fade.peak
+    assert_equal 1.0, dot.fade(from: 0, to: 1).peak
+    assert_nil dot.flash.peak
     assert_equal 0.5, dot.sway.peak, "sway is farthest a quarter of the way in"
     assert_equal 0.5, dot.bounce.peak
     assert_equal 2.0, dot.drift.peak
@@ -180,6 +182,14 @@ class ReactionTest < Minitest::Test
     sizes = part.pictures.map { _1.box(Asobi::IDENTITY).width }
     assert_equal sizes.sort, sizes, "a bigger value is bigger"
     assert_equal 0.5, dot.sway(every: 2).by(:mouse_x).moments.first.last
+
+    lit = dot.fade(from: 0, to: 1).by(:music, :high)
+    assert_equal dot.opacity(0), lit.pictures.first
+    assert_equal dot.opacity(1), lit.pictures.last
+
+    hit = dot.flash(every: 0.2).on_beat(:music)
+    assert_equal dot.opacity(0), hit.rest
+    assert_operator hit.pictures[1].style[:opacity], :>, hit.pictures.last.style[:opacity]
   end
 
   def test_a_value_that_goes_round_shows_the_whole_loop_both_ends

@@ -322,6 +322,9 @@ module Asobi
 
     # Paint with one colour, or (on a Many) cycle several over its pictures.
     # A picture that is only a line (fill: none) gets its line recoloured.
+    # The latest colour wins, even inside a Many: one solid colour sits on
+    # the group and clears inner fill colours so shapes inherit it (lines
+    # inside have their stroke recoloured).
     def paint(node, colors)
       case node
       when Transformed
@@ -333,12 +336,50 @@ module Asobi
 
         restyle(node) { |s| Style.paint(s, colors.first) }
       when Many
-        return restyle(node) { |s| Style.paint(s, colors.first) } if colors.size == 1
+        if colors.size == 1
+          color = colors.first
+          return restyle(node) { |s| Style.paint(s, color) } if color.is_a?(Gradient)
 
-        items = node.items.each_with_index.map { |item, i| paint(item, [colors[i % colors.size]]) }
-        Many.new(items, node.style)
+          items = node.items.map { clear_paint(_1, color) }
+          Many.new(items, Style.paint(node.style, color))
+        elsif Style.line_only?(node.style)
+          items = node.items.each_with_index.map do |item, i|
+            c = colors[i % colors.size]
+            restyle(clear_paint(item, c)) { |s| s.merge(fill: "none", stroke: c) }
+          end
+          Many.new(items, node.style)
+        else
+          items = node.items.each_with_index.map { |item, i| paint(item, [colors[i % colors.size]]) }
+          style = node.style[:fill] == "none" ? node.style : node.style.except(:fill)
+          Many.new(items, style)
+        end
       else
         restyle(node) { |s| Style.paint(s, colors.first) }
+      end
+    end
+
+    # Prepare a child of a Many painted with one solid +color+: drop inner fill
+    # colours so they inherit the group's colour, and recolour line-only
+    # pictures directly (since they have fill: "none").
+    def clear_paint(node, color)
+      case node
+      when Transformed
+        art = clear_paint(node.art, color)
+        art.equal?(node.art) ? node : Transformed.new(art, node.matrix)
+      when Styled
+        art = clear_paint(node.art, color)
+        style = Style.clear_paint(node.style, color)
+        return node if art.equal?(node.art) && style.equal?(node.style)
+
+        style.empty? ? art : Styled.new(art, style)
+      when Many
+        items = node.items.map { clear_paint(_1, color) }
+        style = Style.clear_paint(node.style, color)
+        return node if style.equal?(node.style) && items.each_with_index.all? { |item, i| item.equal?(node.items[i]) }
+
+        Many.new(items, style)
+      else
+        node
       end
     end
 
@@ -385,13 +426,20 @@ module Asobi
 
     def clean(style) = style.slice(*ORDER).sort_by { ORDER.index(_1.first) }.to_h.freeze
 
+    def line_only?(style) = style[:fill] == "none" && stroked?(style)
+
     # Colour a picture: its fill, or its line when it has no fill.
     def paint(style, color)
-      if style[:fill] == "none" && style[:stroke] && style[:stroke] != "none"
-        style.merge(stroke: color)
-      else
-        style.merge(fill: color)
-      end
+      line_only?(style) ? style.merge(stroke: color) : style.merge(fill: color)
+    end
+
+    # Drop an explicit fill so a parent group's colour shows through, or
+    # recolour the line when this style is a line only.
+    def clear_paint(style, color)
+      return style.merge(stroke: color) if line_only?(style)
+      return style unless style.key?(:fill) && style[:fill] != "none"
+
+      style.except(:fill)
     end
 
     def stroked?(style) = style[:stroke] && style[:stroke] != "none"
