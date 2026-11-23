@@ -52,5 +52,6 @@ Pieces in `reactions/` react to clicks, keys, the pointer and sound, and some ma
 | `reactions/mic_vj.rb` | a VJ sketch that follows the microphone (`by(:mic, :low)`, `on_beat`) |
 | `reactions/instrument.rb` | bars that play notes when clicked, and drums on the keys a, s, d, f (`sounding`) |
 | `reactions/music_vj.rb` | a VJ sketch that plays its own loop and follows it (`play`, `by(:music, :low)`, `on_beat(:music)`) |
+| `reactions/self_portrait.rb` | a sketch that reads its own code and draws it: every line is a ring of letters, and the music sweeps a light over it |
 
 リポジトリのルートで `ruby exe/asobi examples/flower.rb` を実行すると、ブラウザに回転する花が表示されます。コードを書き換えて保存すると、表示も更新されます。[日本語の使い方](../README.ja.md)
