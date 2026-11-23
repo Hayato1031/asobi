@@ -122,6 +122,9 @@ module AsobiSite
       see_also: "See also", in_this_step: "Words in this step", contents: "Contents", words: "Words",
       picture: "Picture", picture_of: "Picture: %s", code: "Code",
       copy_link: "Copy link", copied: "Link copied", copy_failed: "Copy the address from the address bar",
+      save_svg: "Save SVG", save_html: "Save HTML", saved_svg: "Saved asobi.svg", saved_html: "Saved asobi.html",
+      wait_to_save: "The motion is still being worked out. Try again in a moment.",
+      save_failed: "Could not prepare the file to save.",
       loading_ruby: "Loading Ruby…", ruby_ready: "Ruby is ready", running: "running…",
       ruby_failed: "Ruby could not be loaded. Check the connection and reload the page.",
       too_slow: "This sketch took more than %d seconds, so it was stopped. Is there a loop that never ends?",
@@ -208,6 +211,9 @@ module AsobiSite
       see_also: "関連", in_this_step: "このステップの言葉", contents: "目次", words: "言葉",
       picture: "絵", picture_of: "絵：%s", code: "コード",
       copy_link: "リンクをコピー", copied: "リンクをコピーしました", copy_failed: "アドレスバーから URL をコピーしてください",
+      save_svg: "SVG を保存", save_html: "HTML を保存", saved_svg: "asobi.svg を保存しました", saved_html: "asobi.html を保存しました",
+      wait_to_save: "動きを用意しているところです。少し待ってからもう一度どうぞ。",
+      save_failed: "保存用のファイルを用意できませんでした。",
       loading_ruby: "Ruby を読み込み中…", ruby_ready: "Ruby の準備ができました", running: "実行中…",
       ruby_failed: "Ruby を読み込めませんでした。通信を確かめて、ページを読み込み直してください。",
       too_slow: "%d 秒以上かかったので止めました。終わらないくり返しがないか確かめてください。",
@@ -1958,7 +1964,8 @@ module AsobiSite
     def default_play_code = AsobiSite.display_code(content.home["hero_code"])
 
     def play_config
-      ui_keys = %i[loading_ruby ruby_ready running ruby_failed crashed blocked copied copy_failed every still reacts]
+      ui_keys = %i[loading_ruby ruby_ready running ruby_failed crashed blocked copied copy_failed
+                   save_svg save_html saved_svg saved_html wait_to_save save_failed every still reacts]
       {
         "lang" => @lang.to_s,
         "ui" => ui_keys.to_h { [_1.to_s, ui(_1)] }.merge("too_slow" => ui(:too_slow, PLAY_TIMEOUT),

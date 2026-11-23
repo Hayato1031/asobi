@@ -599,6 +599,36 @@ class SiteTest < Minitest::Test
     assert_equal result["ruby_failed"], https["status"]
     assert_equal 0, https["scripts"], "on https, never Ruby on the page"
     assert_equal 1, result["fileNoWorker"]["scripts"], "on file://, the page engine is the fallback"
+
+    saving = result["saving"]
+    assert_equal saving["saveSvg"], saving["stillLabel"]
+    assert_equal saving["saveHtml"], saving["pendingLabel"]
+    assert_equal saving["waitToSave"], saving["pendingStatus"]
+    assert_equal 1, saving["countWhilePending"], "pending motion is not downloaded yet"
+    assert_equal saving["saveHtml"], saving["dynamicLabel"]
+
+    svg = saving["svgDownload"]
+    assert_equal "asobi.svg", svg["filename"]
+    assert_equal "image/svg+xml;charset=utf-8", svg["mime"]
+    assert_includes svg["content"], '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 24 24"'
+    assert_includes svg["content"], 'width="512" height="512"'
+    assert_includes svg["content"], '<rect x="-12" y="-12" width="24" height="24" fill="white"/>'
+    assert_includes svg["content"], '<circle r="10"/>'
+
+    html = saving["htmlDownload"]
+    assert_equal "asobi.html", html["filename"]
+    assert_equal "text/html;charset=utf-8", html["mime"]
+    assert html["content"].start_with?("<!doctype html>\n")
+    assert_includes html["content"], "/*PLAYER*/"
+    assert_includes html["content"], "<\\/script>"
+    assert_includes html["content"], "\\u003c/script>"
+    assert_includes html["content"], "data:audio/wav;base64,UklGRg=="
+    assert_includes html["content"], '"volume":0.5'
+    assert_equal ["assets/beat.wav", "assets/player.js"], saving["fetched"].sort
+    refute_includes saving["afterAttackDownload"]["content"], "onerror", "attack frames never enter a download"
+    assert_includes read("playground.html"), 'id="download"'
+    assert_includes read("ja/playground.html"), "HTML を保存"
+    assert_includes read("ja/playground.html"), "SVG を保存"
   end
 
   # The player's reacting parts and sound analysis, without a browser (test/web/player-check.js).

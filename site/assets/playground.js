@@ -21,14 +21,24 @@
 
   // A small truthful readout in the bar: which frame is on screen, how long a loop is.
   var fcEl = document.getElementById("play-fc");
+  var downloadBtn = document.getElementById("download");
   var onScreen = null;
+  function isDynamic(reel) {
+    return !!(reel && (reel.frames.length > 1 || reel.parts || reel.song));
+  }
+  function updateDownloadButton() {
+    if (!downloadBtn) return;
+    if (!onScreen) { downloadBtn.disabled = true; return; }
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = (onScreen.pending || isDynamic(onScreen)) ? U.save_html : U.save_svg;
+  }
   function show(reel) {
     // The song the site ships (play "beat.wav") has a src from the site's
     // root: put this page's assets folder in front, so it plays from /ja/ too.
     var s = reel && reel.song;
     if (s && typeof s.src === "string" && /^assets\//.test(s.src)) s.src = cfg.assets + s.src.slice(7);
     player.update(reel);
-    if (reel && !reel.error && reel.frames) onScreen = reel;
+    if (reel && !reel.error && reel.frames) { onScreen = reel; updateDownloadButton(); }
   }
   (function readout() {
     if (onScreen && fcEl) {
@@ -433,6 +443,122 @@
     if (engine) request(); else { shownFor = null; showPrebuilt(cfg.defaultCode); }
     editor.focus();
   });
+
+  // ---- saving: build SVG or standalone HTML strictly from the checked Reel ----
+  // Never ask Ruby for the file: onScreen has already passed AsobiSafeReel, so
+  // only asobi's own SVG and verified fields can ever end up in a download.
+  function fmtNumber(n) {
+    var r = Math.round(Number(n) * 1000) / 1000;
+    if (r === 0) r = 0;
+    return String(r);
+  }
+  function escapeAttr(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function buildSvg(reel) {
+    var v = reel.view, x = v[0], y = v[1], w = v[2], h = v[3];
+    var k = 512 / Math.max(w, h, 1e-9);
+    var bg = reel.background;
+    var rect = bg && bg !== "none" && bg !== "transparent"
+      ? '<rect x="' + fmtNumber(x) + '" y="' + fmtNumber(y) + '" width="' + fmtNumber(w) + '" height="' + fmtNumber(h) + '" fill="' + escapeAttr(bg) + '"/>'
+      : "";
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + [x, y, w, h].map(fmtNumber).join(" ") + '" ' +
+      'width="' + fmtNumber(w * k) + '" height="' + fmtNumber(h * k) + '" ' +
+      'stroke-linejoin="round" stroke-linecap="round">' +
+      rect + reel.frames[0] + "</svg>\n";
+  }
+  function scriptJson(data) {
+    return JSON.stringify(data).replace(/</g, "\\u003c");
+  }
+  function buildHtml(reel, playerJs, songDataUri) {
+    var copy = {
+      frames: reel.frames,
+      fps: reel.fps,
+      view: reel.view,
+      background: reel.background,
+      code: reel.code,
+      error: null
+    };
+    if (reel.controls === false) copy.controls = false;
+    if (reel.parts) copy.parts = reel.parts;
+    if (reel.song && songDataUri) {
+      copy.song = { id: reel.song.id, src: songDataUri };
+      if (typeof reel.song.volume === "number") copy.song.volume = reel.song.volume;
+    }
+    var safePlayer = String(playerJs).replace(/<\/script/gi, "<\\/script");
+    return "<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" +
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" +
+      "<title>asobi</title>\n<style>\n" +
+      "  html, body { margin: 0; height: 100%; overflow: hidden; }\n" +
+      "  #stage { position: fixed; inset: 0; }\n" +
+      "</style>\n</head>\n<body>\n<div id=\"stage\"></div>\n" +
+      "<script>" + safePlayer + "</script>\n<script>\n" +
+      "  AsobiPlayer.mount(document.getElementById(\"stage\")).update(" + scriptJson(copy) + ");\n" +
+      "</script>\n</body>\n</html>\n";
+  }
+  var cachedPlayerJs = null;
+  function fetchPlayerJs() {
+    if (cachedPlayerJs) return cachedPlayerJs;
+    return cachedPlayerJs = fetch(cfg.assets + "player.js").then(function (r) {
+      if (!r.ok) throw new Error("player.js: " + r.status);
+      return r.text();
+    }).catch(function (e) { cachedPlayerJs = null; throw e; });
+  }
+  var songDataCache = {};
+  function songMime(src, response) {
+    var ct = response && response.headers && response.headers.get && response.headers.get("content-type");
+    if (ct && /^audio\//i.test(ct)) return ct.split(";")[0].trim();
+    if (/\.mp3$/i.test(src)) return "audio/mpeg";
+    if (/\.ogg$/i.test(src)) return "audio/ogg";
+    return "audio/wav";
+  }
+  function fetchSongDataUri(src) {
+    if (typeof src !== "string" || src.indexOf(cfg.assets) !== 0 || /\.\./.test(src.slice(cfg.assets.length))) {
+      return Promise.reject(new Error("unexpected song path"));
+    }
+    if (songDataCache[src]) return songDataCache[src];
+    return songDataCache[src] = fetch(src).then(function (r) {
+      if (!r.ok) throw new Error("song: " + r.status);
+      var mime = songMime(src, r);
+      return r.arrayBuffer().then(function (buf) {
+        var bytes = new Uint8Array(buf), bin = "";
+        for (var i = 0; i < bytes.length; i += 0x8000) {
+          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        }
+        return "data:" + mime + ";base64," + btoa(bin);
+      });
+    }).catch(function (e) { delete songDataCache[src]; throw e; });
+  }
+  function triggerDownload(content, mime, filename) {
+    var blob = new Blob([content], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", function () {
+      var reel = onScreen;
+      if (!reel) return;
+      if (reel.pending) { status(U.wait_to_save, 3000); return; }
+      if (!isDynamic(reel)) {
+        triggerDownload(buildSvg(reel), "image/svg+xml;charset=utf-8", "asobi.svg");
+        status(U.saved_svg, 3000);
+        return;
+      }
+      var songPromise = reel.song && reel.song.src ? fetchSongDataUri(reel.song.src) : Promise.resolve(null);
+      Promise.all([fetchPlayerJs(), songPromise]).then(function (both) {
+        triggerDownload(buildHtml(reel, both[0], both[1]), "text/html;charset=utf-8", "asobi.html");
+        status(U.saved_html, 3000);
+      }, function () {
+        status(U.save_failed, 4000);
+      });
+    });
+  }
 
   // ---- WebMCP: allow AI agents to run & inspect Ruby sketches in ruby.wasm ----
   function setupPlaygroundWebMCP() {
