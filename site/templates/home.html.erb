@@ -10,7 +10,9 @@
     <div class="cta">
       <a class="btn primary" href="<%= href("playground") %>"><%= ui(:play) %></a>
       <a class="btn" href="<%= href("guide") %>"><%= ui(:get_started) %></a>
+<%- if home["films"].any? { _1["first"] } -%>
       <a class="film-link" href="#film"><%= ui(:watch_film) %></a>
+<%- end -%>
     </div>
     <div class="install-line"><span class="ps" aria-hidden="true">$</span><code id="install-cmd">gem install asobi</code><button type="button" class="small" data-copy="install-cmd" data-copied="<%= h(ui(:copied_short)) %>"><%= ui(:copy) %></button></div>
     <p class="install-note"><%= inline(t(home["install"])) %> <a href="<%= RUBYGEMS_URL %>"><%= ui(:view_gem) %></a></p>
@@ -35,18 +37,53 @@
   <script type="application/json" id="stage-data"><%= script_json(pieces.map { _1.except("code") }) %></script>
 </section>
 
+<%- films = home["films"] -%>
+<%- if (top = films.find { _1["first"] }) -%>
 <section class="band film" id="film" aria-labelledby="film-title">
   <div>
-    <p class="label"><%= ui(:film_info) %></p>
-    <h2 id="film-title" lang="en">Your Objects</h2>
-    <p id="film-description"><%= ui(:film_description) %></p>
+    <p class="label"><%= ui(:film_info, top["seconds"]) %></p>
+    <h2 id="film-title" lang="en"><%= h(top["title"]) %></h2>
+    <p id="film-description"><%= h(t(top["description"])) %></p>
   </div>
-  <video controls playsinline preload="none" width="1920" height="1080"
+  <video controls playsinline preload="none" width="<%= top["width"] %>" height="<%= top["height"] %>"
          aria-labelledby="film-title" aria-describedby="film-description"
-         poster="<%= root %>assets/your-objects-poster.png" src="<%= root %>assets/your-objects.mp4">
-    <a href="<%= root %>assets/your-objects.mp4"><%= ui(:watch_film) %> (MP4)</a>
+         poster="<%= root %>assets/<%= top["id"] %>-poster.png" src="<%= root %>assets/<%= top["id"] %>.mp4">
+    <a href="<%= root %>assets/<%= top["id"] %>.mp4"><%= ui(:watch_film) %> (MP4)</a>
   </video>
 </section>
+<%- end -%>
+<%- unless films.empty? -%>
+<section class="band films" id="films" aria-labelledby="films-title">
+  <h2 class="label" id="films-title"><%= ui(:films_label) %></h2>
+<%- if films.size > 1 -%>
+  <div class="film-tabs" role="tablist" aria-labelledby="films-title" hidden>
+<%- films.each_with_index do |film, i| -%>
+    <button type="button" role="tab" id="film-tab-<%= film["id"] %>" aria-controls="film-<%= film["id"] %>" aria-selected="<%= i.zero? %>"<%= ' tabindex="-1"' unless i.zero? %>>
+      <img src="<%= root %>assets/<%= film["id"] %>-poster.png" alt="" width="<%= film["width"] %>" height="<%= film["height"] %>" loading="lazy" decoding="async">
+      <span class="film-tab-text">
+        <span class="film-tab-meta"><%= h(ui(:film_version, film["version"])) %></span>
+        <span class="film-tab-title" lang="en"><%= h(film["title"]) %></span>
+      </span>
+    </button>
+<%- end -%>
+  </div>
+<%- end -%>
+<%- films.each do |film| -%>
+  <div class="film" id="film-<%= film["id"] %>"<%= %( role="tabpanel" aria-labelledby="film-tab-#{film["id"]}") if films.size > 1 %>>
+    <div>
+      <p class="label"><%= h(ui(:film_version, film["version"])) %> · <%= ui(:film_info, film["seconds"]) %></p>
+      <h3 id="film-title-<%= film["id"] %>" lang="en"><%= h(film["title"]) %></h3>
+      <p id="film-description-<%= film["id"] %>"><%= h(t(film["description"])) %></p>
+    </div>
+    <video controls playsinline preload="none" width="<%= film["width"] %>" height="<%= film["height"] %>"
+           aria-labelledby="film-title-<%= film["id"] %>" aria-describedby="film-description-<%= film["id"] %>"
+           poster="<%= root %>assets/<%= film["id"] %>-poster.png" src="<%= root %>assets/<%= film["id"] %>.mp4">
+      <a href="<%= root %>assets/<%= film["id"] %>.mp4"><%= ui(:watch_film) %> (MP4)</a>
+    </video>
+  </div>
+<%- end -%>
+</section>
+<%- end -%>
 <%- unless home["press"].empty? -%>
 <%- top, *more = home["press"] -%>
 
@@ -238,3 +275,4 @@
   <p><%= ui(:pr_invitation) %> <a href="<%= GITHUB_URL %>/fork"><%= ui(:fork_repo) %></a></p>
 </section>
 <script src="<%= root %>assets/home.js" defer></script>
+<script src="<%= root %>assets/films.js" defer></script>

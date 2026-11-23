@@ -306,12 +306,33 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
   .press-quote { padding-top: var(--s5); }
   .press-more li { grid-template-columns: 1fr; gap: var(--s1); }
 }
-.film { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--s6); align-items: center; scroll-margin-top: 60px; }
+/* The films. One stands alone (.band.film). Under it, one film per version:
+   every one is on the page, one under the other, and films.js turns them
+   into tabs (one film in view, small posters to switch). */
+.films { scroll-margin-top: 60px; }
+.films > .label { margin: 0 0 var(--s4); }
 .film h2 { font-size: clamp(32px, 4vw, 48px); }
 .film h2 + p { margin: var(--s3) 0 0; color: var(--ink-2); }
+.film { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--s6); align-items: center; scroll-margin-top: 60px; }
+.film + .film { margin-top: var(--s7); }
+.film[hidden] { display: none; }
+.film h3 { font-size: clamp(32px, 4vw, 48px); }
+.film h3 + p { margin: var(--s3) 0 0; color: var(--ink-2); }
 .film video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--rule); }
+.film-tabs { display: flex; flex-wrap: wrap; gap: var(--s3); margin-bottom: var(--s5); }
+.film-tabs[hidden] { display: none; }
+.film-tabs button { display: flex; align-items: center; gap: var(--s3); padding: 6px 14px 6px 6px; font: inherit; text-align: left;
+  color: var(--ink-2); background: none; border: 1px solid var(--rule); cursor: pointer; }
+.film-tabs button:hover { color: var(--ink); border-color: var(--ink-3); }
+.film-tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--signal); }
+.film-tabs button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.film-tabs img { display: block; width: 96px; height: 54px; object-fit: cover; background: #000; }
+.film-tab-text { display: grid; gap: 2px; }
+.film-tab-title { font-size: 16px; font-weight: 600; }
+.film-tab-meta { font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 @media (max-width: 760px) {
   .film { grid-template-columns: 1fr; gap: var(--s4); }
+  .film-tabs img { width: 64px; height: 36px; }
 }
 .band-head { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--s5); align-items: baseline; margin-bottom: var(--s7); }
 .band-head h2 { font-size: clamp(32px, 4vw, 44px); }

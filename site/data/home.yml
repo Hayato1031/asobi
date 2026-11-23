@@ -30,6 +30,32 @@ stage: [neon_flower, aurora, through_a_heart, night_sky]
 # A glimpse of the gallery further down the home page.
 gallery: [planets, tiles, paper_cutouts]
 
+# The films of the home page, one per version of asobi, newest first. Each
+# needs site/assets/<id>.mp4 and site/assets/<id>-poster.png. They share one
+# frame with a tab each; the newest is in view and marked "New". The one with
+# `first: true` says what asobi is, so it also stands alone above them.
+# To add a film: put its two files in site/assets and add an entry at the top.
+films:
+  - id: play
+    title: Play
+    version: "0.2"
+    seconds: 60
+    size: [1280, 720]
+    date: "2026-11-23T02:00:00+09:00"
+    description:
+      en: "A dot waits for a click and plays its first note. Eight dots become an instrument, three keys a drum kit. Then a song starts, and ten sketches move to its kick, its chords and its hats."
+      ja: "クリックを待つ点が、最初の音を鳴らします。8つの点は楽器に、3つのキーはドラムに。そして曲が始まり、10枚のスケッチがキックと和音とハットに合わせて動きます。"
+  - id: your-objects
+    title: Your Objects
+    version: "0.1"
+    seconds: 32
+    size: [1920, 1080]
+    date: "2026-11-11T22:50:00+09:00"
+    first: true
+    description:
+      en: "Three numbers become three circles. A Flower object trades its petals for stars, then spins and leaves a trail of light."
+      ja: "3つの数字が3つの円に。Flower オブジェクトの花びらが星に変わり、回転しながら光の軌跡を描きます。"
+
 # Where asobi has been featured, newest first, shown just below the film.
 # The first entry is shown large, as a quote of the words they wrote, so it needs `quote`
 # (in their language; `translation` is shown on the pages in other languages).
