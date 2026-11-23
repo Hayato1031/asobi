@@ -54,6 +54,12 @@ module Asobi
     # Motion.shared_peak).
     attr_reader :peak
 
+    # True when the motion has a flash in it (flash jumps bright the moment
+    # it starts, so it cannot follow a value: see Reaction#by). Carried like
+    # peak, but kept by every way of putting motions together: one flash
+    # anywhere makes it true. Internal.
+    attr_reader :flashes
+
     # The picture at +seconds+ (any number; it repeats every +every+ seconds).
     def at(seconds = 0)
       Check.number(seconds, word: :at, name: :seconds, example: "motion.at(0.5)")
@@ -169,10 +175,11 @@ module Asobi
       tidy = gap.nil?
       gap = tidy ? TRAIL_GAP : Check.number(gap, word: :trail, name: :gap, example: "trail(count: 5, gap: 0.1)", min: 0)
       source = self
+      flashes = @flashes
       stagger = @stagger && ->(g) { source.stagger_by(g).trail(count: n, gap: tidy ? nil : gap) }
       # (no peak: the earlier moments drawn under it are never at rest)
       moment = ->(seconds) { Memo.at(source, tidy ? seconds.round(9) : seconds) }
-      Motion.build(every, stagger:) do |t|
+      Motion.build(every, stagger:, flashes:) do |t|
         layers = n.downto(1).map do |k|
           fade = (TRAIL_FIRST - (TRAIL_FIRST - TRAIL_FAINTEST) * (k - 1) / [n - 1, 1].max).round(6)
           Asobi.restyle(moment.call(t - k * gap)) { |s| s.merge(opacity: ((s[:opacity] || 1.0) * fade).round(6)) }
@@ -193,9 +200,10 @@ module Asobi
     class << self
       # A Motion without the checks, for asobi's own words. +stagger+ is a
       # proc(gap) that rebuilds this motion with its last word staggered.
-      # +peak+ is the seconds where it is farthest out (see Motion#peak).
-      def build(every, stagger: nil, peak: nil, &function)
-        allocate.tap { _1.send(:setup, every.to_f, function, stagger, peak) }
+      # +peak+ is the seconds where it is farthest out (see Motion#peak);
+      # +flashes+ is true when it has a flash in it (see Motion#flashes).
+      def build(every, stagger: nil, peak: nil, flashes: false, &function)
+        allocate.tap { _1.send(:setup, every.to_f, function, stagger, peak, flashes) }
       end
 
       # Like Asobi.art, but a Motion (or anything that becomes one) is
@@ -242,7 +250,7 @@ module Asobi
             end
           end
         peak = shared_peak(motions.map { [_1.every, _1.peak] })
-        build(lcm_period(motions.map(&:every)), stagger:, peak:) do |t|
+        build(lcm_period(motions.map(&:every)), stagger:, peak:, flashes: motions.any?(&:flashes)) do |t|
           block.call(parts.map { _1.is_a?(Motion) ? _1.at(t) : _1 })
         end
       end
@@ -251,16 +259,17 @@ module Asobi
       # and answers that picture at that point of the loop. +farthest+ is
       # the phase where the word is farthest out, for a word that goes out
       # and comes back (pulse: 0.5), or nil for one that goes one way round.
-      def word(receiver, period, farthest: nil, &effect)
+      def word(receiver, period, farthest: nil, flash: false, &effect)
         source = reach(receiver)
         period = period.to_f
         every = source.is_a?(Motion) ? lcm_period([source.every, period]) : period
         loops = [[period, farthest && period * farthest]]
         loops << [source.every, source.peak] if source.is_a?(Motion)
         peak = shared_peak(loops)
+        flashes = flash || (source.is_a?(Motion) && source.flashes)
         make = lambda do |gap|
           # Staggered, the pictures are never all at rest at once: no peak.
-          build(every, stagger: gap ? nil : make, peak: gap ? nil : peak) do |t|
+          build(every, stagger: gap ? nil : make, peak: gap ? nil : peak, flashes:) do |t|
             node = source.is_a?(Motion) ? source.at(t) : source
             if gap && node.is_a?(Many) && node.size > 1
               step = gap == :even ? period / node.size : gap
@@ -366,11 +375,12 @@ module Asobi
 
     private
 
-    def setup(every, function, stagger, peak)
+    def setup(every, function, stagger, peak, flashes = false)
       @every = every
       @function = function
       @stagger = stagger
       @peak = peak
+      @flashes = flashes
       # Each motion takes one seed from the run's random sequence when it is
       # made, so it is the same in every evaluation of the same sketch.
       @seed = ::Random.new(Asobi::Random.next_seed).rand(1 << 64)
@@ -425,14 +435,43 @@ module Asobi
     end
 
     # Fade to +to+ (0 is invisible, 1 is solid) and back.
-    def fade(every_ = nil, every: every_ || 2, to: 0.2)
+    # With +from:+, fades from +from+ to +to+ (1 if left out) and back,
+    # replacing any opacity the picture already had. Without +from:+,
+    # multiplies the picture's own opacity from 1 to +to+ (0.2 if left out).
+    def fade(every_ = nil, every: every_ || 2, from: nil, to: nil)
       period = Motion.seconds(every, :fade, :every, "fade(every: 2, to: 0.2)")
-      Check.number(to, word: :fade, name: :to, example: "fade(every: 2, to: 0.2)", min: 0, max: 1)
-      Motion.word(self, period, farthest: 0.5) do |art, p|
-        amount = (1 - (1 - to) * Asobi.swell(p)).round(9) # so fade(to: 0.2) reaches exactly 0.2
-        next art if amount == 1
+      if from.nil?
+        target = to.nil? ? 0.2 : Check.number(to, word: :fade, name: :to, example: "fade(every: 2, to: 0.2)", min: 0, max: 1)
+        Motion.word(self, period, farthest: 0.5) do |art, p|
+          amount = (1 - (1 - target) * Asobi.swell(p)).round(9) # so fade(to: 0.2) reaches exactly 0.2
+          next art if amount == 1
 
-        Asobi.restyle(art) { |s| s.merge(opacity: (s[:opacity] || 1.0) * amount) }
+          Asobi.restyle(art) { |s| s.merge(opacity: (s[:opacity] || 1.0) * amount) }
+        end
+      else
+        example = "fade(from: 0, to: 1, every: 2)"
+        start = Check.number(from, word: :fade, name: :from, example:, min: 0, max: 1)
+        target = to.nil? ? 1.0 : Check.number(to, word: :fade, name: :to, example:, min: 0, max: 1)
+        Motion.word(self, period, farthest: 0.5) do |art, p|
+          amount = (start + (target - start) * Asobi.swell(p)).round(9)
+          Asobi.restyle(art) { |s| s.merge(opacity: amount) }
+        end
+      end
+    end
+
+    # Stay at +from+ (0, invisible, by default) at rest, jump to +to+ (1)
+    # when it starts, and fade back down to +from+. Built for beats, clicks
+    # and keys (on_beat, when_clicked), and blinks on the clock too.
+    #   dot.flash.on_beat(:music)
+    #   ring.flash(from: 0.15, every: 0.4).on_beat(:music)
+    def flash(every_ = nil, every: every_ || 0.5, from: 0, to: 1)
+      period = Motion.seconds(every, :flash, :every, "flash(every: 0.5)")
+      example = "flash(every: 0.5, from: 0, to: 1)"
+      start = Check.number(from, word: :flash, name: :from, example:, min: 0, max: 1)
+      target = Check.number(to, word: :flash, name: :to, example:, min: 0, max: 1)
+      Motion.word(self, period, flash: true) do |art, p|
+        amount = (p.zero? ? start : start + (target - start) * (1 - p)**2).round(9)
+        Asobi.restyle(art) { |s| s.merge(opacity: amount) }
       end
     end
 
@@ -467,7 +506,8 @@ module Asobi
     # Change colour from +from+ (black if not given) to +to+ and back.
     #   shift_color(:gold)           black, gold, black ...
     #   shift_color(:navy, :gold)    navy, gold, navy ...
-    def shift_color(first = nil, second = nil, from: nil, to: nil, every: 4)
+    # With all: true the colour wins inside a group too, as colored(all: true).
+    def shift_color(first = nil, second = nil, from: nil, to: nil, every: 4, all: false)
       if second.nil?
         to ||= first
       else
@@ -479,7 +519,17 @@ module Asobi
       period = Motion.seconds(every, :shift_color, :every, "shift_color(to: :crimson, every: 4)")
       Color.css(from)
       Color.css(to)
-      Motion.word(self, period, farthest: 0.5) { |art, p| Asobi.paint(art, [Color.mix(from, to, Asobi.swell(p))]) }
+      all = Asobi.all_option(all, word: :shift_color, example: "row.shift_color(:navy, :gold, all: true)")
+      source = Motion.reach(self)
+      if all && !source.is_a?(Motion)
+        # On a still picture the colours inside are cleared once, here, not
+        # at every frame. When nothing inside follows the colour after that
+        # (no lines: clearing again changes nothing), each frame only paints
+        # the outside, as without all:.
+        source = Asobi.clear_paint(source, nil)
+        all = !Asobi.clear_paint(source, "black").equal?(source)
+      end
+      Motion.word(source, period, farthest: 0.5) { |art, p| Asobi.paint(art, [Color.mix(from, to, Asobi.swell(p))], all:) }
     end
 
     # Your own motion. The block gets the picture and t, which runs from

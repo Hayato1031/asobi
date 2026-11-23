@@ -34,13 +34,22 @@ class LiveTest < Minitest::Test
   end
 
   # Live.run in a thread, on a free port; answers the server.
-  def start_run
+  def start_run(**options)
     ready = Queue.new
     @runner = Thread.new do
-      Asobi::Live.run(@path, port: 0, open: false, out: StringIO.new) { |server| ready << server }
+      Asobi::Live.run(@path, port: 0, open: false, out: StringIO.new, **options) { |server| ready << server }
     end
     @runner.report_on_exception = false
     @server = Timeout.timeout(5) { ready.pop }
+  end
+
+  def write_file(rel, source)
+    full = File.join(@dir, rel)
+    FileUtils.mkdir_p(File.dirname(full))
+    File.write(full, source, encoding: "UTF-8")
+    t = Time.now + (@bump = (@bump || 0) + 1)
+    File.utime(t, t, full)
+    full
   end
 
   def get(path)
@@ -514,5 +523,203 @@ class LiveTest < Minitest::Test
     stream.next_event
     @server.stop
     assert_raises(EOFError, Errno::ECONNRESET) { stream.next_event(1) }
+  end
+
+  # --- safety: cooperative cancel and endless-loop timeouts --------------------
+
+  def test_endless_loop_times_out_and_saving_a_fix_recovers
+    write "show circle(radius: 7)\n"
+    start_run(timeout: 0.3, finish_timeout: 1.0)
+    stream = events
+    assert_equal ['<circle r="7"/>'], stream.next_event["frames"]
+
+    # Even when the sketch rescues StandardError, the timeout stops it.
+    write "begin\n  loop {}\nrescue StandardError\n  retry\nend\nshow circle(radius: 8)\n"
+    broken = stream.next_event(3)
+    assert_includes broken["error"], "live_sketch.rb"
+    assert_includes broken["error"], "0.3 seconds"
+    assert_includes broken["error"], "loop that never ends"
+    assert_includes broken["code"], "loop {}"
+
+    # A new tab still gets the last good picture first, then the timeout error.
+    late = events
+    assert_equal ['<circle r="7"/>'], late.next_event["frames"]
+    assert_includes late.next_event["error"], "0.3 seconds"
+
+    write "show circle(radius: 9)\n"
+    fixed = stream.next_event(3)
+    assert_nil fixed["error"]
+    assert_equal ['<circle r="9"/>'], fixed["frames"]
+  end
+
+  def test_timeout_message_is_localized_in_japanese
+    write "loop {}\n"
+    in_language(:ja) do
+      reel = Asobi::Live.evaluate(@path, timeout: 0.2)
+      assert_includes reel["error"], "0.2 秒以上"
+      assert_includes reel["error"], "例："
+    end
+  end
+
+  def test_endless_loop_during_whole_reel_build_times_out_and_recovers
+    write "show circle(radius: 7)\n"
+    start_run(timeout: 2.0, finish_timeout: 0.4)
+    stream = events
+    stream.next_event
+
+    # With paper:, preview only renders t == 0; frame 1 hangs inside finish_some.
+    write "show circle(radius: 4).animate(2) { |c, t| loop {} if t > 0; c }, paper: [100, 100]\n"
+    assert stream.next_event(3)["pending"]
+    timed_out = stream.next_event(3)
+    assert_includes timed_out["error"], "0.4 seconds" # one slice stuck for finish_timeout
+    refute Asobi::Sketch.waiting?
+
+    write "show circle(radius: 11)\n"
+    assert_equal ['<circle r="11"/>'], stream.next_event(3)["frames"]
+  end
+
+  # As in the playground, only one slice stuck for finish_timeout stops the
+  # build: a slow whole Reel that keeps going finishes, however long it takes.
+  def test_slow_whole_reel_that_keeps_going_still_finishes
+    write "show circle(radius: 7)\n"
+    start_run(timeout: 5.0, finish_timeout: 0.3)
+    stream = events
+    stream.next_event
+
+    # 59 frames of 0.02 s: about 1.2 s in all, each slice well under 0.3 s.
+    write "show circle(radius: 4).animate(2) { |c, t| sleep 0.02 if t > 0; c }, paper: [100, 100]\n"
+    assert stream.next_event(3)["pending"]
+    whole = stream.next_event(5)
+    assert_nil whole["error"]
+    refute whole.key?("pending")
+    assert_equal 60, whole["frames"].size
+  end
+
+  def test_saving_during_a_hung_whole_reel_recovers_promptly
+    write "show circle(radius: 7)\n"
+    start_run(timeout: 5.0, finish_timeout: 10.0)
+    stream = events
+    stream.next_event
+
+    write "show circle(radius: 4).animate(2) { |c, t| loop {} if t > 0; c }, paper: [100, 100]\n"
+    assert stream.next_event(3)["pending"]
+    write "show circle(radius: 12)\n"
+    newest = stream.next_event(3)
+    assert_nil newest["error"]
+    assert_equal ['<circle r="12"/>'], newest["frames"]
+    refute Asobi::Sketch.waiting?
+  end
+
+  # --- watching local require_relative files -----------------------------------
+
+  def test_editing_a_required_local_file_and_nested_file_hot_reloads
+    write_file "parts/palette.rb", "module LiveReloadTestMod\n  def self.color = :red\nend\n"
+    write_file "helper.rb", "require_relative 'parts/palette'\nmodule LiveReloadTestMod\n  def self.dot = Asobi.circle(5).colored(color)\nend\n"
+    write "require_relative 'helper'\nshow LiveReloadTestMod.dot\n"
+    start_run
+    stream = events
+    assert_includes stream.next_event["frames"].first, "red"
+
+    # Editing the nested required file triggers a reload.
+    write_file "parts/palette.rb", "module LiveReloadTestMod\n  def self.color = :gold\nend\n"
+    assert_includes stream.next_event(3)["frames"].first, "gold"
+
+    # A syntax error in a required file shows an error and fixing that file recovers.
+    write_file "helper.rb", "def broken(\n"
+    assert stream.next_event(3)["error"]
+    write_file "helper.rb", "require_relative 'parts/palette'\nmodule LiveReloadTestMod\n  def self.dot = Asobi.circle(6).colored(color)\nend\n"
+    recovered = stream.next_event(3)
+    assert_nil recovered["error"]
+    assert_includes recovered["frames"].first, 'r="6"'
+    assert_includes recovered["frames"].first, "gold"
+
+    # Unrelated files in the same folder do not trigger a reload.
+    write_file "unrelated.rb", "1 + 1\n"
+    assert_raises(Timeout::Error) { stream.next_event(0.8) }
+
+    # Removing require_relative stops watching that file.
+    write "show circle(radius: 3)\n"
+    assert_equal ['<circle r="3"/>'], stream.next_event(3)["frames"]
+    write_file "helper.rb", "raise 'should not reload'\n"
+    assert_raises(Timeout::Error) { stream.next_event(0.8) }
+  ensure
+    Asobi::Live.unload(Asobi::Live.local_requires(@path))
+  end
+
+  # Every save loads the local files again. The top-level constants they
+  # made go first, so a Struct subclass is no "superclass mismatch" and
+  # nothing is "already initialized".
+  def test_reloading_a_helper_makes_its_classes_and_constants_afresh
+    helper = lambda do |color, step|
+      <<~RUBY
+        LIVE_RELOAD_COLOR = :#{color}
+        LiveReloadStep = Data.define(:x)
+        class LiveReloadPlanet < Struct.new(:size)
+          def to_art = Asobi.circle(size).colored(LIVE_RELOAD_COLOR).move(right: LiveReloadStep.new(#{step}).x)
+        end
+      RUBY
+    end
+    stderr = $stderr
+    $stderr = errors = StringIO.new
+    write_file "helper.rb", helper.call(:red, 10)
+    write "require_relative 'helper'\nshow LiveReloadPlanet.new(5)\n"
+    start_run
+    stream = events
+    assert_includes stream.next_event["frames"].first, "red"
+
+    write "require_relative 'helper'\nshow LiveReloadPlanet.new(6)\n"
+    saved = stream.next_event(3)
+    assert_nil saved["error"]
+    assert_includes saved["frames"].first, 'r="6"'
+
+    write_file "helper.rb", helper.call(:gold, 20)
+    changed = stream.next_event(3)
+    assert_nil changed["error"]
+    assert_includes changed["frames"].first, "gold"
+    assert_includes changed["frames"].first, "20"
+    refute_match(/already initialized|previous definition/, errors.string)
+  ensure
+    $stderr = stderr if stderr
+    @server&.stop
+    @runner&.join(3)
+    Asobi::Live.unload(Asobi::Live.local_requires(@path))
+    %i[LIVE_RELOAD_COLOR LiveReloadStep LiveReloadPlanet].each do |name|
+      Object.send(:remove_const, name) if Object.const_defined?(name, false)
+    end
+  end
+
+  def test_local_requires_never_includes_asobi_library
+    root_sketch = File.expand_path("../play.rb", __dir__)
+    found = Asobi::Live.local_requires(root_sketch)
+    assert(found.none? { _1.include?("/lib/asobi") }, found.inspect)
+  end
+
+  # A sketch saved where Ruby is installed (or beside gems) has no parts
+  # from Ruby's own library.
+  def test_local_requires_never_includes_ruby_itself
+    sketch = File.join(RbConfig::CONFIG["prefix"], "play.rb")
+    ruby = RbConfig::CONFIG.values_at("rubylibdir", "archdir").flat_map { [_1, File.realpath(_1)] }.map { File.join(_1, "") }
+    assert($LOADED_FEATURES.any? { |file| file.start_with?(*ruby) }, "some of Ruby's own library is loaded")
+    found = Asobi::Live.local_requires(sketch)
+    assert(found.none? { |file| file.start_with?(*ruby) }, found.inspect)
+  end
+
+  # A lib/ folder on the load path holds a library even inside the sketch's
+  # folder: what require finds there is no part, a require_relative file is.
+  def test_local_requires_skips_a_library_folder_on_the_load_path
+    lib = File.join(@dir, "lib")
+    write_file "lib/live_lib_thing.rb", "# a library\n"
+    write_file "parts/live_part.rb", "# a part of the sketch\n"
+    write "require 'live_lib_thing'\nrequire_relative 'parts/live_part'\nshow circle\n"
+    $LOAD_PATH.unshift(lib)
+    assert_nil Asobi::Live.evaluate(@path)["error"]
+    assert($LOADED_FEATURES.any? { _1.end_with?("/lib/live_lib_thing.rb") }, "required from lib")
+    found = Asobi::Live.local_requires(@path)
+    assert(found.any? { _1.end_with?("/parts/live_part.rb") }, found.inspect)
+    assert(found.none? { _1.end_with?("/live_lib_thing.rb") }, found.inspect)
+  ensure
+    $LOAD_PATH.delete(lib)
+    here = [@dir, File.realpath(@dir)].map { "#{_1}/" }
+    $LOADED_FEATURES.reject! { _1.start_with?(*here) } # only what this test loaded
   end
 end

@@ -7,7 +7,7 @@ require "rbconfig"
 class MotionTest < Minitest::Test
   WORDS = {
     spin: ->(a) { a.spin }, pulse: ->(a) { a.pulse }, sway: ->(a) { a.sway }, orbit: ->(a) { a.orbit },
-    fade: ->(a) { a.fade }, bounce: ->(a) { a.bounce }, drift: ->(a) { a.drift },
+    fade: ->(a) { a.fade }, flash: ->(a) { a.flash }, bounce: ->(a) { a.bounce }, drift: ->(a) { a.drift },
     shift_color: ->(a) { a.shift_color }, animate: ->(a) { a.animate { |pic, t| pic.rotate(t * 360) } }
   }.freeze
 
@@ -73,6 +73,7 @@ class MotionTest < Minitest::Test
     assert_equal 2.0, circle.sway.every
     assert_equal 4.0, circle.orbit.every
     assert_equal 2.0, circle.fade.every
+    assert_equal 0.5, circle.flash.every
     assert_equal 1.0, circle.bounce.every
     assert_equal 4.0, circle.drift.every
     assert_equal 4.0, circle.shift_color.every
@@ -126,8 +127,34 @@ class MotionTest < Minitest::Test
     assert_equal circle, f.at(0)
     assert_equal circle.opacity(0.2), f.at(1)
     assert_equal circle.opacity(0.5), circle.fade(to: 0.5).at(1)
-    # it multiplies an opacity already there
+    # it multiplies an opacity already there when from: is omitted
     assert_equal circle.opacity(0.1), circle.opacity(0.5).fade.at(1)
+    # with from:, it replaces the opacity so opacity(0) can come back
+    rising = circle.fade(from: 0, to: 1)
+    assert_equal circle.opacity(0), rising.at(0)
+    assert_equal circle.opacity(1), rising.at(1)
+    assert_equal circle.opacity(0), rising.at(2)
+    assert_equal circle.opacity(1), circle.opacity(0).fade(from: 0, to: 1).at(1)
+    assert_equal circle.opacity(1), circle.fade(from: 0).at(1) # to: defaults to 1 when from: is given
+    assert_equal circle.opacity(0.3), circle.fade(from: 0.3, to: 0.9).at(0)
+    assert_equal circle.opacity(0.9), circle.fade(from: 0.3, to: 0.9).at(1)
+  end
+
+  def test_flash
+    f = circle.flash
+    assert_equal circle.opacity(0), f.at(0)
+    assert_equal circle.opacity(0), f.at(0.5)
+    assert_equal circle.opacity(0), f.at_end
+    assert_equal circle.opacity(0.81), f.at(0.05) # p = 0.1 -> (1 - 0.1)^2 = 0.81
+    assert_equal circle.opacity(0.25), f.at(0.25) # p = 0.5 -> (1 - 0.5)^2 = 0.25
+    assert_operator f.at(0.05).style[:opacity], :>, f.at(0.25).style[:opacity]
+    assert_operator f.at(0.25).style[:opacity], :>, f.at(0.45).style[:opacity]
+    # shorthand period, custom from/to, and opacity(0) recovery
+    assert_equal 0.25, circle.flash(0.25).every
+    assert_equal circle.opacity(0.25), circle.opacity(0).flash.at(0.25)
+    custom = circle.flash(every: 1, from: 0.2, to: 1)
+    assert_equal circle.opacity(0.2), custom.at(0)
+    assert_equal circle.opacity(0.4), custom.at(0.5) # 0.2 + 0.8 * 0.25
   end
 
   def test_bounce
@@ -157,6 +184,33 @@ class MotionTest < Minitest::Test
     assert_equal circle.colored("#ffd700"), circle.shift_color(:gold).at(2)
     assert_equal circle.colored("#000080"), circle.shift_color(:navy, :gold).at(0)
     assert_equal circle.colored("#ffd700"), circle.shift_color(from: :navy, to: :gold, every: 2).at(1)
+    # on a Many the colour sits on the group: colours inside are kept
+    kept = circle(5).colored(:red).repeat(5).in_row.shift_color(:navy, :gold, every: 2)
+    assert_equal "#ffd700", kept.at(1).style[:fill]
+    assert_equal 5, kept.at(1).svg.scan(%(fill="red")).size
+  end
+
+  def test_shift_color_all_true_wins_over_colours_and_lines_inside
+    dots = circle(5).colored(:red).repeat(5).in_row.shift_color(:red, :gold, every: 2, all: true)
+    assert_equal "#ff0000", dots.at(0).style[:fill]
+    assert_equal "#ffd700", dots.at(1).style[:fill]
+    refute_includes dots.at(1).svg, "red"
+    assert_equal circle(5).colored(:red).repeat(5).in_row.colored("#ffd700", all: true), dots.at(1)
+    lines = line.repeat(3).in_row.shift_color(:navy, :gold, every: 2, all: true)
+    assert_equal 3, lines.at(1).svg.scan(%(stroke="#ffd700")).size
+    # the colours inside are cleared once, not at every frame: the frames share their pictures
+    assert(dots.at(0.5).items.zip(dots.at(1).items).all? { |a, b| a.equal?(b) })
+    # on a picture in motion, every moment is painted the same way
+    moving = circle(5).colored(:red).repeat(3).in_row.spin.shift_color(:navy, :gold, every: 2, all: true)
+    refute_includes moving.at(1).svg, "red"
+    # on a single picture it is the same as without all:
+    assert_equal circle.colored(:red).shift_color(:gold).at(1), circle.colored(:red).shift_color(:gold, all: true).at(1)
+    e = assert_raises(ArgumentError) { circle.shift_color(:gold, all: "yes") }
+    assert_includes e.message, "shift_color(:navy, :gold, all: true)"
+    in_language(:ja) do
+      e = assert_raises(ArgumentError) { circle.shift_color(:gold, all: "yes") }
+      assert_includes e.message, "shift_color の all: には true か false を渡してください"
+    end
   end
 
   def test_animate
@@ -359,7 +413,7 @@ class MotionTest < Minitest::Test
   def test_one_by_one_leaves_moving_and_colouring_words_alone
     dots = circle(3).repeat(5).in_row(gap: 4)
     { bounce: ->(x) { x.bounce }, drift: ->(x) { x.drift(right: 10) }, orbit: ->(x) { x.orbit(20) },
-      fade: ->(x) { x.fade }, shift_color: ->(x) { x.shift_color(:gold) } }.each do |name, word|
+      fade: ->(x) { x.fade }, flash: ->(x) { x.flash }, shift_color: ->(x) { x.shift_color(:gold) } }.each do |name, word|
       staggered = word.call(dots).one_by_one.at(0.3)
       dots.items.each_with_index do |dot, i|
         late = 0.3 - i * word.call(dots).every / 5
@@ -462,6 +516,11 @@ class MotionTest < Minitest::Test
     assert_raises(ArgumentError) { circle.spin(every: -1) }
     assert_raises(TypeError) { circle.pulse(to: "big") }
     assert_raises(ArgumentError) { circle.fade(to: 2) }
+    assert_raises(ArgumentError) { circle.fade(from: -0.1) }
+    assert_raises(ArgumentError) { circle.fade(from: 2) }
+    assert_raises(ArgumentError) { circle.flash(every: 0) }
+    assert_raises(ArgumentError) { circle.flash(from: -1) }
+    assert_raises(ArgumentError) { circle.flash(to: 2) }
     assert_raises(TypeError) { circle.drift(right: :far) }
     assert_raises(ArgumentError) { circle.shift_color(:not_a_colour) }
     assert_raises(ArgumentError) { Asobi::Motion.new(0) { circle } }

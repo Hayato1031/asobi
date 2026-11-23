@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.2
+
+Smoother hit/flash animations, an opt-in way to repaint a whole group, a safer live view that follows local files, and downloads right from the playground.
+
+- `fade` now accepts `from:` (e.g. `fade(from: 0, to: 1)`), replacing any opacity on the picture so a picture starting at `opacity(0)` can fade in (ideal with `by(:mic)` / `by(:music)`). Without `from:`, `fade` behaves exactly as before.
+- New motion word `flash(every: 0.5, from: 0, to: 1)`: stays at `from` (invisible by default) at rest, jumps bright to `to` when triggered, and decays smoothly back to `from`—built for `on_beat`, `when_clicked`, and `when_pressed`. Following a value with `by(...)` would make it brightest at the faintest sound, so `by` on a motion with a flash in it raises an error that suggests `fade(from: 0, to: 1).by(:mic)` instead.
+- `colored` and `shift_color` accept `all: true` to repaint everything inside a group: inner fill colours give way, line-only shapes (`line`, `arc`, `wave`, anything `outlined`) get their lines recoloured, and reacting parts are painted too. Without `all:`, colouring a group works exactly as in 0.2.1: a colour given to a group does not overwrite colours given to the pictures inside it. `dot.colored(:red).repeat(5).in_row.shift_color(:red, :gold, all: true)` shifts every dot.
+- Live view (`asobi` / `lib/asobi/live.rb`):
+  - Replaced `Thread#kill` during background animation builds with cooperative cancellation using `Sketch.finish_some` (`Reel.steps`).
+  - Added the playground's time limits, so an endless loop shows an error instead of locking up the live view: 15 seconds to run a sketch up to its preview, and 60 seconds for any one slice of the whole-Reel build. A slow build that keeps making progress is never cut off.
+  - Automatically watches and reloads local `.rb` files loaded via `require_relative` under the sketch's folder (never Ruby's own or gems' files, even when they live under that folder). Top-level classes and constants those files made are cleared before each reload, so helpers like `class Planet < Struct.new(:size)` reload cleanly.
+- Playground: added a Save button that downloads still pictures as `asobi.svg` and moving, reacting, or song-playing sketches as standalone `asobi.html` (embedding `player.js` and the site's song as a data URI), built strictly from the `AsobiSafeReel`-verified Reel without relaxing the CSP.
+- Docs: fixed `Hash#to_art` description in both READMEs (key-value tables, not palette swatches) and removed outdated `(silent for now)` comments in `lib/asobi/reaction.rb`.
+
 ## 0.2.1
 
 A security fix for the live view, and clearer pages for people finding asobi.

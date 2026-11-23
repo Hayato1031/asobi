@@ -239,7 +239,7 @@ module Asobi
     def when_pressed(key = nil) = Reaction.new(motion: self, turn: "key", key: Reactions.key(key))
 
     # Each beat heard plays the motion once. :mic is the microphone;
-    # :music is the sound asobi itself plays (silent for now).
+    # :music is the sound asobi itself plays.
     #   flower.pulse.on_beat
     def on_beat(from = :mic) = Reaction.new(motion: self, turn: "beat", from: Reactions.beat_source(from))
 
@@ -249,8 +249,10 @@ module Asobi
     #   flower.pulse.by(:mic)          how loud the microphone is
     #   flower.pulse.by(:mic, :low)    the low sounds (also :mid, :high)
     #   flower.spin.by(:mic, :pitch)   how high the sound is
-    #   flower.pulse.by(:music)        the sound asobi plays (silent for now)
+    #   flower.pulse.by(:music)        the sound asobi itself plays
     def by(from, what = nil)
+      raise Messages.error(ArgumentError, :flash_on_by) if flashes
+
       source = Reactions.value_source(from)
       Reaction.new(motion: self, turn: "value", from: source, what: Reactions.sound_part(source, what))
     end
@@ -287,6 +289,11 @@ module Asobi
     end
   end
 
+  Messages.add(:flash_on_by,
+               en: "flash jumps bright the moment it starts, so it cannot follow a value with by. " \
+                   "To fade in as the value grows, use fade, like:  circle.fade(from: 0, to: 1).by(:mic)",
+               ja: "flash は始まった瞬間にパッと光る動きなので、by で値に合わせることはできません。" \
+                   "値が大きいほど現れるようにするなら fade を使ってください。例：circle.fade(from: 0, to: 1).by(:mic)")
   Messages.add(:reaction_needs_motion,
                en: "%{word} turns the pages of a motion, so write it right after a motion word (pulse, spin, sway ...), like %{example}",
                ja: "%{word} は動きのコマをめくる言葉です。動きの言葉（pulse、spin、sway など）のすぐ後ろに書いてください。例：%{example}")

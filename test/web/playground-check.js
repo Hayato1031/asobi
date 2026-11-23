@@ -32,10 +32,12 @@ const config = fs.readFileSync(playHtml, "utf8").match(/id="play-config">([\s\S]
 function element(id) {
   const listeners = {};
   return {
-    id, value: "", textContent: "", hidden: false, scrollTop: 0, scrollLeft: 0, innerHTML: "",
+    id, value: "", textContent: "", hidden: false, disabled: false, scrollTop: 0, scrollLeft: 0, innerHTML: "",
+    href: "", download: "",
     firstChild: { innerHTML: "" },
     addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
     dispatchEvent: (e) => { (listeners[e.type] || []).forEach((fn) => fn(e)); },
+    click: () => { (listeners.click || []).forEach((fn) => fn({ type: "click" })); },
     focus: () => {}, remove: () => {}, setAttribute: () => {}
   };
 }
@@ -44,8 +46,13 @@ function page(options) {
   const workers = [];   // every pretend worker made, in order
   const shown = [];     // every Reel given to the player
   const scripts = [];   // scripts added to the page (the page engine)
+  const downloads = []; // every file triggered via <a download>
+  const fetched = [];   // URLs passed to fetch
+  const blobs = {};
+  let nextBlob = 1;
   const elements = {};
-  ["code", "stage", "status", "play-fc", "code-tint", "copy", "reset"].forEach((id) => { elements[id] = element(id); });
+  ["code", "stage", "status", "play-fc", "code-tint", "copy", "reset", "download"].forEach((id) => { elements[id] = element(id); });
+  elements.download.disabled = true;
   elements["play-config"] = element("play-config");
   elements["play-config"].textContent = config;
   const extra = [];
@@ -73,6 +80,19 @@ function page(options) {
           this.say({ id: m.id, json: JSON.stringify({ frames: [ATTACK, "<g/>"], fps: 30, view: [0, 0, 1, 1], code: m.code, error: null }) });
           return;
         }
+        if (m.code.startsWith("still")) {
+          this.say({ id: m.id, json: JSON.stringify({ frames: ['<circle r="10"/>'], fps: 1, view: [-12, -12, 24, 24], background: "white", code: m.code, error: null }) });
+          return;
+        }
+        if (m.code.startsWith("song")) {
+          this.say({ id: m.id, json: JSON.stringify({
+            frames: ['<!--asobi:p1-->'], fps: 1, view: [-12, -12, 24, 24], background: "black",
+            code: m.code + "\n# </script>", error: null,
+            parts: { p1: { frames: ['<circle r="10"/>'], fps: 30, turn: "beat", from: "music" } },
+            song: { id: "3ff79180f05b", src: "assets/beat.wav", volume: 0.5 }
+          }) });
+          return;
+        }
         this.say({ id: m.id, json: JSON.stringify({ frames: ["<g/>"], fps: 30, view: [0, 0, 1, 1], pending: true }), pending: true });
         if (m.code.startsWith("crash")) this.say({ id: m.id, fatal: "RuntimeError: unreachable" });
         else if (m.code.startsWith("error")) { if (!this.terminated) this.onerror({ message: "Uncaught Error", preventDefault: () => {} }); }
@@ -86,15 +106,47 @@ function page(options) {
     terminate() { this.terminated = true; }
   }
 
+  class FakeBlob {
+    constructor(parts, opts) { this.text = parts.join(""); this.type = (opts && opts.type) || ""; }
+  }
+  const FakeURL = {
+    createObjectURL: (blob) => { const u = "blob:" + (nextBlob++); blobs[u] = blob; return u; },
+    revokeObjectURL: () => {}
+  };
+  const fakeFetch = (url) => {
+    fetched.push(url);
+    if (url.endsWith("player.js")) {
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("/*PLAYER*/ var end = '</script>';") });
+    }
+    if (url.endsWith("beat.wav")) {
+      const buf = Uint8Array.from([82, 73, 70, 70]).buffer; // "RIFF"
+      return Promise.resolve({ ok: true, status: 200, headers: { get: () => "audio/wav" }, arrayBuffer: () => Promise.resolve(buf) });
+    }
+    return Promise.resolve({ ok: false, status: 404 });
+  };
+
   const document = {
     getElementById: (id) => elements[id] || extra.find((e) => e.id === id) || null,
-    createElement: () => { const e = element(""); extra.push(e); return e; },
+    createElement: (tag) => {
+      const e = element("");
+      e.tag = tag;
+      if (tag === "a") {
+        e.click = () => {
+          const b = blobs[e.href];
+          downloads.push({ filename: e.download, mime: b ? b.type : "", content: b ? b.text : "" });
+        };
+      }
+      extra.push(e);
+      return e;
+    },
     head: { appendChild: (s) => { scripts.push(s.src); setTimeout(() => s.onerror && s.onerror(), 0); return s; } },
     body: { appendChild: (e) => e },
     execCommand: () => false
   };
   const win = {
-    document, Worker: FakeWorker, JSON, Promise, Object, Number, String, Math, Date, Event: class { constructor(type) { this.type = type; } },
+    document, Worker: FakeWorker, JSON, Promise, Object, Number, String, Math, Date, Uint8Array,
+    Blob: FakeBlob, URL: FakeURL, fetch: fakeFetch,
+    Event: class { constructor(type) { this.type = type; } },
     setTimeout, clearTimeout, setInterval, clearInterval,
     performance: { now: () => Date.now() },
     location: { protocol: options.protocol || "https:", hash: "", search: options.selftest === false ? "" : "?selftest=1", pathname: "/playground.html", href: "http://x/playground.html" },
@@ -115,7 +167,8 @@ function page(options) {
 
   const editor = elements.code;
   return {
-    workers, shown, scripts,
+    workers, shown, scripts, downloads, fetched,
+    downloadBtn: elements.download,
     status: () => elements.status.textContent,
     marker: () => { const m = extra.find((e) => e.id === "selftest"); return m ? JSON.parse(m.textContent) : null; },
     edit: (code) => { editor.value = code; editor.dispatchEvent({ type: "input" }); }
@@ -232,6 +285,49 @@ const brief = (p) => ({
     const f = page({ failBootAfter: 0, protocol: "file:" });
     await sleep(200);
     result.fileNoWorker = brief(f);
+  }
+
+  // 8. Saving: still picture -> asobi.svg; pending motion -> waits; moving /
+  //    reacting / song picture -> standalone asobi.html with embedded player
+  //    and song data URI, strictly from the checked Reel.
+  {
+    const p = page({ selftest: false });
+    await sleep(50);
+    p.edit("still a");
+    await sleep(450);
+    const stillLabel = p.downloadBtn.textContent;
+    p.downloadBtn.click();
+
+    p.edit("hold a");
+    await sleep(450);
+    const pendingLabel = p.downloadBtn.textContent;
+    p.downloadBtn.click();
+    const pendingStatus = p.status();
+    const countWhilePending = p.downloads.length;
+
+    const p2 = page({ selftest: false });
+    await sleep(50);
+    p2.edit("song a");
+    await sleep(450);
+    const dynamicLabel = p2.downloadBtn.textContent;
+    p2.downloadBtn.click();
+    await sleep(50);
+    // An attack never overwrites onScreen, so saving stays safe.
+    p2.edit("attack a");
+    await sleep(450);
+    p2.downloadBtn.click();
+    await sleep(50);
+
+    result.saving = {
+      stillLabel, pendingLabel, pendingStatus, countWhilePending, dynamicLabel,
+      waitToSave: cfg.ui.wait_to_save,
+      saveSvg: cfg.ui.save_svg,
+      saveHtml: cfg.ui.save_html,
+      svgDownload: p.downloads[0],
+      htmlDownload: p2.downloads[0],
+      afterAttackDownload: p2.downloads[1],
+      fetched: p2.fetched
+    };
   }
 
   console.log(JSON.stringify(result));

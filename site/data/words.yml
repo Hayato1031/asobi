@@ -608,7 +608,7 @@
 
 - word: colored
   group: color
-  signature: "colored(*colors, from: nil, to: nil, angle: 0, around: false)"
+  signature: "colored(*colors, from: nil, to: nil, angle: 0, around: false, all: false)"
   summary: { en: "Paint a picture, with one colour, several, or a gradient.", ja: "色を塗る(1色でも、複数色でも、グラデーションでも)。" }
   details:
     en: |-
@@ -617,6 +617,8 @@
       Give a group of pictures several colours and they are used in turn, round and round: `petal.repeat(8).in_fan.colored(:crimson, :navy)`. A single picture takes the first colour.
 
       Pictures are black by default, on a white page. If you paint the same picture twice, the later colour wins. A colour given to a whole group does not overwrite colours given to pictures inside it.
+
+      To repaint everything inside a group too, add `all: true`: `colored(:navy, all: true)`. Then line-only pictures such as `line` get their lines recoloured as well.
 
       For a gradient, name where it starts and where it ends: `colored(from: :gold, to: :crimson)`. It runs from the top to the bottom. `angle:` turns the direction, in degrees clockwise: `angle: 90` runs from the right to the left. `around: true` runs from the centre outwards. If you leave out `from`, it starts at crimson; if you leave out `to`, it ends at navy.
 
@@ -627,6 +629,8 @@
       絵の集まりに色を複数渡すと、順番にぐるぐる使われます。`petal.repeat(8).in_fan.colored(:crimson, :navy)`。1枚の絵なら、最初の色が使われます。
 
       何も塗らなければ、白い紙に黒です。同じ絵に2回塗ると、あとの色が勝ちます。集まり全体に塗った色は、中の絵に個別に塗った色を上書きしません。
+
+      集まりの中まで全部塗り直したいときは、`all: true` を付けます。`colored(:navy, all: true)`。`line` のような線だけの絵も、線の色が変わります。
 
       グラデーションにするときは、始まりの色と終わりの色を書きます。`colored(from: :gold, to: :crimson)`。上から下へ色が変わります。`angle:` で向きを変えられます(度、時計回り)。`angle: 90` は右から左へ向かいます。`around: true` にすると、中心から外へ向かいます。`from` を省くと crimson から、`to` を省くと navy までです。
 
@@ -647,6 +651,10 @@
         dots = circle(8).repeat(12).in_row(gap: 4)
         show dots.colored(from: :gold, to: :crimson, angle: 90)
       caption: { en: "Across a whole group, once. angle: 90 runs from right to left.", ja: "集まり全体に、1回だけ流れます。angle: 90 は右から左です。" }
+    - code: |
+        scene = [star(radius: 16).colored(:gold), circle(12), line(length: 24)].to_art.in_row(gap: 8)
+        show scene.colored(:navy).above(scene.colored(:navy, all: true), gap: 12)
+      caption: { en: "Top: the gold star and the black line keep their colours. Bottom: all: true paints everything navy.", ja: "上：金の星と黒い線は自分の色のまま。下：all: true なら全部が紺になります。" }
   see: [outlined, stroke, opacity, hsl, shadowed, glowing]
 
 - word: outlined
@@ -1153,17 +1161,44 @@
 
 - word: fade
   group: motion
-  signature: "fade(every: 2, to: 0.2)"
+  signature: "fade(every: 2, from: nil, to: 0.2)"
   summary: { en: "Fade out and come back.", ja: "薄くなって戻る。" }
   details:
-    en: "`to` is how faint it gets: `0` is invisible and `1` does nothing."
-    ja: "`to` はどこまで薄くなるかです。`0` で見えなくなり、`1` では何も起きません。"
+    en: "`to` is how faint it gets: `0` is invisible and `1` does nothing. Pass `from:` to fade from `from` to `to` (default `1`) and back, replacing any opacity already on the picture—handy for `fade(from: 0, to: 1).by(:mic)`."
+    ja: "`to` はどこまで薄くなるかです。`0` で見えなくなり、`1` では何も起きません。`from:` を書くと、元の透明度を置き換えて `from` から `to`（省くと `1`）へ往復します。`fade(from: 0, to: 1).by(:mic)` のように見えない状態から現れる動きに便利です。"
   examples:
     - code: |
         show circle(20).colored(:navy).fade
     - code: |
         show star(radius: 20).repeat(6).in_ring.colored(:gold).fade(every: 3, to: 0).one_by_one, on: :black
-  see: [opacity, pulse, one_by_one]
+    - code: |
+        show circle(24).colored(:cyan).fade(from: 0, to: 1).by(:mouse_x), on: :black
+      caption: { en: "With from: 0, to: 1, fade in from invisible.", ja: "from: 0, to: 1 で、見えない状態からくっきり現れます。" }
+  see: [flash, opacity, pulse, one_by_one]
+
+- word: flash
+  group: motion
+  signature: "flash(every: 0.5, from: 0, to: 1)"
+  summary: { en: "Stay hidden at rest, flash bright on start, and fade out.", ja: "待機時は見えず、始まるとパッと光って消える。" }
+  details:
+    en: |-
+      At rest (the start of the loop) the picture sits at `from` (`0`, invisible, by default). As soon as it plays it jumps up to `to` (`1`) and fades smoothly back down to `from`.
+
+      Built for beats, clicks and keys (`on_beat`, `when_clicked`, `when_pressed`), and blinks on the clock too. Pass `from: 0.15` to keep a faint glow at rest.
+    ja: |-
+      待機中（ループの最初）は `from`（既定は `0` で見えない状態）に留まり、始まった瞬間に `to`（既定は `1`）までパッと明るくなって `from` へ減衰します。
+
+      拍・クリック・キーでの発火（`on_beat`、`when_clicked`、`when_pressed`）に向いています。時計のまま動かすと点滅します。`from: 0.15` のように書くと、待機中もうっすら見えたままにできます。
+  examples:
+    - code: |
+        show star(radius: 24).colored(:gold).flash(every: 0.8), on: :black
+      caption: { en: "Blinking on the clock.", ja: "時計のまま動かすとパッと光って消えます。" }
+    - code: |
+        play "beat.wav"
+        ring_hit = ring(radius: 40, thickness: 4).colored(:cyan).flash(every: 0.35).on_beat(:music)
+        show circle(10).colored(:deeppink) + ring_hit.glowing(6), on: :black
+      caption: { en: "Flashing on every beat of the music.", ja: "曲の拍に合わせてリングがパッと光ります。" }
+  see: [fade, opacity, on_beat, when_clicked]
 
 - word: bounce
   group: motion
@@ -1195,17 +1230,21 @@
 
 - word: shift_color
   group: motion
-  signature: "shift_color(from: nil, to: :crimson, every: 4)"
+  signature: "shift_color(from: nil, to: :crimson, every: 4, all: false)"
   summary: { en: "Slowly change colour and come back.", ja: "色がゆっくり移り変わって戻る。" }
   details:
     en: |-
       Give it two colours, `shift_color(:navy, :gold)`, to go from the first to the second and back. Give it one colour, `shift_color(:gold)`, to go from black to that colour. With nothing, it goes from black to crimson.
 
       You can also name them: `shift_color(from: :navy, to: :gold, every: 6)`.
+
+      On a group, pictures inside that have a colour of their own keep it. Add `all: true` to shift them too, as with `colored`.
     ja: |-
       色を2つ渡すと、1つ目から2つ目へ移って戻ります。`shift_color(:navy, :gold)`。1つなら、黒からその色へ。何も渡さなければ、黒から crimson へ移ります。
 
       名前を付けて書くこともできます。`shift_color(from: :navy, to: :gold, every: 6)`。
+
+      集まりに使うと、中で個別に色を付けた絵はその色のままです。それも変えたいときは、`colored` と同じように `all: true` を付けます。
   examples:
     - code: |
         show circle(20).shift_color
