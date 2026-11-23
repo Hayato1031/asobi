@@ -86,20 +86,15 @@ class DrawingTest < Minitest::Test
   end
 
   # The colour of a group stays on the group: shapes inside that have no
-  # colour of their own take it (the rule renderers follow), and if a group
-  # already holds a coloured child (e.g. built via + or Many.new), the
-  # child keeps its own colour in the drawing instructions.
+  # colour of their own take it (the rule renderers follow), and colours
+  # inside are kept.
   def test_group_colours_are_inherited_not_copied
-    painted = [circle, square].to_art.colored(:navy)
-    d = data(painted)
+    group = [circle, square.colored(:gold)].to_art.colored(:navy)
+    d = data(group)
     assert_equal "navy", d["style"]["fill"]
-    assert_equal({ "shape" => "circle", "r" => 10.0 }, d["group"][0]["draw"])
-
-    mixed = Asobi::Many.new([circle, square.colored(:gold)], { fill: "navy" })
-    m = data(mixed)
-    assert_equal "navy", m["style"]["fill"]
-    assert_equal({ "shape" => "circle", "r" => 10.0 }, m["group"][0])
-    assert_equal "gold", m["group"][1]["style"]["fill"]
+    plain_circle = d["group"][0]["draw"]
+    assert_equal({ "shape" => "circle", "r" => 10.0 }, plain_circle)
+    assert_equal "gold", d["group"][1]["draw"]["style"]["fill"]
     assert_equal({ fill: "black", stroke: "none", stroke_width: 1.0, opacity: 1.0 }, Asobi::Drawing::DEFAULTS)
   end
 

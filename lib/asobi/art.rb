@@ -116,15 +116,23 @@ module Asobi
     # A missing from is crimson and a missing to is navy. On a Many the
     # gradient flows once across the whole group. It belongs to the
     # picture: move, turn or resize the picture and the gradient goes along.
-    def colored(*colors, from: nil, to: nil, angle: nil, around: nil)
+    #
+    # Colours given to pictures inside a Many are kept: only the ones
+    # without a colour of their own take the group's. With all: true the
+    # new colour wins all the way in, also over the colours inside:
+    #
+    #   [star.colored(:gold), circle].to_art.in_row.colored(:navy)             the star stays gold
+    #   [star.colored(:gold), circle].to_art.in_row.colored(:navy, all: true)  both are navy
+    def colored(*colors, from: nil, to: nil, angle: nil, around: nil, all: false)
+      all = Asobi.all_option(all, word: :colored, example: "row.colored(:navy, all: true)")
       if [from, to, angle, around].any? { !_1.nil? }
         gradient = Gradient.make(from || colors[0] || :crimson, to || colors[1] || :navy, angle || 0, around || false)
-        return Asobi.change(self) { |art| Asobi.paint(art, [gradient]) }
+        return Asobi.change(self) { |art| Asobi.paint(art, [gradient], all:) }
       end
 
       colors = [:crimson] if colors.empty?
       paints = colors.map { Color.css(_1) }
-      Asobi.change(self) { |art| Asobi.paint(art, paints) }
+      Asobi.change(self) { |art| Asobi.paint(art, paints, all:) }
     end
 
     # No fill, just the line.
@@ -322,10 +330,11 @@ module Asobi
 
     # Paint with one colour, or (on a Many) cycle several over its pictures.
     # A picture that is only a line (fill: none) gets its line recoloured.
-    # The latest colour wins, even inside a Many: one solid colour sits on
-    # the group and clears inner fill colours so shapes inherit it (lines
-    # inside have their stroke recoloured).
-    def paint(node, colors)
+    # Colours inside a Many are kept; with +all+ they are painted over too
+    # (see paint_all).
+    def paint(node, colors, all: false)
+      return paint_all(node, colors) if all
+
       case node
       when Transformed
         # A gradient keeps the direction it was given as seen from outside.
@@ -336,51 +345,98 @@ module Asobi
 
         restyle(node) { |s| Style.paint(s, colors.first) }
       when Many
-        if colors.size == 1
-          color = colors.first
-          return restyle(node) { |s| Style.paint(s, color) } if color.is_a?(Gradient)
+        return restyle(node) { |s| Style.paint(s, colors.first) } if colors.size == 1
 
-          items = node.items.map { clear_paint(_1, color) }
-          Many.new(items, Style.paint(node.style, color))
-        elsif Style.line_only?(node.style)
-          items = node.items.each_with_index.map do |item, i|
-            c = colors[i % colors.size]
-            restyle(clear_paint(item, c)) { |s| s.merge(fill: "none", stroke: c) }
-          end
-          Many.new(items, node.style)
-        else
-          items = node.items.each_with_index.map { |item, i| paint(item, [colors[i % colors.size]]) }
-          style = node.style[:fill] == "none" ? node.style : node.style.except(:fill)
-          Many.new(items, style)
-        end
+        items = node.items.each_with_index.map { |item, i| paint(item, [colors[i % colors.size]]) }
+        Many.new(items, node.style)
       else
         restyle(node) { |s| Style.paint(s, colors.first) }
       end
     end
 
-    # Prepare a child of a Many painted with one solid +color+: drop inner fill
-    # colours so they inherit the group's colour, and recolour line-only
-    # pictures directly (since they have fill: "none").
-    def clear_paint(node, color)
+    # Paint so that the latest colour wins all the way in (colored(all: true)).
+    # One colour sits on the group and clears the colours inside, so they
+    # take it (see clear_paint). Several colours paint each picture of a
+    # Many that way in turn, and an outlined Many stays lines. On a single
+    # picture it is the same as paint.
+    #
+    # +seen+ keeps what was already cleared, for each colour: a picture used
+    # many times is cleared once, and a reacting part stays one part.
+    def paint_all(node, colors, seen = Hash.new { |notes, color| notes[color] = {}.compare_by_identity })
+      color = colors.first
       case node
       when Transformed
-        art = clear_paint(node.art, color)
-        art.equal?(node.art) ? node : Transformed.new(art, node.matrix)
+        inside = colors.map { _1.is_a?(Gradient) ? _1.through(node.matrix.inverse_linear) : _1 }
+        Transformed.new(paint_all(node.art, inside, seen), node.matrix)
       when Styled
-        art = clear_paint(node.art, color)
-        style = Style.clear_paint(node.style, color)
-        return node if art.equal?(node.art) && style.equal?(node.style)
+        return Styled.new(paint_all(node.art, colors, seen), node.style) if Style.effects_only?(node.style)
 
-        style.empty? ? art : Styled.new(art, style)
+        Styled.new(clear_paint(node.art, color, seen[color]), Style.paint(node.style, color))
       when Many
-        items = node.items.map { clear_paint(_1, color) }
-        style = Style.clear_paint(node.style, color)
-        return node if style.equal?(node.style) && items.each_with_index.all? { |item, i| item.equal?(node.items[i]) }
+        if colors.size == 1
+          return Many.new(node.items.map { clear_paint(_1, color, seen[color]) }, Style.paint(node.style, color))
+        end
 
-        Many.new(items, style)
+        lines = Style.line_only?(node.style)
+        items = node.items.each_with_index.map do |item, i|
+          c = colors[i % colors.size]
+          next paint_all(item, [c], seen) unless lines
+
+          restyle(clear_paint(item, c, seen[c])) { |s| s.merge(fill: "none", stroke: c) }
+        end
+        # The group's own fill would cover them (a gradient is one sheet).
+        Many.new(items, node.style[:fill] == "none" ? node.style : node.style.except(:fill))
       else
-        node
+        restyle(clear_paint(node, color, seen[color])) { |s| Style.paint(s, color) }
       end
+    end
+
+    # The inside of a picture painted with paint_all: fill colours are
+    # dropped, so the colour around shows through, and a picture that is
+    # only a line gets +color+ as its line (with no +color+, or a gradient,
+    # it keeps its own). A reacting part is cleared at every moment of its
+    # motion. What does not change is answered as it is.
+    def clear_paint(node, color, seen = {}.compare_by_identity)
+      seen[node] ||=
+        case node
+        when Transformed
+          art = clear_paint(node.art, color, seen)
+          art.equal?(node.art) ? node : Transformed.new(art, node.matrix)
+        when Styled
+          art = clear_paint(node.art, color, seen)
+          style = Style.clear_paint(node.style, color)
+          if art.equal?(node.art) && style.equal?(node.style) then node
+          elsif style.empty? then art
+          else Styled.new(art, style)
+          end
+        when Many
+          items = node.items.map { clear_paint(_1, color, seen) }
+          style = Style.clear_paint(node.style, color)
+          same = style.equal?(node.style) && items.each_with_index.all? { |item, i| item.equal?(node.items[i]) }
+          same ? node : Many.new(items, style)
+        when Reaction then clear_reaction(node, color)
+        else node
+        end
+    end
+
+    # A reacting part cleared at every moment of its motion (see
+    # clear_paint). When clearing its frames changes nothing, it stays as
+    # it is, so it is still the same part.
+    def clear_reaction(reaction, color)
+      return reaction if reaction.pictures.all? { clear_paint(_1, color).equal?(_1) }
+
+      motion = Asobi.change(reaction.motion) { |art| clear_paint(art, color) }
+      Reaction.new(motion:, turn: reaction.turn, key: reaction.key, from: reaction.from, what: reaction.what,
+                   sound: reaction.sound)
+    end
+
+    # The all: of colored and shift_color: true or false, or a teaching error.
+    def all_option(value, word:, example:)
+      unless [true, false].include?(value)
+        raise Messages.error(ArgumentError, :bad_all, word:, example:, got: value.inspect)
+      end
+
+      value
     end
 
     # Put an effect (:glow, :blur, :shadow, :clip, :blend) on a picture. The
@@ -426,6 +482,7 @@ module Asobi
 
     def clean(style) = style.slice(*ORDER).sort_by { ORDER.index(_1.first) }.to_h.freeze
 
+    # A picture that is only a line: no fill, but a line.
     def line_only?(style) = style[:fill] == "none" && stroked?(style)
 
     # Colour a picture: its fill, or its line when it has no fill.
@@ -433,13 +490,18 @@ module Asobi
       line_only?(style) ? style.merge(stroke: color) : style.merge(fill: color)
     end
 
-    # Drop an explicit fill so a parent group's colour shows through, or
-    # recolour the line when this style is a line only.
+    # The style inside a picture painted with all: true (see
+    # Asobi.clear_paint): no fill of its own, so the colour around shows
+    # through, or, for a line only, +color+ as its line (when it is a
+    # colour, not nil or a gradient).
     def clear_paint(style, color)
-      return style.merge(stroke: color) if line_only?(style)
-      return style unless style.key?(:fill) && style[:fill] != "none"
-
-      style.except(:fill)
+      if line_only?(style)
+        color.is_a?(String) ? style.merge(stroke: color) : style
+      elsif style[:fill] && style[:fill] != "none"
+        style.except(:fill)
+      else
+        style
+      end
     end
 
     def stroked?(style) = style[:stroke] && style[:stroke] != "none"
@@ -537,3 +599,6 @@ end
 Asobi::Messages.add(:bad_blend,
                     en: "blended can mix in these ways: %{modes}, like blended(:screen). You gave %{got}.",
                     ja: "blended の混ざり方は %{modes} から選んでください（いまは %{got}）。例：blended(:screen)")
+Asobi::Messages.add(:bad_all,
+                    en: "all: on %{word} can be true or false (true paints the pictures inside a group too), like %{example}. You gave %{got}.",
+                    ja: "%{word} の all: には true か false を渡してください（いまは %{got}）。true にするとグループの中の絵も塗り直します。例：%{example}")

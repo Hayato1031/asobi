@@ -9,9 +9,9 @@ module Asobi
   #
   # Moving, turning or resizing a Many does the same to each of its
   # pictures, so the answer is still a Many you can arrange. Colours given
-  # to a Many sit on the group (+style+) and are inherited by shapes inside
-  # that have no colour of their own; colored and shift_color clear inner
-  # fill colours so the latest paint wins (see Asobi.paint and Asobi::Drawing).
+  # to the whole Many are kept on the group (+style+), and do not override
+  # colours given to the pictures inside it (see Asobi::Drawing), unless
+  # you write all: true, as in colored(:navy, all: true) (see Asobi.paint_all).
   Many = Data.define(:items, :style) do
     include Enumerable
     include Art

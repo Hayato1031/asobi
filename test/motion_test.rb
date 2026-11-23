@@ -184,13 +184,33 @@ class MotionTest < Minitest::Test
     assert_equal circle.colored("#ffd700"), circle.shift_color(:gold).at(2)
     assert_equal circle.colored("#000080"), circle.shift_color(:navy, :gold).at(0)
     assert_equal circle.colored("#ffd700"), circle.shift_color(from: :navy, to: :gold, every: 2).at(1)
-    # works on a Many whose items already have colours (or lines)
-    dots = circle(5).colored(:red).repeat(5).in_row.shift_color(:red, :gold, every: 2)
+    # on a Many the colour sits on the group: colours inside are kept
+    kept = circle(5).colored(:red).repeat(5).in_row.shift_color(:navy, :gold, every: 2)
+    assert_equal "#ffd700", kept.at(1).style[:fill]
+    assert_equal 5, kept.at(1).svg.scan(%(fill="red")).size
+  end
+
+  def test_shift_color_all_true_wins_over_colours_and_lines_inside
+    dots = circle(5).colored(:red).repeat(5).in_row.shift_color(:red, :gold, every: 2, all: true)
     assert_equal "#ff0000", dots.at(0).style[:fill]
     assert_equal "#ffd700", dots.at(1).style[:fill]
     refute_includes dots.at(1).svg, "red"
-    lines = line.repeat(3).in_row.shift_color(:navy, :gold, every: 2)
+    assert_equal circle(5).colored(:red).repeat(5).in_row.colored("#ffd700", all: true), dots.at(1)
+    lines = line.repeat(3).in_row.shift_color(:navy, :gold, every: 2, all: true)
     assert_equal 3, lines.at(1).svg.scan(%(stroke="#ffd700")).size
+    # the colours inside are cleared once, not at every frame: the frames share their pictures
+    assert(dots.at(0.5).items.zip(dots.at(1).items).all? { |a, b| a.equal?(b) })
+    # on a picture in motion, every moment is painted the same way
+    moving = circle(5).colored(:red).repeat(3).in_row.spin.shift_color(:navy, :gold, every: 2, all: true)
+    refute_includes moving.at(1).svg, "red"
+    # on a single picture it is the same as without all:
+    assert_equal circle.colored(:red).shift_color(:gold).at(1), circle.colored(:red).shift_color(:gold, all: true).at(1)
+    e = assert_raises(ArgumentError) { circle.shift_color(:gold, all: "yes") }
+    assert_includes e.message, "shift_color(:navy, :gold, all: true)"
+    in_language(:ja) do
+      e = assert_raises(ArgumentError) { circle.shift_color(:gold, all: "yes") }
+      assert_includes e.message, "shift_color の all: には true か false を渡してください"
+    end
   end
 
   def test_animate

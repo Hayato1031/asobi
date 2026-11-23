@@ -87,6 +87,35 @@ class ReactionTest < Minitest::Test
     end
   end
 
+  # --- flash cannot follow a value -----------------------------------------
+
+  def test_by_on_a_motion_with_a_flash_teaches_fade
+    chains = {
+      "flash" => -> { dot.flash.by(:mic) },
+      "flash.colored" => -> { dot.flash.colored(:red).by(:mouse_x) },
+      "flash.spin" => -> { dot.flash.spin.by(:mic) },
+      "spin.flash" => -> { dot.spin.flash.by(:mic) },
+      "flash.trail" => -> { dot.flash.trail.by(:mic) },
+      "flash.one_by_one" => -> { dot.flash.repeat(3).in_row.one_by_one.by(:mic) },
+      "flash + still" => -> { (dot.flash + Asobi.square(size: 5)).by(:mic) }
+    }
+    chains.each do |name, chain|
+      e = assert_raises(ArgumentError, name) { chain.call }
+      assert_includes e.message, "fade(from: 0, to: 1)", name
+    end
+    in_language(:ja) do
+      e = assert_raises(ArgumentError) { dot.flash.by(:mic) }
+      assert_includes e.message, "fade を使ってください"
+    end
+  end
+
+  def test_flash_still_works_where_it_makes_sense
+    assert_equal "beat", dot.flash.on_beat(:music).turn
+    assert_equal "click", dot.flash.when_clicked.turn
+    assert_equal "value", dot.fade(from: 0, to: 1).by(:mic).turn
+    assert_equal "value", dot.spin.by(:mic).turn
+  end
+
   def test_unknown_sources_list_the_good_ones
     e = assert_raises(ArgumentError) { dot.pulse.by(:volume) }
     assert_includes e.message, ":mouse_x, :mouse_y, :mic, :music"

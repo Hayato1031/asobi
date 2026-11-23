@@ -37,8 +37,8 @@ module Asobi
     POLL = 0.2        # seconds between looks at the sketch files
     SLICE = 0.05      # seconds per piece when building a whole Reel in the background
     STOP_GRACE = 0.5  # seconds to wait for a cooperative stop before interrupting a stuck frame
-    EVAL_TIMEOUT = 15 # seconds before stopping a stuck sketch evaluation (same as the playground)
-    FINISH_TIMEOUT = 60 # seconds before stopping a whole-Reel build (same as the playground)
+    EVAL_TIMEOUT = 15   # seconds the sketch may run up to its first picture (the preview), as in the playground
+    FINISH_TIMEOUT = 60 # seconds one slice of a whole-Reel build may take (no limit for the whole), as in the playground
     PAGE = File.join(__dir__, "web", "live.html")
     PLACEHOLDER = "/*ASOBI_PLAYER_JS*/"
 
@@ -53,7 +53,9 @@ module Asobi
     # local .rb files it required under its folder) until Ctrl-C (or until
     # the server is stopped). Yields the server once it is ready. +initial+
     # is a Reel already made from this run of the script (when it is a
-    # pending preview, Sketch.finish_some has the rest).
+    # pending preview, Sketch.finish_some has the rest). +timeout+: seconds
+    # the sketch may run up to its preview; +finish_timeout+: seconds one
+    # slice of the whole Reel may take.
     def run(path, port: DEFAULT_PORT, open: true, initial: nil, out: $stdout,
             timeout: EVAL_TIMEOUT, finish_timeout: FINISH_TIMEOUT)
       path = File.expand_path(path.to_s)
@@ -62,7 +64,7 @@ module Asobi
       first = server.push(initial || evaluate(path, timeout:))
       deps = local_requires(path)
       seen = { path => main_stamp }.merge(stamps(deps))
-      builder = first["pending"] ? finish_later(server, path:, code: first["code"], timeout:, finish_timeout:) : nil
+      builder = first["pending"] ? finish_later(server, path:, code: first["code"], finish_timeout:) : nil
       out.puts Say.text(:live_ready, file: File.basename(path), url: server.url)
       out.flush
       open_browser(server.url) if open
@@ -116,7 +118,7 @@ module Asobi
         loaded = local_requires(path)
         deps = first["error"] ? (deps | loaded) : loaded
         seen = now.slice(path, *deps).merge(stamps(deps - now.keys))
-        builder = first["pending"] ? finish_later(server, path:, code: first["code"], timeout:, finish_timeout:) : nil
+        builder = first["pending"] ? finish_later(server, path:, code: first["code"], finish_timeout:) : nil
       end
     ensure
       stop(builder)
@@ -137,9 +139,11 @@ module Asobi
     end
 
     # A helper that builds the whole Reel in slices (Sketch.finish_some) and
-    # pushes it unless stopped first, with the same time limits as the playground.
-    def finish_later(server, path: "sketch.rb", code: nil, timeout: EVAL_TIMEOUT, finish_timeout: FINISH_TIMEOUT)
-      Builder.new(server, path:, code:, slice_timeout: timeout, total_timeout: finish_timeout)
+    # pushes it unless stopped first. As in the playground, it gives up only
+    # when one slice takes more than +finish_timeout+ seconds, so a long
+    # build that keeps going always finishes.
+    def finish_later(server, path: "sketch.rb", code: nil, finish_timeout: FINISH_TIMEOUT)
+      Builder.new(server, path:, code:, slice_timeout: finish_timeout)
     end
 
     # Ask a finish_later helper to stop and wait until it has stopped, so it
@@ -149,28 +153,47 @@ module Asobi
     end
 
     # Local .rb files loaded under the sketch's folder (via require_relative
-    # or require), never the sketch itself and never asobi's own library.
+    # or require): the sketch's own parts. Never the sketch itself, asobi's
+    # own library, or a file from where libraries live (the load path, gems,
+    # Ruby's own library), unless that place is the sketch's folder or holds
+    # it (ruby -I. play.rb).
     def local_requires(path)
       expanded = File.expand_path(path)
-      dir = File.dirname(expanded)
-      roots = [dir, (File.realpath(dir) rescue dir)].uniq.map { "#{_1}/" }
-      self_paths = [expanded, (File.realpath(expanded) rescue nil)].compact
-      asobi_dir = "#{File.expand_path(__dir__)}/"
-      asobi_real = "#{(File.realpath(__dir__) rescue __dir__)}/"
-      entry = File.expand_path("../asobi.rb", __dir__)
-      asobi_entries = [entry, (File.realpath(entry) rescue nil)].compact
+      roots = folders(File.dirname(expanded))
+      own = [expanded, File.expand_path("../asobi.rb", __dir__)].flat_map { spellings(_1) }
+      libraries = library_dirs.map { folders(_1) }.reject { |lib| roots.any? { _1.start_with?(*lib) } }
+      skip = [*folders(__dir__), *libraries.flatten]
       $LOADED_FEATURES.select do |file|
-        next false unless file.end_with?(".rb")
-        next false if self_paths.include?(file)
-        next false if file.start_with?(asobi_dir, asobi_real) || asobi_entries.include?(file)
-
-        roots.any? { file.start_with?(_1) }
+        file.end_with?(".rb") && file.start_with?(*roots) && !file.start_with?(*skip) && !own.include?(file)
       end
     end
 
+    # Where libraries are loaded from: the load path, gems, Ruby's own library.
+    def library_dirs
+      gems = defined?(Gem) ? Gem.path : []
+      ruby = RbConfig::CONFIG.values_at("rubylibdir", "archdir", "sitedir", "vendordir")
+      [*$LOAD_PATH, *gems, *ruby].compact.map(&:to_s).reject(&:empty?)
+    end
+
+    # A path as written and with its links followed (on macOS /tmp is /private/tmp).
+    def spellings(path)
+      path = File.expand_path(path)
+      [path, (File.realpath(path) rescue path)].uniq
+    end
+
+    # The same for a folder, ending in "/" so that /a/b never takes in /a/bc.
+    def folders(dir) = spellings(dir).map { File.join(_1, "") }
+
     # Drop local required files from $LOADED_FEATURES so require_relative reads
-    # them again on the next evaluation.
+    # them again on the next evaluation. The top-level constants they made
+    # first (class Planet, PALETTE = ...) go too, so the next evaluation makes
+    # them afresh: no "superclass mismatch", no "already initialized constant".
     def unload(paths)
+      files = paths.flat_map { spellings(_1) }
+      Object.constants(false).each do |name|
+        file, = Object.const_source_location(name)
+        Object.send(:remove_const, name) if files.include?(file)
+      end
       paths.each { $LOADED_FEATURES.delete(_1) }
     end
 
@@ -186,9 +209,11 @@ module Asobi
     end
 
     # Builds the whole Reel of a motion in small slices (Sketch.finish_some) on
-    # a helper thread, stopping cooperatively when a newer save arrives.
+    # a helper thread, stopping cooperatively when a newer save arrives. It
+    # gives up only when one slice takes more than +slice_timeout+ seconds
+    # (a loop that never ends?); the whole build has no time limit.
     class Builder
-      def initialize(server, path:, code:, slice: SLICE, slice_timeout: EVAL_TIMEOUT, total_timeout: FINISH_TIMEOUT)
+      def initialize(server, path:, code:, slice: SLICE, slice_timeout: FINISH_TIMEOUT)
         @mutex = Mutex.new
         @cancelled = false
         @server = server
@@ -196,7 +221,6 @@ module Asobi
         @code = code
         @slice = slice
         @slice_timeout = slice_timeout
-        @total_timeout = total_timeout
         @thread = Thread.new { work }
         @thread.report_on_exception = false
       end
@@ -223,18 +247,8 @@ module Asobi
       end
 
       def work
-        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @total_timeout
-        exceeded = @total_timeout
         until cancelled?
-          left = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          if left <= 0
-            exceeded = @total_timeout
-            raise TimedOut
-          end
-
-          exceeded = left < @slice_timeout ? @total_timeout : @slice_timeout
-          limit = [@slice_timeout, left].min
-          whole = Timeout.timeout(limit, TimedOut) { Sketch.finish_some(@slice) }
+          whole = Timeout.timeout(@slice_timeout, TimedOut) { Sketch.finish_some(@slice) }
           return push_if_active(whole) if whole
           return unless Sketch.waiting?
         end
@@ -242,7 +256,7 @@ module Asobi
         nil
       rescue TimedOut
         Sketch.forget
-        message = Messages.text(:live_timeout, file: File.basename(@path), seconds: Asobi.fmt(exceeded))
+        message = Messages.text(:live_timeout, file: File.basename(@path), seconds: Asobi.fmt(@slice_timeout))
         push_if_active(Reel.error(message, code: @code))
       end
     end

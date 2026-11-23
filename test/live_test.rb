@@ -563,7 +563,7 @@ class LiveTest < Minitest::Test
 
   def test_endless_loop_during_whole_reel_build_times_out_and_recovers
     write "show circle(radius: 7)\n"
-    start_run(timeout: 0.3, finish_timeout: 1.0)
+    start_run(timeout: 2.0, finish_timeout: 0.4)
     stream = events
     stream.next_event
 
@@ -571,27 +571,28 @@ class LiveTest < Minitest::Test
     write "show circle(radius: 4).animate(2) { |c, t| loop {} if t > 0; c }, paper: [100, 100]\n"
     assert stream.next_event(3)["pending"]
     timed_out = stream.next_event(3)
-    assert_includes timed_out["error"], "0.3 seconds"
+    assert_includes timed_out["error"], "0.4 seconds" # one slice stuck for finish_timeout
     refute Asobi::Sketch.waiting?
 
     write "show circle(radius: 11)\n"
     assert_equal ['<circle r="11"/>'], stream.next_event(3)["frames"]
   end
 
-  def test_slow_whole_reel_hits_total_timeout_and_recovers
+  # As in the playground, only one slice stuck for finish_timeout stops the
+  # build: a slow whole Reel that keeps going finishes, however long it takes.
+  def test_slow_whole_reel_that_keeps_going_still_finishes
     write "show circle(radius: 7)\n"
-    start_run(timeout: 5.0, finish_timeout: 0.25)
+    start_run(timeout: 5.0, finish_timeout: 0.3)
     stream = events
     stream.next_event
 
-    write "show circle(radius: 4).animate(2) { |c, t| sleep 0.03 if t > 0; c }, paper: [100, 100]\n"
+    # 59 frames of 0.02 s: about 1.2 s in all, each slice well under 0.3 s.
+    write "show circle(radius: 4).animate(2) { |c, t| sleep 0.02 if t > 0; c }, paper: [100, 100]\n"
     assert stream.next_event(3)["pending"]
-    timed_out = stream.next_event(3)
-    assert_includes timed_out["error"], "0.25 seconds"
-    refute Asobi::Sketch.waiting?
-
-    write "show circle(radius: 13)\n"
-    assert_equal ['<circle r="13"/>'], stream.next_event(3)["frames"]
+    whole = stream.next_event(5)
+    assert_nil whole["error"]
+    refute whole.key?("pending")
+    assert_equal 60, whole["frames"].size
   end
 
   def test_saving_during_a_hung_whole_reel_recovers_promptly
@@ -645,9 +646,80 @@ class LiveTest < Minitest::Test
     Asobi::Live.unload(Asobi::Live.local_requires(@path))
   end
 
+  # Every save loads the local files again. The top-level constants they
+  # made go first, so a Struct subclass is no "superclass mismatch" and
+  # nothing is "already initialized".
+  def test_reloading_a_helper_makes_its_classes_and_constants_afresh
+    helper = lambda do |color, step|
+      <<~RUBY
+        LIVE_RELOAD_COLOR = :#{color}
+        LiveReloadStep = Data.define(:x)
+        class LiveReloadPlanet < Struct.new(:size)
+          def to_art = Asobi.circle(size).colored(LIVE_RELOAD_COLOR).move(right: LiveReloadStep.new(#{step}).x)
+        end
+      RUBY
+    end
+    stderr = $stderr
+    $stderr = errors = StringIO.new
+    write_file "helper.rb", helper.call(:red, 10)
+    write "require_relative 'helper'\nshow LiveReloadPlanet.new(5)\n"
+    start_run
+    stream = events
+    assert_includes stream.next_event["frames"].first, "red"
+
+    write "require_relative 'helper'\nshow LiveReloadPlanet.new(6)\n"
+    saved = stream.next_event(3)
+    assert_nil saved["error"]
+    assert_includes saved["frames"].first, 'r="6"'
+
+    write_file "helper.rb", helper.call(:gold, 20)
+    changed = stream.next_event(3)
+    assert_nil changed["error"]
+    assert_includes changed["frames"].first, "gold"
+    assert_includes changed["frames"].first, "20"
+    refute_match(/already initialized|previous definition/, errors.string)
+  ensure
+    $stderr = stderr if stderr
+    @server&.stop
+    @runner&.join(3)
+    Asobi::Live.unload(Asobi::Live.local_requires(@path))
+    %i[LIVE_RELOAD_COLOR LiveReloadStep LiveReloadPlanet].each do |name|
+      Object.send(:remove_const, name) if Object.const_defined?(name, false)
+    end
+  end
+
   def test_local_requires_never_includes_asobi_library
     root_sketch = File.expand_path("../play.rb", __dir__)
     found = Asobi::Live.local_requires(root_sketch)
     assert(found.none? { _1.include?("/lib/asobi") }, found.inspect)
+  end
+
+  # A sketch saved where Ruby is installed (or beside gems) has no parts
+  # from Ruby's own library.
+  def test_local_requires_never_includes_ruby_itself
+    sketch = File.join(RbConfig::CONFIG["prefix"], "play.rb")
+    ruby = RbConfig::CONFIG.values_at("rubylibdir", "archdir").flat_map { [_1, File.realpath(_1)] }.map { File.join(_1, "") }
+    assert($LOADED_FEATURES.any? { |file| file.start_with?(*ruby) }, "some of Ruby's own library is loaded")
+    found = Asobi::Live.local_requires(sketch)
+    assert(found.none? { |file| file.start_with?(*ruby) }, found.inspect)
+  end
+
+  # A lib/ folder on the load path holds a library even inside the sketch's
+  # folder: what require finds there is no part, a require_relative file is.
+  def test_local_requires_skips_a_library_folder_on_the_load_path
+    lib = File.join(@dir, "lib")
+    write_file "lib/live_lib_thing.rb", "# a library\n"
+    write_file "parts/live_part.rb", "# a part of the sketch\n"
+    write "require 'live_lib_thing'\nrequire_relative 'parts/live_part'\nshow circle\n"
+    $LOAD_PATH.unshift(lib)
+    assert_nil Asobi::Live.evaluate(@path)["error"]
+    assert($LOADED_FEATURES.any? { _1.end_with?("/lib/live_lib_thing.rb") }, "required from lib")
+    found = Asobi::Live.local_requires(@path)
+    assert(found.any? { _1.end_with?("/parts/live_part.rb") }, found.inspect)
+    assert(found.none? { _1.end_with?("/live_lib_thing.rb") }, found.inspect)
+  ensure
+    $LOAD_PATH.delete(lib)
+    here = [@dir, File.realpath(@dir)].map { "#{_1}/" }
+    $LOADED_FEATURES.reject! { _1.start_with?(*here) } # only what this test loaded
   end
 end
