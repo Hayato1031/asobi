@@ -1090,12 +1090,105 @@ class SiteTest < Minitest::Test
   end
 
   def test_markdown_files_get_one_content_type_and_one_cors_header
-    ["/ja/index.md", "/.well-known/agent-skills/asobi/SKILL.md"].each do |path|
-      assert File.file?(File.join(@out, path)), path
+    files = Dir.glob(File.join(@out, "**", "*.md"), File::FNM_DOTMATCH).map { "/#{_1.delete_prefix(File.join(@out, ""))}" }
+    assert_includes files, "/ja/index.md"
+    assert_includes files, "/.well-known/agent-skills/asobi/SKILL.md"
+    assert_equal AsobiSite.markdown_paths.sort, files.sort
+    files.each do |path|
       headers = matching_header_blocks(path).flat_map { |_, hs| hs }
       assert_equal ["text/markdown; charset=utf-8"], headers.select { |n, _| n.casecmp?("content-type") }.map { |_, v| v }, path
       assert_equal ["*"], headers.select { |n, _| n.casecmp?("access-control-allow-origin") }.map { |_, v| v }, path
     end
+  end
+
+  def test_missing_markdown_urls_are_not_labelled_as_markdown
+    ["/auth.md", "/nope.md", "/ja/nope.md", "/.well-known/nope.md"].each do |path|
+      names = matching_header_blocks(path).flat_map { |_, hs| hs.map { |n, _| n.downcase } }
+      refute_includes names, "content-type", path
+    end
+  end
+
+  # ---- _routes.json and the Markdown middleware ---------------------------------
+
+  def test_routes_json_lists_exactly_the_page_urls
+    routes = JSON.parse(read("_routes.json"))
+    assert_equal 1, routes["version"]
+    assert_equal [], routes["exclude"]
+    expected = %w[/ /guide /reference /examples /playground /ja/ /ja/guide /ja/reference /ja/examples /ja/playground]
+    assert_equal expected.sort, routes["include"].sort
+    routes["include"].each do |path|
+      html = path.end_with?("/") ? "#{path}index.html" : "#{path}.html"
+      assert File.file?(File.join(@out, html)), html
+      assert File.file?(File.join(@out, AsobiSite.markdown_path(*page_and_lang(path)))), path
+    end
+  end
+
+  def page_and_lang(path)
+    lang = path.start_with?("/ja/") ? :ja : :en
+    name = File.basename(path)
+    [path.end_with?("/") ? "index" : name, lang]
+  end
+
+  def test_the_middleware_answers_markdown_requests_with_the_markdown_twin
+    node = ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).map { File.join(_1, "node") }.find { File.executable?(_1) }
+    skip "node is not installed" unless node
+
+    middleware = "file://#{File.expand_path("../functions/_middleware.js", __dir__)}"
+    script = <<~JS
+      const m = await import(process.argv[1]);
+      const fs = await import("node:fs");
+      const out = process.argv[2];
+      const files = (path) => {
+        const rel = path === "/" ? "/index.html" : path;
+        const file = out + rel;
+        return fs.existsSync(file) && fs.statSync(file).isFile() ? fs.readFileSync(file) : null;
+      };
+      const context = (method, path, accept) => ({
+        request: new Request("https://asobi.myura.me" + path, { method, headers: accept ? { Accept: accept } : {} }),
+        env: { ASSETS: { fetch: async (req) => {
+          const body = files(new URL(req.url).pathname);
+          return body ? new Response(body, { status: 200, headers: { "Content-Type": "application/octet-stream" } }) : new Response("nope", { status: 404 });
+        } } },
+        next: async () => new Response("<html></html>", { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'self'" } })
+      });
+      const chrome = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8";
+      const summary = async (res) => ({ status: res.status, type: res.headers.get("content-type"), vary: res.headers.get("vary"), csp: res.headers.get("content-security-policy"), location: res.headers.get("content-location"), body: await res.text() });
+      console.log(JSON.stringify({
+        paths: ["/", "/ja/", "/guide", "/ja/playground", "/assets/site.js", "/nope", "/guide.md"].map((p) => m.markdownPath(p)),
+        routes: JSON.parse(fs.readFileSync(out + "/_routes.json", "utf8")).include.map((p) => m.markdownPath(p)),
+        accepts: [chrome, "text/markdown", "text/markdown, text/html, */*", "text/html, text/markdown;q=0.5", "text/markdown;q=0", " Text/Markdown ; charset=utf-8 ", null].map((a) => m.prefersMarkdown(a)),
+        markdown: await summary(await m.onRequest(context("GET", "/reference", "text/markdown"))),
+        browser: await summary(await m.onRequest(context("GET", "/reference", chrome))),
+        post: await summary(await m.onRequest(context("POST", "/reference", "text/markdown")))
+      }));
+    JS
+    out, err, status = Open3.capture3(node, "--input-type=module", "-e", script, middleware, @out)
+    assert status.success?, err
+    result = JSON.parse(out.force_encoding(Encoding::UTF_8))
+
+    assert_equal ["/index.md", "/ja/index.md", "/guide.md", "/ja/playground.md", nil, nil, nil], result["paths"]
+    # The middleware keeps its own list of pages: it must know every page the
+    # build routes to it, or a new page would quietly answer HTML only.
+    routes = JSON.parse(read("_routes.json"))["include"]
+    assert_equal routes.map { AsobiSite.markdown_path(*page_and_lang(_1)) }, result["routes"]
+    assert_equal [false, true, true, false, false, true, false], result["accepts"]
+
+    markdown = result["markdown"]
+    assert_equal 200, markdown["status"]
+    assert_equal "text/markdown; charset=utf-8", markdown["type"]
+    assert_equal read("reference.md"), markdown["body"]
+    assert_equal "/reference.md", markdown["location"]
+    assert_match(/accept/i, markdown["vary"])
+
+    browser = result["browser"]
+    assert_equal "text/html; charset=utf-8", browser["type"]
+    assert_equal "default-src 'self'", browser["csp"]
+    assert_equal "<html></html>", browser["body"]
+    assert_equal "Accept", browser["vary"]
+
+    post = result["post"]
+    assert_equal "<html></html>", post["body"]
+    assert_nil post["vary"]
   end
 
   # ---- word counts and links -------------------------------------------------

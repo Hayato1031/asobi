@@ -302,8 +302,23 @@ module AsobiSite
   def h(text) = ERB::Util.html_escape(text.to_s)
 
   def page_url(page, lang)
+    "#{SITE_URL}#{page_path(page, lang)}"
+  end
+
+  # The clean path of a page ("/", "/guide", "/ja/", "/ja/guide").
+  def page_path(page, lang)
     directory = lang == :en ? "/" : "/#{lang}/"
-    "#{SITE_URL}#{directory}#{page unless page == "index"}"
+    "#{directory}#{page unless page == "index"}"
+  end
+
+  # The path of a page's Markdown twin ("/index.md", "/ja/guide.md").
+  def markdown_path(page, lang) = "#{lang == :en ? "/" : "/#{lang}/"}#{page}.md"
+
+  # Every Markdown file the build writes, as a URL path: the page twins of both
+  # languages and the agent skill. _headers has one rule per entry.
+  def markdown_paths
+    LANGUAGES.keys.product(PAGES.keys).map { |lang, page| markdown_path(page, lang) } +
+      ["/.well-known/agent-skills/asobi/SKILL.md"]
   end
 
   # Finished pieces (the gallery, the home page, the playground) show the
@@ -1182,6 +1197,16 @@ module AsobiSite
         }
       ) + "\n")
 
+      # Functions (functions/_middleware.js) answer Accept: text/markdown on the
+      # page URLs only. Listing exactly those keeps every other file (assets,
+      # reels, .md, .well-known) on the plain static server, free of Functions
+      # quota.
+      File.write(File.join(@out, "_routes.json"), JSON.generate(
+        "version" => 1,
+        "include" => LANGUAGES.keys.product(PAGES.keys).map { |lang, page| AsobiSite.page_path(page, lang) },
+        "exclude" => []
+      ) + "\n")
+
       link_header = %w[
         </.well-known/api-catalog>;\ rel="api-catalog"
         </llms.txt>;\ rel="describedby";\ type="text/markdown"
@@ -1189,10 +1214,13 @@ module AsobiSite
         </.well-known/agent-skills/index.json>;\ rel="agent-skills"
       ].join(", ")
       # Cloudflare applies EVERY rule whose pattern matches and joins equal
-      # header names with ", ", and a * matches slashes too. So /*.md already
-      # covers /ja/*.md and /.well-known/agent-skills/*.md: a second rule for
-      # them would send "text/markdown, text/markdown" and "*, *". Keep the
-      # rules disjoint (test/site_test.rb checks every file).
+      # header names with ", ", and a * matches slashes too. So the rules must
+      # stay disjoint (test/site_test.rb checks every file). Markdown gets one
+      # exact rule per real file, not /*.md: headers also go on 404 responses,
+      # and a wildcard would label the HTML 404 page of /nope.md as Markdown.
+      markdown_rules = AsobiSite.markdown_paths.map do |path|
+        "#{path}\n  Content-Type: text/markdown; charset=utf-8\n  Access-Control-Allow-Origin: *"
+      end.join("\n")
       File.write(File.join(@out, "_headers"), <<~HEADERS)
         /*
           #{all_pages_headers.join("\n  ")}
@@ -1212,9 +1240,7 @@ module AsobiSite
         /.well-known/poppy.json
           Content-Type: application/json; charset=utf-8
           Access-Control-Allow-Origin: *
-        /*.md
-          Content-Type: text/markdown; charset=utf-8
-          Access-Control-Allow-Origin: *
+        #{markdown_rules}
         /llms.txt
           Content-Type: text/markdown; charset=utf-8
           Access-Control-Allow-Origin: *
@@ -1304,6 +1330,7 @@ module AsobiSite
         - Website: #{SITE_URL}/
         - Japanese Website: #{SITE_URL}/ja/
         - Full LLM Context: #{SITE_URL}/llms-full.txt
+        - Markdown on request: every page URL answers in Markdown with `Accept: text/markdown` (`curl -H "Accept: text/markdown" #{SITE_URL}/reference`)
         - Agent Skill: #{SITE_URL}/.well-known/agent-skills/asobi/SKILL.md
         - AI Catalog (ARD): #{SITE_URL}/.well-known/ai-catalog.json
         - Source Code: #{GITHUB_URL}
