@@ -3,6 +3,7 @@
 require "socket"
 require "json"
 require "rbconfig"
+require "timeout"
 require_relative "sketch"
 
 module Asobi
@@ -19,6 +20,9 @@ module Asobi
   Messages.add(:live_invalid_reel,
                en: 'asobi could not send this sketch to the browser. Use UTF-8 for the file and its text, and finite numbers for drawing, like:  show text("hello", size: 24)',
                ja: 'このスケッチをブラウザに送れませんでした。ファイルと文字列には UTF-8 を使い、描画には有限の数を指定してください。例：show text("こんにちは", size: 24)')
+  Messages.add(:live_timeout,
+               en: "%{file} took more than %{seconds} seconds, so it was stopped. Check for a loop that never ends, or use fewer shapes or a shorter every:, like:  show circle.spin(every: 4)",
+               ja: "%{file} の実行に %{seconds} 秒以上かかったので止めました。終わらないくり返しがないか、図形の数や every: を見直してください。例：show circle.spin(every: 4)")
 
   # The live view: a tiny HTTP server (standard library only) that serves the
   # player page and streams Reels to every open browser tab (Server-Sent
@@ -29,28 +33,41 @@ module Asobi
     HOST = "127.0.0.1"
     DEFAULT_PORT = 4567
     PORT_TRIES = 20
-    HEARTBEAT = 15 # seconds between keep-alive comments
-    POLL = 0.2     # seconds between looks at the sketch file
+    HEARTBEAT = 15    # seconds between keep-alive comments
+    POLL = 0.2        # seconds between looks at the sketch files
+    SLICE = 0.05      # seconds per piece when building a whole Reel in the background
+    STOP_GRACE = 0.5  # seconds to wait for a cooperative stop before interrupting a stuck frame
+    EVAL_TIMEOUT = 15 # seconds before stopping a stuck sketch evaluation (same as the playground)
+    FINISH_TIMEOUT = 60 # seconds before stopping a whole-Reel build (same as the playground)
     PAGE = File.join(__dir__, "web", "live.html")
     PLACEHOLDER = "/*ASOBI_PLAYER_JS*/"
 
+    # Raised by Timeout inside Live so a sketch's own `rescue` cannot swallow it.
+    class TimedOut < Exception; end # rubocop:disable Lint/InheritException
+    # Raised only if a background slice stays stuck past STOP_GRACE on a newer save.
+    class Cancelled < Exception; end # rubocop:disable Lint/InheritException
+
     module_function
 
-    # Blocking. Evaluate the sketch, serve it, and follow the file until
-    # Ctrl-C (or until the server is stopped). Yields the server once it is
-    # ready. +initial+ is a Reel already made from this run of the script
-    # (when it is a pending preview, Sketch.finish has the rest).
-    def run(path, port: DEFAULT_PORT, open: true, initial: nil, out: $stdout)
+    # Blocking. Evaluate the sketch, serve it, and follow the file (and any
+    # local .rb files it required under its folder) until Ctrl-C (or until
+    # the server is stopped). Yields the server once it is ready. +initial+
+    # is a Reel already made from this run of the script (when it is a
+    # pending preview, Sketch.finish_some has the rest).
+    def run(path, port: DEFAULT_PORT, open: true, initial: nil, out: $stdout,
+            timeout: EVAL_TIMEOUT, finish_timeout: FINISH_TIMEOUT)
       path = File.expand_path(path.to_s)
       server = Server.new(port:)
-      seen = stamp(path)
-      first = server.push(initial || Sketch.evaluate(path, preview: true))
-      builder = finish_later(server) if first["pending"]
+      main_stamp = stamp(path)
+      first = server.push(initial || evaluate(path, timeout:))
+      deps = local_requires(path)
+      seen = { path => main_stamp }.merge(stamps(deps))
+      builder = first["pending"] ? finish_later(server, path:, code: first["code"], timeout:, finish_timeout:) : nil
       out.puts Say.text(:live_ready, file: File.basename(path), url: server.url)
       out.flush
       open_browser(server.url) if open
       yield server if block_given?
-      watch(path, server, seen, builder)
+      watch(path, server, seen, builder, deps:, timeout:, finish_timeout:)
     rescue Interrupt
       out.puts
       out.puts Say.text(:live_bye)
@@ -69,53 +86,96 @@ module Asobi
       server
     end
 
-    # Poll the file; when it changes (and has settled), evaluate and push.
+    # Poll the sketch and its local required .rb files; when any changes (and
+    # has settled), reload the local files, evaluate and push.
     #
     # A motion arrives in two pushes: first a quick preview (one frame,
-    # "pending"), then the whole Reel, made by a helper thread while this
-    # loop keeps watching. If the file is saved again before the whole Reel
-    # is ready, that Reel is already out of date: the helper is stopped and
-    # never pushes, and the newest file is evaluated instead. So the screen
-    # always ends on the newest file.
-    def watch(path, server, seen = stamp(path), builder = nil)
+    # "pending"), then the whole Reel, made in small slices (Sketch.finish_some)
+    # by a helper thread while this loop keeps watching. If a file is saved
+    # again before the whole Reel is ready, the helper is asked to stop
+    # cooperatively and never pushes, and the newest files are evaluated instead.
+    def watch(path, server, seen = stamps([path]), builder = nil, deps: [],
+              timeout: EVAL_TIMEOUT, finish_timeout: FINISH_TIMEOUT)
+      seen = { path => seen } unless seen.is_a?(Hash)
       until server.stopped?
         sleep POLL
-        now = stamp(path)
-        next if now.nil? || now == seen
+        files = [path, *deps]
+        now = stamps(files)
+        next if now[path].nil? || now == seen
 
         loop do # wait until the editor has finished writing
           sleep 0.05
-          later = stamp(path)
-          break if later == now || later.nil?
+          later = stamps(files)
+          break if later == now || later[path].nil?
 
           now = later
         end
-        seen = now
-        stop(builder) # a newer save: what it was making is out of date
-        first = server.push(Sketch.evaluate(path, preview: true))
-        builder = first["pending"] ? finish_later(server) : nil
+        stop(builder) # a newer save: stop building the out-of-date whole Reel
+        unload(deps)
+        first = server.push(evaluate(path, timeout:))
+        loaded = local_requires(path)
+        deps = first["error"] ? (deps | loaded) : loaded
+        seen = now.slice(path, *deps).merge(stamps(deps - now.keys))
+        builder = first["pending"] ? finish_later(server, path:, code: first["code"], timeout:, finish_timeout:) : nil
       end
     ensure
       stop(builder)
     end
 
-    # A thread that makes the whole Reel (Sketch.finish) and pushes it.
-    def finish_later(server)
-      thread = Thread.new do
-        whole = Sketch.finish
-        server.push(whole) if whole
+    # Evaluate a sketch file with a timeout so an endless loop never locks up
+    # the live view; the browser keeps the last good picture and shows the error.
+    def evaluate(path, timeout: EVAL_TIMEOUT)
+      code = begin
+        File.read(path, encoding: "UTF-8")
+      rescue SystemCallError, EncodingError
+        nil
       end
-      thread.report_on_exception = false
-      thread
+      Timeout.timeout(timeout, TimedOut) { Sketch.evaluate(path, preview: true) }
+    rescue TimedOut
+      Sketch.forget
+      Reel.error(Messages.text(:live_timeout, file: File.basename(path), seconds: Asobi.fmt(timeout)), code:)
     end
 
-    # Stop a finish_later thread and wait until it has really stopped, so
-    # it can never push after what comes next.
-    def stop(builder)
-      return unless builder
+    # A helper that builds the whole Reel in slices (Sketch.finish_some) and
+    # pushes it unless stopped first, with the same time limits as the playground.
+    def finish_later(server, path: "sketch.rb", code: nil, timeout: EVAL_TIMEOUT, finish_timeout: FINISH_TIMEOUT)
+      Builder.new(server, path:, code:, slice_timeout: timeout, total_timeout: finish_timeout)
+    end
 
-      builder.kill
-      builder.join
+    # Ask a finish_later helper to stop and wait until it has stopped, so it
+    # can never push after what comes next.
+    def stop(builder)
+      builder&.stop
+    end
+
+    # Local .rb files loaded under the sketch's folder (via require_relative
+    # or require), never the sketch itself and never asobi's own library.
+    def local_requires(path)
+      expanded = File.expand_path(path)
+      dir = File.dirname(expanded)
+      roots = [dir, (File.realpath(dir) rescue dir)].uniq.map { "#{_1}/" }
+      self_paths = [expanded, (File.realpath(expanded) rescue nil)].compact
+      asobi_dir = "#{File.expand_path(__dir__)}/"
+      asobi_real = "#{(File.realpath(__dir__) rescue __dir__)}/"
+      entry = File.expand_path("../asobi.rb", __dir__)
+      asobi_entries = [entry, (File.realpath(entry) rescue nil)].compact
+      $LOADED_FEATURES.select do |file|
+        next false unless file.end_with?(".rb")
+        next false if self_paths.include?(file)
+        next false if file.start_with?(asobi_dir, asobi_real) || asobi_entries.include?(file)
+
+        roots.any? { file.start_with?(_1) }
+      end
+    end
+
+    # Drop local required files from $LOADED_FEATURES so require_relative reads
+    # them again on the next evaluation.
+    def unload(paths)
+      paths.each { $LOADED_FEATURES.delete(_1) }
+    end
+
+    def stamps(paths)
+      paths.to_h { [_1, stamp(_1)] }
     end
 
     def stamp(path)
@@ -123,6 +183,68 @@ module Asobi
       [stat.mtime, stat.size]
     rescue SystemCallError
       nil # briefly missing while an editor saves
+    end
+
+    # Builds the whole Reel of a motion in small slices (Sketch.finish_some) on
+    # a helper thread, stopping cooperatively when a newer save arrives.
+    class Builder
+      def initialize(server, path:, code:, slice: SLICE, slice_timeout: EVAL_TIMEOUT, total_timeout: FINISH_TIMEOUT)
+        @mutex = Mutex.new
+        @cancelled = false
+        @server = server
+        @path = path
+        @code = code
+        @slice = slice
+        @slice_timeout = slice_timeout
+        @total_timeout = total_timeout
+        @thread = Thread.new { work }
+        @thread.report_on_exception = false
+      end
+
+      def stop
+        @mutex.synchronize { @cancelled = true }
+        unless @thread.join(STOP_GRACE)
+          @thread.raise(Cancelled)
+          @thread.join
+        end
+        Sketch.forget
+      end
+
+      private
+
+      def cancelled? = @mutex.synchronize { @cancelled }
+
+      def push_if_active(reel)
+        @mutex.synchronize do
+          return if @cancelled
+
+          @server.push(reel)
+        end
+      end
+
+      def work
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @total_timeout
+        exceeded = @total_timeout
+        until cancelled?
+          left = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          if left <= 0
+            exceeded = @total_timeout
+            raise TimedOut
+          end
+
+          exceeded = left < @slice_timeout ? @total_timeout : @slice_timeout
+          limit = [@slice_timeout, left].min
+          whole = Timeout.timeout(limit, TimedOut) { Sketch.finish_some(@slice) }
+          return push_if_active(whole) if whole
+          return unless Sketch.waiting?
+        end
+      rescue Cancelled
+        nil
+      rescue TimedOut
+        Sketch.forget
+        message = Messages.text(:live_timeout, file: File.basename(@path), seconds: Asobi.fmt(exceeded))
+        push_if_active(Reel.error(message, code: @code))
+      end
     end
 
     def open_browser(url)
