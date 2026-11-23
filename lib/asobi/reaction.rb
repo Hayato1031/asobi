@@ -239,7 +239,7 @@ module Asobi
     def when_pressed(key = nil) = Reaction.new(motion: self, turn: "key", key: Reactions.key(key))
 
     # Each beat heard plays the motion once. :mic is the microphone;
-    # :music is the sound asobi itself plays (silent for now).
+    # :music is the sound asobi itself plays.
     #   flower.pulse.on_beat
     def on_beat(from = :mic) = Reaction.new(motion: self, turn: "beat", from: Reactions.beat_source(from))
 
@@ -249,7 +249,7 @@ module Asobi
     #   flower.pulse.by(:mic)          how loud the microphone is
     #   flower.pulse.by(:mic, :low)    the low sounds (also :mid, :high)
     #   flower.spin.by(:mic, :pitch)   how high the sound is
-    #   flower.pulse.by(:music)        the sound asobi plays (silent for now)
+    #   flower.pulse.by(:music)        the sound asobi itself plays
     def by(from, what = nil)
       source = Reactions.value_source(from)
       Reaction.new(motion: self, turn: "value", from: source, what: Reactions.sound_part(source, what))

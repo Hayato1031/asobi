@@ -121,7 +121,7 @@ class DocsTest < Minitest::Test
                   colored outlined stroke opacity
                   in_row in_column in_grid in_ring in_fan in_spiral scattered change_each
                   to_art
-                  spin pulse sway orbit fade bounce drift shift_color one_by_one animate at
+                  spin pulse sway orbit fade flash bounce drift shift_color one_by_one animate at
                   when_clicked while_hovered when_pressed on_beat by sounding play
                   show save turn]
     assert_empty expected - documented, "words with no entry in words.yml"
