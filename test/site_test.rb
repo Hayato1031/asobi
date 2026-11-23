@@ -984,11 +984,11 @@ class SiteTest < Minitest::Test
         assert_includes rendered, 'id="compare"'
         assert_includes rendered, 'id="faq"'
         assert_includes rendered, 'class="compare-table"'
-        # The films: the one marked first stands alone; under it, one tab per version, the newest in view and marked new.
+        # The films: the one marked first stands alone; under it, one tab per version, the newest in view.
         assert_match(%r{<section class="band film" id="film".*?<h2 id="film-title" lang="en">Your Objects</h2>.*?assets/your-objects\.mp4.*?</section>\s*<section class="band films" id="films"}m, rendered)
-        assert_match(/role="tablist".*?id="film-tab-play"[^>]*aria-selected="true".*?class="film-new".*?id="film-tab-your-objects"[^>]*aria-selected="false"/m, rendered,
-                     "#{file}: Play is in view and new, Your Objects is a tab away")
-        assert_equal 1, rendered.scan('class="film-new"').size
+        assert_match(/role="tablist".*?id="film-tab-play"[^>]*aria-selected="true".*?id="film-tab-your-objects"[^>]*aria-selected="false"/m, rendered,
+                     "#{file}: Play is in view, Your Objects is a tab away")
+        refute_includes rendered, "film-new"
         assert_match(%r{id="film-play" role="tabpanel".*?assets/play\.mp4.*?id="film-your-objects" role="tabpanel".*?assets/your-objects\.mp4}m, rendered)
         assert_includes rendered, file.start_with?("ja") ? "紹介映像 · 60秒 · 音楽あり" : "Short film · 60 seconds · Music"
         assert_includes rendered, 'href="#film"'

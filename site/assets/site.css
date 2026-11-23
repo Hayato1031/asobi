@@ -330,7 +330,6 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 .film-tab-text { display: grid; gap: 2px; }
 .film-tab-title { font-size: 16px; font-weight: 600; }
 .film-tab-meta { font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
-.film-new { margin-left: 6px; padding: 1px 6px; font-weight: 600; color: var(--paper, #fff); background: var(--signal); }
 @media (max-width: 760px) {
   .film { grid-template-columns: 1fr; gap: var(--s4); }
   .film-tabs img { width: 64px; height: 36px; }

@@ -61,7 +61,7 @@
     <button type="button" role="tab" id="film-tab-<%= film["id"] %>" aria-controls="film-<%= film["id"] %>" aria-selected="<%= i.zero? %>"<%= ' tabindex="-1"' unless i.zero? %>>
       <img src="<%= root %>assets/<%= film["id"] %>-poster.png" alt="" width="<%= film["width"] %>" height="<%= film["height"] %>" loading="lazy" decoding="async">
       <span class="film-tab-text">
-        <span class="film-tab-meta"><%= h(ui(:film_version, film["version"])) %><%- if i.zero? -%> <b class="film-new"><%= ui(:film_new) %></b><%- end -%></span>
+        <span class="film-tab-meta"><%= h(ui(:film_version, film["version"])) %></span>
         <span class="film-tab-title" lang="en"><%= h(film["title"]) %></span>
       </span>
     </button>
