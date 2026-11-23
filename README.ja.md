@@ -43,8 +43,46 @@ bloom = sky.animate(3) { |b, t| b.scale(0.05 + t**0.35).opacity(1 - t**4) }
 show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 ```
 
+## asobi で作ったもの
+
+下の作品はどれも、そのまま動く Ruby ファイル1つです。絵を選ぶとコードを読めます。
+
+<table>
+<tr>
+<td align="center" width="50%"><a href="examples/showcase/tunnel.rb"><img src="docs/readme/media/tunnel.gif" alt="暗い中心から、水色・マゼンタ・金の細い六角形がねじれながら次々に飛び出し、すみれ色の放射線の上を光が回る。" width="100%"></a></td>
+<td align="center" width="50%"><a href="examples/showcase/lace.rb"><img src="docs/readme/media/lace.gif" alt="水色・すみれ色・ピンクの細い楕円が何百本も重なってリボンのように寄り集まり、中心のまわりで波打つ。" width="100%"></a></td>
+</tr>
+<tr>
+<td align="center"><b><a href="examples/showcase/tunnel.rb">ネオンのトンネル</a></b><br>六角形24枚を <code>one_by_one</code> で次々に飛ばす · 7行</td>
+<td align="center"><b><a href="examples/showcase/lace.rb">レース</a></b><br>髪の毛ほど細い楕円132本が波打つ · 6行</td>
+</tr>
+<tr>
+<td align="center" width="50%"><a href="examples/showcase/spectrum.rb"><img src="docs/readme/media/spectrum.gif" alt="水色からすみれ色、ピンクへ移る細い棒240本の輪が、音楽ビジュアライザーのように跳ね、外側に薄いこだまが広がる。" width="100%"></a></td>
+<td align="center" width="50%"><a href="examples/showcase/galaxy.rb"><img src="docs/readme/media/galaxy.gif" alt="金からすみれ色へ移る1,100粒の種がひまわりのらせんに並び、瞬く白い星の上で銀河の腕のように巻いて回る。" width="100%"></a></td>
+</tr>
+<tr>
+<td align="center"><b><a href="examples/showcase/spectrum.rb">曲のないスペクトラム</a></b><br>240本の棒を <code>in_fan</code> で輪に、1本ずつ別の拍で · 10行</td>
+<td align="center"><b><a href="examples/showcase/galaxy.rb">銀河</a></b><br>1,100粒の種を <code>in_spiral</code> に並べ、腕に巻く · 10行</td>
+</tr>
+<tr>
+<td align="center" width="50%"><a href="examples/showcase/poster.rb"><img src="docs/readme/media/poster.gif" alt="RUBY IS PLAY・ASOBI・あそび と読める水色とピンクの文字の輪が8重に、光る「あそび」を囲み、明るさの波が輪を回る。" width="100%"></a></td>
+<td align="center" width="50%"><a href="examples/showcase/led_wall.rb"><img src="docs/readme/media/led_wall.gif" alt="ピンクから金へ移る小さな丸い灯り2,040個の壁に、3本腕の光の渦が回る。" width="100%"></a></td>
+</tr>
+<tr>
+<td align="center"><b><a href="examples/showcase/poster.rb">文字のポスター</a></b><br>840文字を8つの輪に並べ、光の波を走らせる · 14行</td>
+<td align="center"><b><a href="examples/showcase/led_wall.rb">LED の壁</a></b><br>2,040個の灯りを少しずつずらして光らせる · 8行</td>
+</tr>
+<tr>
+<td align="center" colspan="2"><a href="examples/reactions/self_portrait.rb"><img src="docs/readme/media/self_portrait.gif" alt="左にスケッチの Ruby コード、右にそのコードを文字の輪にした絵。ピンクのハートを囲む光る輪の上を、曲に合わせて光の帯が回る。" width="100%"></a></td>
+</tr>
+<tr>
+<td align="center" colspan="2"><b><a href="examples/reactions/self_portrait.rb">自画像</a></b><br>自分のコードを読み、1行ずつ文字の輪にして、曲に合わせて光を回す · 18行</td>
+</tr>
+</table>
+
 ## 目次
 
+- [asobi で作ったもの](#asobi-で作ったもの)
 - [asobi の考え方](#asobi-の考え方)
 - [最初のスケッチを動かす](#最初のスケッチを動かす)
 - [asobi を選ぶ理由](#asobi-を選ぶ理由)
@@ -328,10 +366,12 @@ show keys.to_art.in_row(gap: 16).on(beat), on: :black
 
 <table>
 <tr>
-<td align="center" width="50%"><a href="examples/showcase/seigaiha.rb"><img src="docs/readme/media/seigaiha.gif" alt="藍色の線で描いた青海波の模様。水色の波が、段から段へ流れていく。" width="100%"></a></td>
-<td align="center" width="50%"><a href="examples/showcase/bubble_sort.rb"><img src="docs/readme/media/bubble_sort.gif" alt="ばらばらに並んだ色とりどりの棒が、隣どうしの入れ替えを繰り返して、短い順に整っていく。" width="100%"></a></td>
+<td align="center" width="33%"><a href="examples/showcase/moire.rb"><img src="docs/readme/media/moire.gif" alt="水色からピンクへ移る細い同心円が2組重なり、片方が回って息づくと、曲がったモアレの縞が画面いっぱいにうねる。" width="100%"></a></td>
+<td align="center" width="33%"><a href="examples/showcase/seigaiha.rb"><img src="docs/readme/media/seigaiha.gif" alt="藍色の線で描いた青海波の模様。水色の波が、段から段へ流れていく。" width="100%"></a></td>
+<td align="center" width="33%"><a href="examples/showcase/bubble_sort.rb"><img src="docs/readme/media/bubble_sort.gif" alt="ばらばらに並んだ色とりどりの棒が、隣どうしの入れ替えを繰り返して、短い順に整っていく。" width="100%"></a></td>
 </tr>
 <tr>
+<td align="center"><b><a href="examples/showcase/moire.rb">モアレ</a></b><br>同心円を2組重ね、片方を <code>orbit</code> で回す · 4行</td>
 <td align="center"><b><a href="examples/showcase/seigaiha.rb">青海波</a></b><br>輪を半分ずつずらして重ね、<code>shift_color</code> で波を流す · 7行</td>
 <td align="center"><b><a href="examples/showcase/bubble_sort.rb">バブルソート</a></b><br>配列の入れ替え1回ごとに <code>to_art</code> で絵にする · 12行</td>
 </tr>

@@ -43,8 +43,46 @@ bloom = sky.animate(3) { |b, t| b.scale(0.05 + t**0.35).opacity(1 - t**4) }
 show bloom.one_by_one.trail(4).glowing(3), on: "#070812", paper: [360, 200]
 ```
 
+## Made with asobi
+
+Every piece below is one Ruby file that runs as it is. Select a picture to read its code.
+
+<table>
+<tr>
+<td align="center" width="50%"><a href="examples/showcase/tunnel.rb"><img src="docs/readme/media/tunnel.gif" alt="Thin cyan, magenta and gold hexagons rush out of a dark centre, twisting, while a light sweeps round a fan of violet rays." width="100%"></a></td>
+<td align="center" width="50%"><a href="examples/showcase/lace.rb"><img src="docs/readme/media/lace.gif" alt="Hundreds of hairline ellipses in cyan, violet and pink fold into ribbons that wave around the centre." width="100%"></a></td>
+</tr>
+<tr>
+<td align="center"><b><a href="examples/showcase/tunnel.rb">Neon tunnel</a></b><br>24 hexagons fly out <code>one_by_one</code> · 7 lines</td>
+<td align="center"><b><a href="examples/showcase/lace.rb">Lace</a></b><br>132 hairline ellipses folding in waves · 6 lines</td>
+</tr>
+<tr>
+<td align="center" width="50%"><a href="examples/showcase/spectrum.rb"><img src="docs/readme/media/spectrum.gif" alt="A ring of 240 thin bars, cyan to violet to pink, leaps like a music visualiser, with a faint echo of itself around it." width="100%"></a></td>
+<td align="center" width="50%"><a href="examples/showcase/galaxy.rb"><img src="docs/readme/media/galaxy.gif" alt="Eleven hundred gold-to-violet seeds on a sunflower spiral wind into turning galaxy arms over twinkling white stars." width="100%"></a></td>
+</tr>
+<tr>
+<td align="center"><b><a href="examples/showcase/spectrum.rb">Spectrum without a song</a></b><br>240 bars <code>in_fan</code>, each on its own beat · 10 lines</td>
+<td align="center"><b><a href="examples/showcase/galaxy.rb">Galaxy</a></b><br>1,100 seeds <code>in_spiral</code>, winding into arms · 10 lines</td>
+</tr>
+<tr>
+<td align="center" width="50%"><a href="examples/showcase/poster.rb"><img src="docs/readme/media/poster.gif" alt="Eight rings of cyan and pink letters reading RUBY IS PLAY, ASOBI and あそび surround a glowing あそび; waves of light run round them." width="100%"></a></td>
+<td align="center" width="50%"><a href="examples/showcase/led_wall.rb"><img src="docs/readme/media/led_wall.gif" alt="A wall of 2,040 small round lights, pink to gold, turns a three-armed spiral of light." width="100%"></a></td>
+</tr>
+<tr>
+<td align="center"><b><a href="examples/showcase/poster.rb">Type poster</a></b><br>840 letters on eight rings, lit by waves · 14 lines</td>
+<td align="center"><b><a href="examples/showcase/led_wall.rb">LED wall</a></b><br>2,040 lights, each a moment behind the next · 8 lines</td>
+</tr>
+<tr>
+<td align="center" colspan="2"><a href="examples/reactions/self_portrait.rb"><img src="docs/readme/media/self_portrait.gif" alt="On the left, the Ruby source of the sketch. On the right, that same source set in glowing rings of letters around a pink heart, with bands of light sweeping round to the music." width="100%"></a></td>
+</tr>
+<tr>
+<td align="center" colspan="2"><b><a href="examples/reactions/self_portrait.rb">Self-portrait</a></b><br>reads its own code and draws every line as a ring of letters that follows the music · 18 lines</td>
+</tr>
+</table>
+
 ## Contents
 
+- [Made with asobi](#made-with-asobi)
 - [How asobi thinks](#how-asobi-thinks)
 - [Run your first sketch](#run-your-first-sketch)
 - [Why asobi](#why-asobi)
@@ -328,10 +366,12 @@ Each piece is a single Ruby file. Select a picture to read its code. From a chec
 
 <table>
 <tr>
-<td align="center" width="50%"><a href="examples/showcase/seigaiha.rb"><img src="docs/readme/media/seigaiha.gif" alt="Seigaiha, the Japanese wave pattern, in indigo lines. Pale blue washes through it row by row." width="100%"></a></td>
-<td align="center" width="50%"><a href="examples/showcase/bubble_sort.rb"><img src="docs/readme/media/bubble_sort.gif" alt="A row of shuffled, many-coloured bars swaps neighbours again and again until the bars stand in order of length." width="100%"></a></td>
+<td align="center" width="33%"><a href="examples/showcase/moire.rb"><img src="docs/readme/media/moire.gif" alt="Two sets of fine cyan-to-pink rings overlap; one circles and breathes, and curved moiré stripes ripple across the frame." width="100%"></a></td>
+<td align="center" width="33%"><a href="examples/showcase/seigaiha.rb"><img src="docs/readme/media/seigaiha.gif" alt="Seigaiha, the Japanese wave pattern, in indigo lines. Pale blue washes through it row by row." width="100%"></a></td>
+<td align="center" width="33%"><a href="examples/showcase/bubble_sort.rb"><img src="docs/readme/media/bubble_sort.gif" alt="A row of shuffled, many-coloured bars swaps neighbours again and again until the bars stand in order of length." width="100%"></a></td>
 </tr>
 <tr>
+<td align="center"><b><a href="examples/showcase/moire.rb">Moiré</a></b><br>two sets of rings, one moving with <code>orbit</code> · 4 lines</td>
 <td align="center"><b><a href="examples/showcase/seigaiha.rb">Seigaiha</a></b><br>overlapping rings and a tide of <code>shift_color</code> · 7 lines</td>
 <td align="center"><b><a href="examples/showcase/bubble_sort.rb">Bubble sort</a></b><br>every swap of an array, drawn with <code>to_art</code> · 12 lines</td>
 </tr>
