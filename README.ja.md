@@ -443,7 +443,7 @@ stars.colored(:navy).save("stars.svg")
 | インストールせずにブラウザで試す | [遊び場](https://asobi.myura.me/ja/playground) |
 | 1ファイルで動くスケッチを読む | [作例一覧](examples/README.md) |
 | AI エージェントに完全な API コンテキストを渡す | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
-| 設計の理由を知る | [設計書](DESIGN.md) |
+| 設計の理由を知る | [設計書](DESIGN.md) · [設計思想の解説記事（Qiita）](https://qiita.com/Myura/items/2b672011114817439ac5) |
 | 変更の履歴を見る | [CHANGELOG](CHANGELOG.md) |
 
 ## よくある質問

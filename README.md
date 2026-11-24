@@ -443,7 +443,7 @@ stars.colored(:navy).save("stars.svg")
 | Try asobi in the browser without installing it | [Playground](https://asobi.myura.me/playground) |
 | Read complete one-file sketches | [Examples](examples/README.md) |
 | Give AI coding agents full API context | [llms.txt](https://asobi.myura.me/llms.txt) · [llms-full.txt](https://asobi.myura.me/llms-full.txt) · [SKILL.md](https://asobi.myura.me/.well-known/agent-skills/asobi/SKILL.md) |
-| See why asobi is designed this way | [Design notes (Japanese)](DESIGN.md) |
+| See why asobi is designed this way | [Design notes (Japanese)](DESIGN.md) · [Design article on Qiita (Japanese)](https://qiita.com/Myura/items/2b672011114817439ac5) |
 | See what changed in each release | [Changelog](CHANGELOG.md) |
 
 ## FAQ
