@@ -19,6 +19,139 @@
   var player = AsobiPlayer.mount(stage, { controls: true, keys: true, language: cfg.lang });
   var playerT0 = performance.now(); // the player's own clock starts at mount and never resets
 
+  // ---- the stage window: a second window that mirrors code and picture ----
+  // It only receives (BroadcastChannel "asobi-stage"); Ruby, sound and
+  // reactions stay here. While no stage window is listening this costs
+  // nothing: no observer, no serialising. A stage counts as alive while its
+  // hello / here was heard within the last 6 s (they come as messages, which
+  // a hidden page still gets).
+  // When this page is hidden the browser stops its animation frames, so its
+  // pictures stop. For that the stage also gets the Reel on show (without the
+  // song, which keeps playing here) and plays it itself: it checks it with
+  // AsobiSafeReel as this page does, and its own player puts the frames on
+  // its page exactly as the player here does. Every shown Reel gets a seq
+  // (this page's own prefix, then a count); a hello names the seq the stage
+  // has, so a big Reel goes over once, not with every hello. visibility tells
+  // the stage when to play by itself and when to mirror again.
+  var channel = null, aliveUntil = 0, observer = null, observed = null;
+  var sendQueued = false, watchTimer = 0, stageError = null;
+  var reelPrefix = Math.random().toString(36).slice(2, 8), reelCount = 0, reelSeq = null, reelOnShow = null;
+  try { if (window.BroadcastChannel) channel = new BroadcastChannel("asobi-stage"); } catch (e) { channel = null; }
+
+  function stageAlive() { return !!channel && performance.now() < aliveUntil; }
+  function post(message) { try { channel.postMessage(message); } catch (e) { /* a closed channel: nothing to tell */ } }
+
+  function postCode() { if (stageAlive()) post({ type: "code", code: editor.value }); }
+  function postError() { if (stageAlive()) post({ type: "error", error: stageError }); }
+
+  // The player's svg as standalone markup for the stage (which draws it as an image only).
+  function serialisePicture() {
+    var svg = stage.querySelector("svg.asobi-svg");
+    var box = svg && svg.getAttribute("viewBox");
+    if (!svg || !box) return null;
+    var view = box.trim().split(/[\s,]+/).map(Number);
+    if (view.length !== 4 || view.some(function (n) { return !isFinite(n); })) return null;
+    var copy = svg.cloneNode(true);
+    copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    copy.removeAttribute("class");
+    copy.removeAttribute("width");
+    copy.removeAttribute("height");
+    var rect = svg.querySelector("rect");
+    return {
+      type: "picture",
+      svg: new XMLSerializer().serializeToString(copy),
+      view: view,
+      background: (rect && rect.getAttribute("fill")) || ""
+    };
+  }
+
+  // The Reel on show, for the stage to play while this page is hidden.
+  function postReel() {
+    if (!stageAlive() || !reelOnShow) return;
+    var copy = {};
+    for (var k in reelOnShow) if (k !== "song") copy[k] = reelOnShow[k];
+    var at = Date.now();
+    post({ type: "reel", seq: reelSeq, json: JSON.stringify(copy), frames: copy.frames.length, fps: Number(copy.fps) || 1, at: at });
+  }
+
+  // At most one picture per animation frame; the newest state wins.
+  function queuePicture() {
+    if (sendQueued) return;
+    sendQueued = true;
+    requestAnimationFrame(function () {
+      sendQueued = false;
+      if (!stageAlive()) { detach(); return; }
+      var m = serialisePicture();
+      if (m) post(m);
+    });
+  }
+
+  function attach() {
+    var svg = stage.querySelector("svg.asobi-svg");
+    if (!svg || (observer && observed === svg)) return;
+    detach();
+    observer = new MutationObserver(queuePicture);
+    observer.observe(svg, { subtree: true, childList: true, attributes: true, characterData: true });
+    observed = svg;
+  }
+  function detach() {
+    if (observer) observer.disconnect();
+    observer = observed = null;
+  }
+
+  // Every 2 s (the stage's heartbeat) check the stage is still there; once it
+  // has been silent for 6 s, stop watching the picture.
+  function watchStage() {
+    if (stageAlive()) { watchTimer = setTimeout(watchStage, 2000); return; }
+    watchTimer = 0;
+    detach();
+  }
+
+  function hearStage() {
+    aliveUntil = performance.now() + 6000;
+    attach();
+    if (!watchTimer) watchTimer = setTimeout(watchStage, 2000);
+  }
+
+  if (channel) {
+    channel.onmessage = function (e) {
+      var m = e.data;
+      if (!m || typeof m !== "object") return;
+      if (m.type === "here") { hearStage(); return; }
+      if (m.type === "bye") { aliveUntil = 0; detach(); return; }
+      if (m.type !== "hello") return;
+      hearStage();
+      post({ type: "setup", lang: cfg.lang, words: cfg.words, playground: location.href.split("#")[0], hidden: !!document.hidden });
+      postCode();
+      postError();
+      if (m.seq !== reelSeq) postReel();
+      var picture = serialisePicture();
+      if (picture) post(picture);
+    };
+    window.addEventListener("pagehide", function () { post({ type: "bye" }); });
+    if (document.addEventListener) {
+      document.addEventListener("visibilitychange", function () {
+        if (!stageAlive()) return;
+        post({ type: "visibility", hidden: !!document.hidden });
+        if (!document.hidden) attach();
+      });
+    }
+  }
+  var stageBtn = document.getElementById("stage-window");
+  // A phone or tablet without a pointer has no second window to put it in.
+  var touchOnly = !!(window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches);
+  if (stageBtn) {
+    if (!channel || touchOnly) stageBtn.hidden = true;
+    else {
+      stageBtn.hidden = false;
+      // A named window: a second click brings the same one forward.
+      stageBtn.addEventListener("click", function () {
+        var w = window.open(cfg.stage, "asobi-stage", "popup,width=1280,height=720");
+        if (w && w.focus) w.focus();
+      });
+    }
+  }
+
   // A small truthful readout in the bar: which frame is on screen, how long a loop is.
   var fcEl = document.getElementById("play-fc");
   var downloadBtn = document.getElementById("download");
@@ -38,7 +171,16 @@
     var s = reel && reel.song;
     if (s && typeof s.src === "string" && /^assets\//.test(s.src)) s.src = cfg.assets + s.src.slice(7);
     player.update(reel);
-    if (reel && !reel.error && reel.frames) { onScreen = reel; updateDownloadButton(); }
+    stageError = reel && reel.error ? String(reel.error) : null;
+    postError();
+    if (stageAlive()) attach();
+    if (reel && !reel.error && reel.frames) {
+      onScreen = reel;
+      updateDownloadButton();
+      reelOnShow = reel;
+      reelSeq = reelPrefix + "-" + (++reelCount);
+      postReel();
+    }
   }
   (function readout() {
     if (onScreen && fcEl) {
@@ -391,6 +533,7 @@
 
   editor.addEventListener("input", function () {
     retint();
+    postCode();
     replaceHash(sketchHash());
     clearTimeout(debounce);
     debounce = setTimeout(request, 350);
@@ -398,7 +541,7 @@
 
   window.addEventListener("hashchange", function () {
     var code = CodeURL.fromHash(location.hash);
-    if (code !== null && code !== editor.value) { editor.value = code; retint(); request(); }
+    if (code !== null && code !== editor.value) { editor.value = code; retint(); postCode(); request(); }
     // Jumping to the word list changes the fragment. Keep the edited sketch in the translation link.
     if (code === null && editor.value !== cfg.defaultCode) AsobiSite.setLanguageHash(sketchHash());
   });
@@ -439,6 +582,7 @@
   document.getElementById("reset").addEventListener("click", function () {
     editor.value = cfg.defaultCode;
     retint();
+    postCode();
     replaceHash("");
     if (engine) request(); else { shownFor = null; showPrebuilt(cfg.defaultCode); }
     editor.focus();
@@ -607,6 +751,7 @@
           if (!code.trim()) return textResult({ error: "code is required" }, true);
           editor.value = code;
           retint();
+          postCode();
           replaceHash(sketchHash());
           return waitForEngine(20000).then(function () {
             return runAndShow(code); // shows a motion's preview first; answers with the whole Reel

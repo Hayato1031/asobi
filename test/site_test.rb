@@ -1253,6 +1253,79 @@ class SiteTest < Minitest::Test
     end
   end
 
+  # ---- the stage window ------------------------------------------------------
+
+  def test_stage_page_is_written_and_loads_only_the_sites_own_scripts
+    html = read("stage.html")
+    scripts = html.scan(%r{<script\b([^>]*)>(.*?)</script>}m)
+    scripts.each do |attrs, body|
+      assert_empty body.strip, "no inline script (the site's policy forbids it)"
+      src = attrs[/\bsrc="([^"]*)"/, 1]
+      assert src, "every script has a src"
+      refute_match(%r{\A(?:[a-z][a-z0-9+.-]*:)?//}i, src, "a script from another host: #{src}")
+      refute_match(/\A[a-z][a-z0-9+.-]*:/i, src, "a script with a scheme: #{src}")
+    end
+    assert_match(/noindex/, html)
+    # It plays the Reel itself while the playground is hidden: with the site's
+    # own checker and player, the same files the playground uses.
+    %w[assets/safe-reel.js assets/player.js].each do |src|
+      assert_includes scripts.map { |attrs, _| attrs[/\bsrc="([^"]*)"/, 1] }, src
+      assert File.file?(File.join(@out, src)), "#{src} is not in the site"
+    end
+  end
+
+  def test_stage_files_import_only_relative_paths
+    files = Dir.glob(File.join(@out, "assets", "stage", "**", "*.{js,mjs}"))
+    files.each do |file|
+      # Block comments go first: three.js's own doc comments show imports
+      # from "three/addons/..." as usage examples.
+      source = File.read(file, encoding: "UTF-8").gsub(%r{/\*.*?\*/}m, "")
+      specifiers = source.scan(/\b(?:import|export)\b[^'"`;]*?\bfrom\s*["']([^"']+)["']/m).flatten +
+                   source.scan(/\bimport\s*["']([^"']+)["']/).flatten +
+                   source.scan(/\bimport\s*\(\s*["']([^"']+)["']/).flatten
+      specifiers.each do |spec|
+        assert_match(%r{\A\.{1,2}/}, spec, "#{file.delete_prefix(@out)} imports #{spec.inspect}: only relative paths work without an import map")
+      end
+    end
+  end
+
+  def test_stage_files_keep_their_folders_and_the_page_is_not_a_listed_page
+    assert File.file?(File.join(@out, "stage.html"))
+    Dir.glob(File.join(AsobiSite::STAGE, "**", "*")).select { File.file?(_1) }.each do |file|
+      rel = file.delete_prefix("#{AsobiSite::STAGE}/")
+      next if rel == "stage.html"
+
+      assert File.file?(File.join(@out, "assets", "stage", rel)), "#{rel} was not copied"
+    end
+    refute_includes read("sitemap.xml"), "stage"
+    %w[llms.txt llms-full.txt].each { |f| refute_match(%r{/stage\b}, read(f), f) if File.exist?(File.join(@out, f)) }
+    refute File.exist?(File.join(@out, "stage.md"))
+  end
+
+  def test_build_stops_when_the_stage_page_is_missing
+    original = AsobiSite::STAGE
+    Dir.mktmpdir do |dir|
+      AsobiSite.send(:remove_const, :STAGE)
+      AsobiSite.const_set(:STAGE, dir)
+      error = assert_raises(AsobiSite::BuildError) do
+        AsobiSite::Builder.new(data: FIXTURES, out: File.join(dir, "out"), log: nil).build
+      end
+      assert_includes error.message, "stage.html"
+    ensure
+      AsobiSite.send(:remove_const, :STAGE)
+      AsobiSite.const_set(:STAGE, original)
+    end
+  end
+
+  def test_playground_has_the_stage_window_button_and_its_address
+    { "playground.html" => ["Stage window", "stage"], "ja/playground.html" => ["別ウィンドウ", "../stage?lang=ja"] }.each do |file, (label, url)|
+      html = read(file)
+      assert_match(%r{<button type="button" id="stage-window" class="small" title="[^"]+" hidden>#{label}</button>}, html, file)
+      config = JSON.parse(html[%r{id="play-config">(.*?)</script>}m, 1])
+      assert_equal url, config["stage"], file
+    end
+  end
+
   def test_readmes_link_to_the_site_without_html
     %w[README.md README.ja.md].each do |name|
       text = File.read(File.expand_path("../#{name}", __dir__), encoding: "UTF-8")
