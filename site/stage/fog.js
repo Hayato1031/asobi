@@ -188,7 +188,7 @@ export class Fog {
 
     this.style = {
       glow: 0.6, shade: 0.12, textGain: 1.0,
-      lightGain: 1.25, lightOcclude: 0.6, inkTint: new THREE.Color(0.9, 0.9, 0.92),
+      sheetLight: new THREE.Color(0.8, 0.8, 0.79), sheen: new THREE.Color(0.018, 0.018, 0.024),
     };
     this.bloom = { strength: 0.42, radius: 0.42, threshold: 0.88 };
     this.finish = { vignette: 0.75, grain: 0.028 };
@@ -203,24 +203,29 @@ export class Fog {
     this.dust.material.uniforms.uScale.value = ratio * (h / 1080);
   }
 
-  // Where the art floats and how big it is, whether it is a dark picture, and
-  // the picture itself. A dark picture's light tints the fog and the floor
-  // around it. A light picture leaves dark ink, so the fog behind it is lit
-  // instead, a pale glow the ink stands out against.
-  light(artPos, artSize, dark, opacity, texture) {
-    const ink = !dark;
+  // Where the art floats and how big it is, whether its picture is dark,
+  // whether its background is shown, and the picture itself. A dark picture
+  // tints the fog and the floor with its own light. Without its background, a
+  // light picture leaves dark ink in the air, so the fog behind it is lit
+  // instead, a pale glow the ink stands against. A sheet of paper lights the
+  // floor a little, like paper does.
+  light(artPos, artSize, dark, opacity, texture, withBackground) {
+    const ink = !dark && !withBackground;
     this.halo.position.set(artPos.x, artPos.y, artPos.z - (ink ? 1.4 : 0.6));
     const hu = this.halo.material.uniforms, pu = this.pool.material.uniforms;
     hu.uRadius.value = Math.max(artSize.x, artSize.y) * (ink ? 1.55 : 1.5);
-    hu.uSquash.value = artSize.y / Math.max(artSize.x, artSize.y) * (ink ? 0.8 : 0.8);
+    hu.uSquash.value = artSize.y / Math.max(artSize.x, artSize.y) * 0.8;
     this.pool.position.set(artPos.x, 0.004, artPos.z + 1.0);
+    // The picture's own average colour when its texture has mipmaps (a mirrored
+    // picture); frames drawn ahead have none, then a warm light.
+    const average = dark && texture && texture.generateMipmaps !== false;
     for (const u of [hu, pu]) {
-      u.uColor.value.set(ink ? "#e9e4f0" : "#ffffff");
+      u.uColor.value.set(dark ? "#ffd9a8" : "#e9e4f0");
       u.uArt.value = texture;
-      u.uUseArt.value = !ink && texture ? 1 : 0;
+      u.uUseArt.value = average ? 1 : 0;
     }
-    hu.uIntensity.value = (ink ? 0.26 : 0.07) * opacity;
-    pu.uIntensity.value = (ink ? 0.07 : 0.08) * opacity;
+    hu.uIntensity.value = (ink ? 0.26 : dark ? 0.07 : 0.02) * opacity;
+    pu.uIntensity.value = (ink ? 0.07 : dark ? 0.08 : 0.05) * opacity;
   }
 
   update(dt) {

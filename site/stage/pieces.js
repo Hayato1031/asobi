@@ -2,9 +2,8 @@
 //   code: the tinted glyphs alone, with a faint glow (light around them, and
 //         a very soft shade so they still read in front of a bright sky). A
 //         changed line glows pink in the glyphs themselves; the caret blinks.
-//   art : the picture with its own background colour keyed out, so only its
-//         lines and light are left. A dark picture's light floats and blooms;
-//         a white picture leaves its ink drawn on the sky.
+//   art : the picture as a plain sheet, with its own background (white paper,
+//         a dark slab), or without it (the B key): only what the sketch drew.
 // Each world sets the look through pieces.style(...).
 import * as THREE from "./vendor/three/build/three.module.js";
 import { MAX_ROWS } from "./code.js";
@@ -91,44 +90,59 @@ function glyphMaterial() {
   });
 }
 
-// The picture with its background keyed out ("colour to alpha"): for each
-// pixel, how far it is from the background colour gives its alpha, and the
-// colour it would have had alone. Fine grain (asobi's grain: true) stays
-// under a soft threshold and so disappears with the background.
+// The picture as a plain sheet: exactly as drawn, with its own background
+// (white paper, a dark slab), or without it (the B key: only what the sketch
+// drew, with its own transparency). The texture holds premultiplied sRGB
+// values; asobi's grain is drawn here (see svgframe.js), only where the
+// picture is, never on the air around it. Lit a little by the world, and kept
+// under the bloom threshold so white paper never blows out.
 function artMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       map: { value: null },
-      uBg: { value: new THREE.Vector3(1, 1, 1) },   // the background, sRGB 0..1
-      uCut: { value: 0.02 },
-      uSoft: { value: 0.06 },
-      uGain: { value: 1 },
-      uOcclude: { value: 1 },       // 1: covers what is behind; lower: adds light to it
-      uTint: { value: new THREE.Color(1, 1, 1) },
-      uEdge: { value: 0.015 },
+      uLight: { value: new THREE.Color(0.85, 0.85, 0.85) },
+      uSheen: { value: new THREE.Color(0, 0, 0) },
+      uGrain: { value: 0 },
+      uCells: { value: new THREE.Vector2(540, 540) },
       uOpacity: { value: 0 },
     }]),
     vertexShader: VERT,
     fragmentShader: /* glsl */`
       #include <fog_pars_fragment>
       uniform sampler2D map;
-      uniform vec3 uBg, uTint;
-      uniform float uCut, uSoft, uGain, uOcclude, uEdge, uOpacity;
+      uniform vec3 uLight, uSheen;
+      uniform float uGrain, uOpacity;
+      uniform vec2 uCells;
       varying vec2 vUv;
       ${FOG_KEEP}
       vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + .055) / 1.055, vec3(2.4)), step(.04045, c)); }
+      float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+      float vnoise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        vec2 u = f * f * (3. - 2. * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+      }
       void main() {
-        vec3 c = texture2D(map, vUv).rgb;              // sRGB values, as the browser drew them
-        vec3 d = c - uBg;
-        vec3 room = mix(uBg, 1. - uBg, step(0., d));   // how far each channel could move that way
-        vec3 ac = abs(d) / max(room, vec3(1e-3));
-        float a0 = clamp(max(ac.r, max(ac.g, ac.b)), 0., 1.);
-        vec3 ink = clamp(uBg + d / max(a0, 1e-3), 0., 1.);
-        float a = a0 * smoothstep(uCut, uCut + uSoft, a0);
-        vec2 e = smoothstep(vec2(0.), vec2(uEdge), vUv) * smoothstep(vec2(0.), vec2(uEdge), 1. - vUv);
-        a *= e.x * e.y * uOpacity;
-        float k = fogKeep();
-        gl_FragColor = vec4(toLinear(ink) * uTint * uGain * a * k, a * uOcclude * k);
+        vec4 t = texture2D(map, vUv);
+        float a = t.a;
+        if (a <= .002) discard;
+        vec3 c = t.rgb / a;                                  // as the browser drew it (sRGB)
+        // asobi's grain: fractal noise, dark specks where it is high, light where it is low.
+        if (uGrain > 0.) {
+          vec2 p = vUv * uCells;
+          float n = .66 * vnoise(p) + .34 * vnoise(p * 2.03 + 17.);
+          float k = uGrain * 4.;
+          c *= 1. - clamp(k * (n - .5), 0., 1.);
+          c += (1. - c) * clamp(k * (.5 - n), 0., 1.);
+        }
+        vec3 col = toLinear(c) * uLight;
+        // A faint sheen from the sky above, so a dark sheet still reads as a sheet.
+        col += uSheen * smoothstep(.15, 1., vUv.y) * (1. - dot(c, vec3(.3333)));
+        // Smooth edges (there is no MSAA).
+        vec2 px = fwidth(vUv) * 1.2;
+        vec2 e = smoothstep(vec2(0.), px, vUv) * smoothstep(vec2(0.), px, 1. - vUv);
+        a *= e.x * e.y * uOpacity * fogKeep();
+        gl_FragColor = vec4(col * a, a);
       }`,
     transparent: true, depthWrite: false, premultipliedAlpha: true, fog: true, side: THREE.DoubleSide,
   });
@@ -152,8 +166,6 @@ export class Pieces {
     this.artOpacity = 0;
     this.codeWanted = 0;    // aimed for
     this.artWanted = 0;
-    this.dark = false;
-    this.grain = false;
     this.look = {};
   }
 
@@ -170,12 +182,13 @@ export class Pieces {
     this.artMesh.scale.set(w, h, 1);
   }
 
-  // The picture's background (sRGB, 0..255), whether it is dark, whether it has grain.
-  setBackground(rgb, dark, grain) {
-    this.artMesh.material.uniforms.uBg.value.set(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
-    this.dark = dark;
-    this.grain = grain;
-    this.applyArt();
+  // The grain (0..1, asobi's strength; 0 for none), drawn by the shader, and
+  // the picture's shape (so the grain's cells are square).
+  setGrain(strength, aspect) {
+    const u = this.artMesh.material.uniforms;
+    u.uGrain.value = strength || 0;
+    // asobi's grain has about 540 cells along the picture's longer side.
+    u.uCells.value.set(aspect >= 1 ? 540 : 540 * aspect, aspect >= 1 ? 540 / aspect : 540);
   }
 
   // The world's look for both pieces.
@@ -185,23 +198,9 @@ export class Pieces {
     cu.uGlow.value = s.glow;
     cu.uShade.value = s.shade;
     cu.uGain.value = s.textGain;
-    this.applyArt();
-  }
-
-  applyArt() {
-    const u = this.artMesh.material.uniforms, s = this.look;
-    // Grain is a faint speckle all over: a higher threshold keeps it out.
-    u.uCut.value = this.grain ? 0.1 : 0.02;
-    u.uSoft.value = this.grain ? 0.14 : 0.06;
-    if (this.dark) {
-      u.uGain.value = s.lightGain ?? 1.3;
-      u.uOcclude.value = s.lightOcclude ?? 0.7;
-      u.uTint.value.setRGB(1, 1, 1);
-    } else {
-      u.uGain.value = 1;
-      u.uOcclude.value = 1;
-      if (s.inkTint) u.uTint.value.copy(s.inkTint);
-    }
+    const u = this.artMesh.material.uniforms;
+    if (s.sheetLight) u.uLight.value.copy(s.sheetLight);
+    if (s.sheen) u.uSheen.value.copy(s.sheen);
   }
 
   // Per frame: fades, and the code's flash and caret.

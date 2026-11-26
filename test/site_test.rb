@@ -1317,6 +1317,38 @@ class SiteTest < Minitest::Test
     end
   end
 
+  # The stage's SVG tools on real asobi output: the grain (SVG.grain) comes out
+  # of a frame whole (the stage draws it on the GPU), a frame without grain is
+  # left as it is, reacting parts rest at their first frame, and "background
+  # off" removes the background <rect> and nothing else.
+  def test_stage_svg_tools_take_out_the_grain_and_only_the_background
+    skip "node is not installed" unless node
+    grain = Asobi::Reel.of(Asobi.circle(10).colored(:white), on: :black, grain: true)
+    plain = Asobi::Reel.of(Asobi.circle(10).colored(:white), on: :black)
+    reacting = Asobi::Reel.of(Asobi.circle(10).pulse(every: 0.5).when_clicked)
+    Dir.mktmpdir do |dir|
+      data = File.join(dir, "frames.json")
+      File.write(data, JSON.generate("grain" => grain["frames"][0], "plain" => plain["frames"][0],
+                                     "parts" => { "frame" => reacting["frames"][0], "parts" => reacting["parts"] }))
+      out, err, status = Open3.capture3(node, File.expand_path("web/stage-check.mjs", __dir__), File.join(AsobiSite::STAGE, "svgframe.js"), data)
+      assert status.success?, err
+      result = JSON.parse(out)
+      assert_in_delta 0.12, result["grain"]["strength"], 1e-6
+      refute result["grain"]["turbulenceLeft"], "the grain filter is still in the frame"
+      assert result["grain"]["keptRest"]
+      assert_equal({ "strength" => 0, "same" => true }, result["plain"])
+      assert_equal({ "markersLeft" => false, "firstFrameIn" => true }, result["rest"])
+      assert_equal({ "withRect" => true, "withoutRect" => true, "contentKept" => true }, result["background"])
+    end
+  end
+
+  def test_playground_opens_the_stage_in_a_window_of_its_own
+    js = read("assets/playground.js")
+    # noopener: its own browsing context group (and so, normally, its own
+    # process): neither window's work can stall the other.
+    assert_match(/window\.open\(cfg\.stage, "_blank", "popup,noopener,/, js)
+  end
+
   def test_playground_has_the_stage_window_button_and_its_address
     { "playground.html" => ["Stage window", "stage"], "ja/playground.html" => ["別ウィンドウ", "../stage?lang=ja"] }.each do |file, (label, url)|
       html = read(file)

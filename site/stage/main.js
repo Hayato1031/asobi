@@ -1,34 +1,35 @@
-// asobi stage window: a mirror of the playground, which drives the picture
-// itself while the playground cannot.
+// asobi stage window: the playground's code and picture, shown big for a
+// projector: flat (0), or floating in a three.js world: Uyuni at dusk (1),
+// the fog stage (2).
 //
-// The playground keeps running Ruby, the player, reactions and sound. This
-// window listens on the BroadcastChannel "asobi-stage" for the code text and
-// snapshots of the player's <svg>, and draws them: flat (0), or floating in a
-// three.js world: Uyuni at dusk (1), the fog stage (2).
-//
-// When the playground is hidden (minimised, covered, or this window full
-// screen on the same display), the browser stops its animation frames and the
-// snapshots stop. So the playground also sends the Reel it shows (without its
-// song), and this window then plays it with a player of its own: motions go
-// on, reacting parts rest at their first frame, sound stays with the
-// playground. As soon as the visible playground sends a new picture, this
-// window mirrors again. The same happens after the playground says bye or
-// goes quiet: the last Reel keeps playing.
+// The playground keeps running Ruby, reactions and sound. It sends this window
+// (BroadcastChannel "asobi-stage") the code as it is typed, the error, and the
+// Reel it shows (without its song). This window plays that Reel by its own
+// clock, with its own copy of the site's player (flat) or with frames drawn
+// ahead of time (3D, see frames.js), so the picture moves at an even rhythm
+// and never waits on the playground. Only a Reel with reacting parts (click,
+// hover, key, sound...) is mirrored instead: the playground then also sends a
+// snapshot of its player's <svg> whenever it changes, so a click there shows
+// here. While the playground is hidden (its animation frames stop), or gone,
+// such a Reel plays here too, its parts at rest.
 //
 // Stage -> playground: hello { seq } (at start, and whenever the playground
 // has gone quiet; seq names the Reel this window has, so a big Reel is sent
 // once, not on every hello), here (every 2 s), bye (pagehide).
-// Playground -> stage: setup { hidden }, code, error, picture,
-// reel { seq, json, frames, fps }, visibility { hidden }, bye.
+// Playground -> stage: setup { hidden }, code, error, reel { seq, json,
+// frames, fps, parts }, picture (Reels with parts only), visibility { hidden }, bye.
 //
-// Trust: the code comes from a URL anyone can write. A mirrored svg is only
-// ever loaded as an image (blob: URL, image/svg+xml). A Reel goes through
+// Trust: the code comes from a URL anyone can write. A Reel goes through
 // AsobiSafeReel (the playground's own check: only the SVG asobi writes) before
-// the player here puts its frames on this page, exactly as the playground
-// does, under the same CSP. Code and error text are drawn with canvas
-// fillText or set with textContent.
+// anything of it is drawn. The flat player then puts its frames on this page,
+// exactly as the playground does, under the same CSP; in 3D a frame is only
+// ever loaded as an image (blob: URL, image/svg+xml), as is a mirrored
+// picture. Code and error text are drawn with canvas fillText or set with
+// textContent.
 import { Raster } from "./raster.js";
 import { Flat } from "./flat.js";
+import { Subtitles } from "./subtitles.js";
+import { stripGrain, withoutBackground } from "./svgframe.js";
 
 const MODES = ["flat", "uyuni", "fog"];
 const KEYS = { 0: "flat", 1: "uyuni", 2: "fog" };
@@ -44,14 +45,14 @@ const TEXT = {
     say: "Waiting for the playground",
     how: "Open this window from the playground’s “Stage window” button. Code and picture appear here as you write.",
     go: "Open the playground",
-    flat: "Flat", uyuni: "Uyuni", fog: "Fog", code: "Code", full: "Full screen",
+    flat: "Flat", uyuni: "Uyuni", fog: "Fog", code: "Code", bg: "Background", full: "Full screen",
     live: "Connected", wait: "Waiting", here: "Playing here",
   },
   ja: {
     say: "遊び場を待っています",
     how: "遊び場の「別ウィンドウ」ボタンから開いてください。書いたコードと絵がここに映ります。",
     go: "遊び場を開く",
-    flat: "平面", uyuni: "ウユニ", fog: "霧", code: "コード", full: "全画面",
+    flat: "平面", uyuni: "ウユニ", fog: "霧", code: "コード", bg: "背景", full: "全画面",
     live: "接続中", wait: "待機中", here: "ここで再生中",
   },
 };
@@ -64,35 +65,38 @@ let playgroundUrl = null;
 let words = [];
 let code = null;
 let error = null;
-let latest = null;            // { svg, view, background, dark, rgb, grain }
+let latest = null;            // the newest mirrored picture { svg, view, background }
 let connected = false;
 let lastHeard = 0;
 let probed = false;
 let freshCode = true;         // the next code just appears (no flash): first after (re)connecting
 let mode = null;
 let codeOn = true;
+let withBackground = true;    // the B key: the picture's own background, or none
 let stage3d = null;
 let loading3d = null;
 let switchToken = 0;
-// The Reel the playground shows, kept as it came (parsed only when needed).
-let reel = { json: null, seq: null, frames: 1, fps: 1 };
+// The Reel the playground shows, as it came; checked and parsed once, when first needed.
+let reel = { have: false, json: null, seq: null, frames: 1, fps: 1, parts: false, checked: undefined, pending: null };
 let playgroundHidden = false;
 let lastPicture = 0;          // when the playground's last picture came
 let reelAt = 0;               // when its last Reel came
-let driving = false;          // playing the Reel here
-let selfPlayer = null, selfObserver = null, selfQueued = false;
-const stats = { reelBytes: 0, reelTransferMs: null, reelParseMs: null, reels: 0, driveStarts: 0, mirrored: 0, playedHere: 0 };
+let driving = false;          // playing the Reel here (else: mirroring the playground's pictures)
+const stats = { reelBytes: 0, reelTransferMs: null, reelParseMs: null, reels: 0, driveStarts: 0, mirrored: 0 };
 
 const el = {
   world: document.getElementById("world"),
   flat: document.getElementById("flat"),
+  subs: document.getElementById("subs"),
   note: document.getElementById("note"),
   bar: document.getElementById("bar"),
   black: document.getElementById("black"),
 };
-const flat = new Flat(el.flat);
+const flatTimes = [];
+const flat = new Flat(el.flat, () => { flatTimes.push(performance.now()); if (flatTimes.length > 4096) flatTimes.splice(0, 1024); });
+const subs = new Subtitles(el.subs);
 const raster = new Raster((source, info) => {
-  if (!stage3d || mode === "flat") return false;
+  if (!stage3d || mode === "flat" || driving) return false;
   raster.spent(stage3d.setPicture(source, info));
   return true;
 });
@@ -156,6 +160,7 @@ function onSetup(m) {
     if (next.join(" ") !== words.join(" ")) {
       words = next;
       if (stage3d) stage3d.setWords(words);
+      subs.setWords(words);
     }
   }
   let changed = false;
@@ -175,56 +180,58 @@ function onCode(m) {
   if (typeof m.code !== "string") return;
   code = m.code.slice(0, MAX_CODE);
   if (stage3d) stage3d.setCode(code, freshCode);
+  subs.setCode(code, freshCode);
   freshCode = false;
 }
 
 function onError(m) {
   error = typeof m.error === "string" && m.error ? m.error.slice(0, 4000) : null;
   if (stage3d) stage3d.setError(error);
+  subs.setError(error);
 }
 
-// A picture from the playground. While this window plays the Reel itself, a
-// hidden playground's picture is out of date (it answers a hello with what it
-// last drew): only a visible playground's new picture takes over again.
+// A picture from the playground (sent for a Reel with reacting parts only).
+// While this window plays the Reel itself, a hidden playground's picture is
+// out of date (it answers a hello with what it last drew): only a visible
+// playground's new picture takes over again.
 function onPicture(m) {
   lastPicture = performance.now();
+  if (reel.have && !reel.parts) return; // a Reel without parts always plays here
   if (driving) {
     if (playgroundHidden || !connected) return;
     stopDriving();
   }
   stats.mirrored++;
-  takePicture(m.svg, m.view, m.background);
-}
-
-function takePicture(svg, v, bg) {
+  const svg = m.svg, v = m.view;
   if (typeof svg !== "string" || svg.length > MAX_SVG) return;
   if (!Array.isArray(v) || v.length !== 4 || !v.every(Number.isFinite) || v[2] <= 0 || v[3] <= 0) return;
   if (latest && latest.svg === svg) return;
-  const m = { svg };
-  const background = typeof bg === "string" ? bg.slice(0, 80) : "";
-  const look = latest && latest.background === background ? latest : lookOf(background);
-  // asobi's grain is a noise filter over the whole picture: the key must ignore it.
-  const grain = m.svg.includes("feTurbulence");
-  latest = { svg: m.svg, view: v.slice(), background, dark: look.dark, rgb: look.rgb, grain };
-  showPicture();
+  const background = typeof m.background === "string" ? m.background.slice(0, 80) : "";
+  latest = { svg, view: v.slice(), background };
+  showMirrored();
 }
 
-function showPicture() {
-  if (!latest) return;
+// The newest mirrored picture, flat or into 3D.
+function showMirrored() {
+  if (!latest || driving) return;
   if (mode === "flat") { flat.show(latest.svg, latest.background); return; }
   if (!stage3d) return;
-  stage3d.setBackground(latest.rgb, latest.dark, latest.grain);
+  stage3d.mirror();
+  stage3d.setDark(isDark(latest.background));
   // A little more than on screen (mipmaps keep it crisp); on a dense screen as much as on screen.
   raster.aim(stage3d.artPixels() * (stage3d.ratio >= 1.5 ? 1.05 : 1.5));
   raster.pressure = stage3d.pressure();
-  raster.push(latest.svg, latest.view);
+  // The grain goes to the GPU; without the background (B) only the background <rect> goes.
+  const g = stripGrain(latest.svg);
+  raster.push(withBackground ? g.markup : withoutBackground(g.markup), latest.view, g.grain);
 }
 
-// The background colour, keyed out in 3D: a dark one leaves light, a light
-// one leaves ink. No background (or one we cannot read) counts as white,
-// asobi's default.
+// Whether a background colour is dark (for the light around the art). None
+// (or one we cannot read) counts as white, asobi's default.
 const probe = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
-function lookOf(background) {
+const darkness = new Map();
+function isDark(background) {
+  if (darkness.has(background)) return darkness.get(background);
   let rgb = [255, 255, 255];
   if (background && background !== "none" && background !== "transparent") {
     probe.clearRect(0, 0, 1, 1);
@@ -234,31 +241,66 @@ function lookOf(background) {
     const d = probe.getImageData(0, 0, 1, 1).data;
     if (d[3] > 0) rgb = [d[0], d[1], d[2]];
   }
-  const luma = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
-  return { dark: luma < 0.25, rgb };
+  const dark = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255 < 0.25;
+  darkness.set(background, dark);
+  return dark;
 }
 
 // ---- playing the Reel here ----------------------------------------------------
-// A player of this window's own, out of sight (#self), plays the Reel; its
-// <svg> is taken the same way the playground's is (at most once a frame) and
-// goes down the same road as a mirrored picture: flat, or into 3D.
-const selfBox = document.getElementById("self");
-
 function onReel(m) {
   if (typeof m.json !== "string" || m.json.length > MAX_REEL) return;
   reel = {
+    have: true,
     json: m.json,
     seq: typeof m.seq === "string" ? m.seq.slice(0, 80) : null,
     frames: Number.isFinite(m.frames) ? m.frames : 1,
     fps: Number(m.fps) > 0 ? Number(m.fps) : 1,
+    parts: m.parts === true,
+    checked: undefined,   // the checked Reel, or null when it did not pass
+    pending: null,        // the check under way
   };
   stats.reels++;
   stats.reelBytes = m.json.length;
   stats.reelTransferMs = Number.isFinite(m.at) ? Date.now() - m.at : null;
   lastPicture = reelAt = performance.now(); // a new Reel: give its pictures a moment to start
-  // While mirroring nothing else happens: the json waits until it is needed.
+  // A Reel without parts always plays here; one with parts only while the playground cannot show it.
   if (driving) playHere();
-  else if (playgroundHidden || !connected) startDriving();
+  else if (!reel.parts || playgroundHidden || !connected) startDriving();
+}
+
+// The Reel, checked the way the playground checks it (once per Reel), without
+// its song; then fn(reel). The check runs in a worker (reel-worker.js), so a
+// big Reel never stops the picture; on the page itself where there is none.
+let checker = null, checks = 0;
+const waiting = new Map();
+try {
+  checker = new Worker(new URL("./reel-worker.js", import.meta.url), { type: "module" });
+  checker.onmessage = (e) => { const w = waiting.get(e.data.id); waiting.delete(e.data.id); if (w) w(e.data); };
+  checker.onerror = () => { checker = null; for (const w of waiting.values()) w(null); waiting.clear(); };
+} catch { checker = null; }
+
+function withChecked(fn) {
+  const r = reel;
+  if (r.checked !== undefined) { if (r.checked) fn(r.checked); return; }
+  if (!r.pending) {
+    const t0 = performance.now();
+    r.pending = new Promise((done) => {
+      const onPage = () => {
+        const x = window.AsobiSafeReel ? AsobiSafeReel.parse(r.json) : null;
+        if (x && !x.error && x.frames) { delete x.song; done(x); } else done(null); // sound stays with the playground
+      };
+      if (!checker) { onPage(); return; }
+      const id = ++checks;
+      waiting.set(id, (data) => (data ? done(data.reel) : onPage()));
+      checker.postMessage({ id, json: r.json });
+    }).then((x) => {
+      r.checked = x;
+      r.json = ""; // checked: the text is not needed any more (a big one is tens of MB)
+      stats.reelParseMs = performance.now() - t0;
+      return x;
+    });
+  }
+  r.pending.then((x) => { if (x && r === reel) fn(x); });
 }
 
 function onVisibility(hidden) {
@@ -267,11 +309,11 @@ function onVisibility(hidden) {
   if (playgroundHidden) startDriving();
 }
 
-// The playground's pictures stopped although its Reel moves (a hidden window
-// that never said so): play here. A still Reel, or one whose parts only
-// react, sends nothing while nobody touches it, and that is fine.
+// A Reel with parts whose pictures stopped although it moves (a hidden
+// window that never said so): play here. A still Reel, or one whose parts
+// only react, sends nothing while nobody touches it, and that is fine.
 function watchdog() {
-  if (driving || !connected || !reel.json || reel.frames < 2) return;
+  if (driving || !connected || !reel.have || !reel.parts || reel.frames < 2) return;
   const now = performance.now();
   // Just after a new Reel the playground may be busy (a big one takes a moment
   // to start), so wait longer then.
@@ -280,61 +322,41 @@ function watchdog() {
 }
 
 function startDriving() {
-  if (driving || !reel.json || !selfBox || !window.AsobiPlayer || !window.AsobiSafeReel) return;
+  if (driving || !reel.have) return;
   driving = true;
   stats.driveStarts++;
-  selfPlayer = AsobiPlayer.mount(selfBox, { controls: false, keys: false, language: lang });
-  if (!playHere()) { stopDriving(); return; }
-  const svg = selfBox.querySelector("svg.asobi-svg");
-  selfObserver = new MutationObserver(queueSelf);
-  selfObserver.observe(svg, { subtree: true, childList: true, attributes: true, characterData: true });
+  playHere();
   renderBar();
 }
 
-// The Reel, checked the way the playground checks it, into this window's player.
+// The Reel into this window's player (flat) or the frames of the 3D art
+// (once checked: until then what is on show stays).
 function playHere() {
-  const t0 = performance.now();
-  const r = AsobiSafeReel.parse(reel.json);
-  stats.reelParseMs = performance.now() - t0;
-  if (!r || r.error || !r.frames) return false;
-  delete r.song; // sound stays with the playground
-  selfPlayer.update(r);
-  return true;
+  withChecked((r) => {
+    if (!driving) return;
+    if (mode === "flat") flat.play(r, lang);
+    else if (stage3d && mode) {
+      stage3d.setDark(isDark(r.background));
+      stage3d.playReel(r);
+    }
+  });
 }
 
 function stopDriving() {
   if (!driving) return;
   driving = false;
-  if (selfObserver) selfObserver.disconnect();
-  if (selfPlayer) selfPlayer.destroy();
-  selfObserver = selfPlayer = null;
-  selfQueued = false;
   renderBar();
 }
 
-function queueSelf() {
-  if (selfQueued) return;
-  selfQueued = true;
-  requestAnimationFrame(() => {
-    selfQueued = false;
-    if (!driving) return;
-    const svg = selfBox.querySelector("svg.asobi-svg");
-    const box = svg && svg.getAttribute("viewBox");
-    if (!box) return;
-    const view = box.trim().split(/[\s,]+/).map(Number);
-    const copy = svg.cloneNode(true);
-    copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    copy.removeAttribute("class");
-    const rect = svg.querySelector("rect");
-    stats.playedHere++;
-    takePicture(new XMLSerializer().serializeToString(copy), view, (rect && rect.getAttribute("fill")) || "");
-  });
-}
-
 // ---- modes ------------------------------------------------------------------
+// The address keeps the mode and, after "&", the background: #uyuni, #fog&bg=off.
 function modeFromHash() {
-  const h = location.hash.replace(/^#/, "");
+  const h = location.hash.replace(/^#/, "").split("&")[0];
   return MODES.includes(h) ? h : "uyuni";
+}
+function backgroundFromHash() { return !/(^|&)bg=off\b/.test(location.hash.replace(/^#/, "")); }
+function writeHash() {
+  history.replaceState(null, "", `${location.pathname}${location.search}#${mode}${withBackground ? "" : "&bg=off"}`);
 }
 
 async function get3d() {
@@ -346,6 +368,7 @@ async function get3d() {
       if (code !== null) s.setCode(code, true);
       s.setError(error);
       s.showCode(codeOn);
+      s.setBackgroundOn(withBackground);
       stage3d = s;
       return s;
     });
@@ -364,8 +387,9 @@ async function setMode(next, instant = false) {
   if (next === "flat") {
     if (stage3d) stage3d.stop();
     el.flat.hidden = false;
-    // Wait (a little) for the picture, so the black lifts onto it.
-    if (latest) await Promise.race([flat.show(latest.svg, latest.background), wait(400)]);
+    if (driving) playHere();
+    // Wait (a little) for a mirrored picture, so the black lifts onto it.
+    else if (latest) await Promise.race([flat.show(latest.svg, latest.background), wait(400)]);
     if (token !== switchToken) return;
   } else {
     let s;
@@ -380,26 +404,42 @@ async function setMode(next, instant = false) {
     }
     if (token !== switchToken) return;
     el.flat.hidden = true;
+    flat.stop();
     s.setWorld(next);
+    if (driving) playHere(); else showMirrored();
     s.warm();
     s.start();
-    showPicture();
   }
   requestAnimationFrame(() => requestAnimationFrame(() => { if (token === switchToken) el.black.classList.add("clear"); }));
 }
 
 function go(next) {
   if (!MODES.includes(next)) return;
-  history.replaceState(null, "", `${location.pathname}${location.search}#${next}`);
+  history.replaceState(null, "", `${location.pathname}${location.search}#${next}${withBackground ? "" : "&bg=off"}`);
   setMode(next);
 }
 
-addEventListener("hashchange", () => setMode(modeFromHash()));
+addEventListener("hashchange", () => {
+  if (backgroundFromHash() !== withBackground) toggleBackground();
+  setMode(modeFromHash());
+});
 
 // ---- keys, mouse, the bar ---------------------------------------------------
 function toggleCode() {
   codeOn = !codeOn;
   if (stage3d) stage3d.showCode(codeOn);
+  el.subs.classList.toggle("off", !codeOn);
+  renderBar();
+}
+
+// B: the picture with its own background (as written), or without it: only
+// the background <rect> goes, never anything the sketch drew. In 3D only;
+// flat always shows the picture as the live view does.
+function toggleBackground() {
+  withBackground = !withBackground;
+  if (stage3d) stage3d.setBackgroundOn(withBackground);
+  if (!driving) showMirrored();
+  if (mode) writeHash();
   renderBar();
 }
 
@@ -408,14 +448,15 @@ function toggleFull() {
   else document.documentElement.requestFullscreen().catch(() => {});
 }
 
-// Caught first (capture) and kept from going further: the player that plays
-// the Reel here must not take these keys as reactions (its parts rest).
+// Caught first (capture) and kept from going further: the flat player must
+// not take these keys as reactions (its parts rest).
 addEventListener("keydown", (e) => {
   e.stopPropagation();
   if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
   const k = e.key.toLowerCase();
   if (KEYS[k]) go(KEYS[k]);
   else if (k === "c") toggleCode();
+  else if (k === "b" && mode !== "flat") toggleBackground();
   else if (k === "f") toggleFull();
   else return;
   e.preventDefault();
@@ -453,7 +494,8 @@ function renderBar() {
   key("1", t.uyuni, mode === "uyuni", () => go("uyuni"));
   key("2", t.fog, mode === "fog", () => go("fog"));
   sep();
-  key("C", t.code, mode !== "flat" && codeOn, toggleCode);
+  key("C", t.code, codeOn, toggleCode);
+  if (mode !== "flat") key("B", t.bg, withBackground, toggleBackground);
   key("F", t.full, false, toggleFull);
   sep();
   const state = document.createElement("span");
@@ -476,6 +518,7 @@ function renderText() {
 function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 // ---- start --------------------------------------------------------------------
+withBackground = backgroundFromHash();
 renderText();
 // A playground answers hello within a moment; only then is it worth saying we wait.
 setTimeout(() => { if (!connected) el.note.hidden = false; }, 900);
@@ -485,13 +528,17 @@ setMode(modeFromHash(), true);
 window.asobiStage = {
   get mode() { return mode; },
   get connected() { return connected; },
+  // When the art on screen changed (since a performance.now() time).
+  artTimes(since) { return (stage3d && mode !== "flat" ? stage3d.artTimes : flatTimes).filter((t) => t >= since); },
   stats() {
     const r = raster.stats;
     const s = stage3d ? stage3d.stats : null;
     return {
       raster: { drawn: r.drawn, skipped: r.skipped, failed: r.failed, avgMs: r.drawn ? r.sum / r.drawn : 0, maxMs: r.max, scale: raster.scale, side: raster.side },
       upload: s ? { count: s.uploads, avgMs: s.uploads ? s.uploadMs / s.uploads : 0, maxMs: s.uploadMax } : null,
-      driving, playgroundHidden, reel: { ...stats, seq: reel.seq, frames: reel.frames },
+      frames3d: stage3d ? stage3d.frameStats() : null,
+      driving, playgroundHidden, withBackground,
+      reel: { ...stats, seq: reel.seq, frames: reel.frames, fps: reel.fps, parts: reel.parts },
       ratio: stage3d ? stage3d.ratio : null,
       frames: s ? s.frames : 0,
     };

@@ -10,6 +10,7 @@ import { RenderPass } from "./vendor/three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "./vendor/three/addons/postprocessing/ShaderPass.js";
 import { Pieces } from "./pieces.js";
+import { FrameCache, BUDGET } from "./frames.js";
 import { CodeCanvas } from "./code.js";
 import { Uyuni } from "./uyuni.js";
 import { Fog } from "./fog.js";
@@ -69,6 +70,10 @@ const FinishShader = {
 };
 
 const ease = (k) => k * k * (3 - 2 * k);
+
+// When the art on screen changed (for checking its rhythm): the last 4096 times.
+export const artTimes = [];
+export function artShown() { artTimes.push(performance.now()); if (artTimes.length > 4096) artTimes.splice(0, 1024); }
 const mix = (a, b, k) => a + (b - a) * k;
 
 export class Stage3D {
@@ -91,13 +96,17 @@ export class Stage3D {
     this.pieces = new Pieces();
     this.pieces.setCodeSize(CODE.h * CODE.aspect, CODE.h);
     this.pieces.setCodeTexture(this.codeTexture);
-    this.artTexture = null;
+    this.artTexture = null;  // the picture on show
+    this.mirrorTexture = null;
     this.artAspect = 1;
     this.hasCode = false;
     this.hasArt = false;
     this.codeOn = true;      // the `c` key
     this.layoutK = 1;        // 1: code and art, 0: the art alone
     this.dark = false;
+    this.withBackground = true; // the `b` key turns it off
+    this.source = "none";    // "reel": played here by its own clock; "mirror": pictures from the playground
+    this.frames = new FrameCache(renderer, this.anisotropy);
     this.sizeArt();
 
     // No MSAA: every pass would pay for a resolve. Nothing here has hard edges anyway.
@@ -189,20 +198,38 @@ export class Stage3D {
 
   // ---- what to show ---------------------------------------------------------
 
-  // A newly drawn picture from Raster: an ImageBitmap (this takes it over and
-  // closes it once replaced) or a canvas. Answers the ms the upload took.
+  // A Reel to play here, by this window's own clock (checked by AsobiSafeReel).
+  playReel(reel) {
+    this.source = "reel";
+    this.frames.setReel(reel);
+    this.setAspect(reel.view[2] / reel.view[3]);
+    this.pieces.setGrain(this.frames.grain, this.artAspect);
+    this.hasArt = true;
+  }
+
+  // From now on the pictures come from the playground (setPicture).
+  mirror() {
+    if (this.source === "mirror") return;
+    this.source = "mirror";
+    this.mirrorReady = false; // what is on the art stays until the playground's next picture is drawn
+    this.frames.clear();
+  }
+
+  // A picture from the playground, drawn by Raster: an ImageBitmap (this
+  // takes it over and closes it once replaced) or a canvas. Answers the ms
+  // the upload took.
   setPicture(source, info) {
-    let t = this.artTexture;
+    let t = this.mirrorTexture;
     const bitmap = typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap;
     if (!t || t.userData.w !== source.width || t.userData.h !== source.height || t.userData.bitmap !== bitmap) {
       // A new size needs a new texture (GPU storage is made once per texture).
       if (t) { t.dispose(); if (t.userData.bitmap) t.image.close(); }
-      t = this.artTexture = new THREE.Texture(source);
-      t.colorSpace = THREE.NoColorSpace; // the key works on the sRGB values as drawn
+      t = this.mirrorTexture = new THREE.Texture(source);
+      t.colorSpace = THREE.NoColorSpace; // premultiplied sRGB, decoded in the shader
       t.anisotropy = Math.min(4, this.anisotropy);
-      t.flipY = !bitmap; // a bitmap comes upside down already (WebGL ignores flipY for it)
+      t.flipY = !bitmap;          // a bitmap comes upside down already (WebGL ignores flipY for it)
+      t.premultiplyAlpha = !bitmap; // a canvas is premultiplied too (a bitmap was asked to be)
       t.userData = { w: source.width, h: source.height, bitmap };
-      this.pieces.setArtTexture(t);
     } else {
       const old = t.image;
       t.image = source;
@@ -210,10 +237,9 @@ export class Stage3D {
       if (bitmap && old && old !== source) old.close();
     }
     t.needsUpdate = true;
-    if (Math.abs(info.aspect - this.artAspect) > 1e-3) {
-      this.artAspect = info.aspect;
-      this.sizeArt();
-    }
+    this.mirrorReady = true;
+    this.setAspect(info.aspect);
+    this.pieces.setGrain(info.grain, this.artAspect);
     this.hasArt = true;
     if (!this.running) return 0;
     // Upload now, between frames, and say how long it took.
@@ -225,14 +251,19 @@ export class Stage3D {
     return ms;
   }
 
-  // The picture's background (sRGB 0..255): it is keyed out. Dark ones leave
-  // light, light ones leave ink. grain: the picture has asobi's grain.
-  setBackground(rgb, dark, grain) {
-    const key = rgb.join(",") + dark + grain;
-    if (key === this.bgKey) return;
-    this.bgKey = key;
-    this.dark = dark;
-    this.pieces.setBackground(rgb, dark, grain);
+  setAspect(a) {
+    if (Math.abs(a - this.artAspect) < 1e-3) return;
+    this.artAspect = a;
+    this.sizeArt();
+  }
+
+  // Whether the picture's background is dark (for the fog's light).
+  setDark(dark) { this.dark = dark; }
+
+  // The picture with its background (true) or without (the B key).
+  setBackgroundOn(on) {
+    this.withBackground = on;
+    this.frames.setBackground(on);
   }
 
   setCode(code, fresh) {
@@ -274,17 +305,39 @@ export class Stage3D {
     p.artWanted = this.hasArt ? 1 : 0;
     p.update(dt, this.code, this.time);
     this.layout(dt);
+    // The art: this window's own frame for this moment, or the newest picture from the playground.
+    if (this.source === "reel") {
+      this.frames.aim(this.artPixels());
+      this.showArt(this.frames.tick(dt));
+    } else if (this.source === "mirror" && this.mirrorReady) {
+      this.showArt(this.mirrorTexture, this.mirrorTexture && this.mirrorTexture.version);
+    }
     w.update(dt, p, this.dark);
     this.light();
     this.finish.uniforms.uTime.value = this.time;
     this.composer.render(dt);
   }
 
+  // Puts a texture on the art; notes the moment the art changed.
+  showArt(texture, version) {
+    if (!texture) return;
+    if (texture !== this.artTexture) {
+      this.pieces.setArtTexture(texture);
+      // A frame left over from a Reel no longer played goes once replaced.
+      const old = this.artTexture;
+      if (old && old !== this.mirrorTexture && !this.frames.has(old) && old !== this.frames.showing) old.dispose();
+    }
+    const key = version === undefined ? texture : version;
+    if (texture !== this.artTexture || key !== this.artKey) artShown();
+    this.artTexture = texture;
+    this.artKey = key;
+  }
+
   // A world that lights things with the art (the fog's glow and pool) gets
   // the current picture. Before every draw: an older texture may be gone.
   light() {
     const w = this.world, p = this.pieces;
-    if (w && w.light) w.light(p.art.position, p.artSize, this.dark, p.artOpacity, this.artTexture);
+    if (w && w.light) w.light(p.art.position, p.artSize, this.dark, p.artOpacity, this.artTexture, this.withBackground);
   }
 
   // Places the art, the code and the camera. With the code hidden (c) the
@@ -327,11 +380,14 @@ export class Stage3D {
     // left of the art alone, so things are lit from behind but the art never
     // sits on top of it.
     if (w.sunAt) {
-      const angle = (x, zz) => Math.atan2(x - CAM.x, z - zz);
+      // Seen from where the camera is now: the sun keeps its place in the gap
+      // while the camera drifts (it moves a little against the far hills,
+      // too slowly to notice; near and far still slide past each other).
+      const angle = (x, zz) => Math.atan2(x - cam.position.x, cam.position.z - zz);
       const artLeft = angle(ax - aw / 2, az);
       const cw = p.codeSize.x;
       const codeRight = angle(CODE.x + (cw / 2) * Math.cos(CODE.turn), CODE.z - (cw / 2) * Math.sin(CODE.turn));
-      w.sunAt(mix(artLeft - 0.07, mix(codeRight, artLeft, 0.55), k));
+      w.sunAt(mix(artLeft - 0.07, mix(codeRight, artLeft, 0.5), k));
     }
   }
 
@@ -347,6 +403,15 @@ export class Stage3D {
       this.resize();
       console.info(`asobi stage: frames are slow, drawing at pixel ratio ${this.ratio}`);
     }
+  }
+
+  get artTimes() { return artTimes; }
+
+  // How the frames are kept and drawn (for the numbers in asobiStage.stats()).
+  frameStats() {
+    const f = this.frames, s = f.stats;
+    return { source: this.source, side: s.side, ring: s.ring, whole: s.whole, cached: f.textures.size, budgetMB: BUDGET / 1048576,
+      drawn: s.drawn, drawAvgMs: s.drawn ? s.drawMs / s.drawn : 0, drawMaxMs: s.drawMax, held: s.held, scale: f.scale };
   }
 
   // How often frames are slow lately (0..1): the raster draws smaller then.

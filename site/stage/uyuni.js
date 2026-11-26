@@ -360,10 +360,12 @@ export class Uyuni {
     this.scene.add(this.water);
 
     // How the floating pieces look here: glyphs with a soft shade so they
-    // read on the bright sky; ink a little warmed and dimmed by the dusk.
+    // read on the bright sky; the sheet a little warmed and dimmed by the
+    // dusk (white paper stays under the bloom threshold), with a faint sheen
+    // of violet sky on a dark one.
     this.style = {
       glow: 0.36, shade: 0.3, textGain: 0.96,
-      lightGain: 1.35, lightOcclude: 0.75, inkTint: new THREE.Color(0.86, 0.8, 0.84),
+      sheetLight: new THREE.Color(0.86, 0.8, 0.82), sheen: lin("#2a1e3e"),
     };
     this.bloom = { strength: 0.55, radius: 0.55, threshold: 0.92 };
     this.finish = { vignette: 0.5, grain: 0.02 };

@@ -21,16 +21,34 @@ body.idle, body.idle * { cursor: none !important; }
 #world { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #world.off { visibility: hidden; }
 
-/* Flat: the picture alone, contained, over its own background colour.
-   Two images take turns, so a new frame only shows once it is ready. */
-.flat { position: fixed; inset: 0; background: #fff; }
-.flat[hidden] { display: none; }
+/* Flat: the picture alone, contained, over its own background colour. Either
+   the stage's own player (.live, like the live view) or mirrored pictures (.pics:
+   two images that take turns, so a new frame only shows once it is ready). */
+.flat { position: fixed; inset: 0; background: #000; }
+.flat[hidden], .flat [hidden] { display: none; }
+.flat .pics, .flat .live { position: absolute; inset: 0; background: #fff; }
+.flat .live { pointer-events: none; } /* reacting parts rest here: the playground has the pointer */
 .flat .pic { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; visibility: hidden; }
 .flat .pic.front { visibility: visible; }
 
-/* The player that plays the Reel here while the playground is hidden: out of
-   sight and never drawn (only its <svg> is read, then drawn like a mirrored picture). */
-.self { position: fixed; left: -10000px; top: 0; width: 320px; height: 320px; content-visibility: hidden; pointer-events: none; }
+/* The code over the flat picture, like subtitles: each line on its own tight backing. */
+.subs {
+  position: absolute; left: 0; top: 0; bottom: 0; max-width: 56vw; padding: 4vh 2.6vw;
+  display: flex; flex-direction: column; justify-content: center; pointer-events: none;
+  font: 500 clamp(13px, 1.28vw, 26px)/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
+  transition: opacity .35s;
+}
+.subs.off { opacity: 0; }
+.subs .lines { display: flex; flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.62; }
+.subs .line { display: block; min-height: 1.5em; color: var(--ink); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.subs .text { padding: .12em .45em; background: rgba(11, 11, 15, .72); border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.subs .text.blank { background: none; }
+.subs .lines.cut-top { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 4.5em); mask-image: linear-gradient(to bottom, transparent, #000 4.5em); }
+.subs .lines.cut-bottom { -webkit-mask-image: linear-gradient(to top, transparent, #000 4.5em); mask-image: linear-gradient(to top, transparent, #000 4.5em); }
+.subs .lines.cut-top.cut-bottom { -webkit-mask-image: linear-gradient(transparent, #000 4.5em, #000 calc(100% - 4.5em), transparent); mask-image: linear-gradient(transparent, #000 4.5em, #000 calc(100% - 4.5em), transparent); }
+.subs .caret { display: inline-block; width: .12em; height: 1.15em; margin-left: .12em; vertical-align: -.2em; background: var(--signal); animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.subs .err { margin-top: .6em; padding: .1em .5em; align-self: flex-start; color: var(--signal); background: rgba(11, 11, 15, .82); border-radius: 2px; white-space: pre-wrap; }
 
 /* The quiet note while no playground is talking to this window. */
 .note {
@@ -88,5 +106,5 @@ body.idle, body.idle * { cursor: none !important; }
 .black.clear { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .note .label::before, .note.small .say::before { animation: none; }
+  .note .label::before, .note.small .say::before, .subs .caret { animation: none; }
 }

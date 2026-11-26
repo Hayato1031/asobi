@@ -19,23 +19,26 @@
   var player = AsobiPlayer.mount(stage, { controls: true, keys: true, language: cfg.lang });
   var playerT0 = performance.now(); // the player's own clock starts at mount and never resets
 
-  // ---- the stage window: a second window that mirrors code and picture ----
+  // ---- the stage window: a second window that shows code and picture big ----
   // It only receives (BroadcastChannel "asobi-stage"); Ruby, sound and
   // reactions stay here. While no stage window is listening this costs
-  // nothing: no observer, no serialising. A stage counts as alive while its
-  // hello / here was heard within the last 6 s (they come as messages, which
-  // a hidden page still gets).
-  // When this page is hidden the browser stops its animation frames, so its
-  // pictures stop. For that the stage also gets the Reel on show (without the
-  // song, which keeps playing here) and plays it itself: it checks it with
-  // AsobiSafeReel as this page does, and its own player puts the frames on
-  // its page exactly as the player here does. Every shown Reel gets a seq
+  // nothing. A stage counts as alive while its hello / here was heard within
+  // the last 6 s (they come as messages, which a hidden page still gets).
+  // The stage gets the code as typed, the error, and the Reel on show
+  // (without the song, which plays here). It checks the Reel with
+  // AsobiSafeReel as this page does and plays it by its own clock, so this
+  // page does no work per frame for it. Only a Reel with reacting parts is
+  // mirrored: then this page also sends a snapshot of its player's <svg>
+  // whenever it changes (at most once per frame), so a click here shows
+  // there; while this page is hidden (no animation frames), the stage plays
+  // that Reel itself too, its parts at rest. Every shown Reel gets a seq
   // (this page's own prefix, then a count); a hello names the seq the stage
-  // has, so a big Reel goes over once, not with every hello. visibility tells
-  // the stage when to play by itself and when to mirror again.
+  // has, so a big Reel goes over once, not with every hello. visibility
+  // tells the stage when to play by itself and when to mirror again.
   var channel = null, aliveUntil = 0, observer = null, observed = null;
   var sendQueued = false, watchTimer = 0, stageError = null;
   var reelPrefix = Math.random().toString(36).slice(2, 8), reelCount = 0, reelSeq = null, reelOnShow = null;
+  var rawJson = typeof WeakMap === "function" ? new WeakMap() : null; // Reel -> the engine's JSON for it
   try { if (window.BroadcastChannel) channel = new BroadcastChannel("asobi-stage"); } catch (e) { channel = null; }
 
   function stageAlive() { return !!channel && performance.now() < aliveUntil; }
@@ -65,13 +68,18 @@
     };
   }
 
-  // The Reel on show, for the stage to play while this page is hidden.
+  // The Reel on show, for the stage to play. A Reel from the engine goes as
+  // the JSON text it came in (a big one is tens of MB: making it again would
+  // stop this page); the stage checks it again and leaves out the song.
   function postReel() {
     if (!stageAlive() || !reelOnShow) return;
-    var copy = {};
-    for (var k in reelOnShow) if (k !== "song") copy[k] = reelOnShow[k];
-    var at = Date.now();
-    post({ type: "reel", seq: reelSeq, json: JSON.stringify(copy), frames: copy.frames.length, fps: Number(copy.fps) || 1, at: at });
+    var r = reelOnShow, json = rawJson && rawJson.get(r);
+    if (!json) {
+      var copy = {};
+      for (var k in r) if (k !== "song") copy[k] = r[k];
+      json = JSON.stringify(copy);
+    }
+    post({ type: "reel", seq: reelSeq, json: json, frames: r.frames.length, fps: Number(r.fps) || 1, parts: !!r.parts, at: Date.now() });
   }
 
   // At most one picture per animation frame; the newest state wins.
@@ -86,7 +94,11 @@
     });
   }
 
+  // Pictures go to the stage only for a Reel with reacting parts (it plays the rest itself).
+  function mirrored() { return !!(reelOnShow && reelOnShow.parts); }
+
   function attach() {
+    if (!mirrored()) { detach(); return; }
     var svg = stage.querySelector("svg.asobi-svg");
     if (!svg || (observer && observed === svg)) return;
     detach();
@@ -125,7 +137,7 @@
       postCode();
       postError();
       if (m.seq !== reelSeq) postReel();
-      var picture = serialisePicture();
+      var picture = mirrored() ? serialisePicture() : null;
       if (picture) post(picture);
     };
     window.addEventListener("pagehide", function () { post({ type: "bye" }); });
@@ -144,10 +156,12 @@
     if (!channel || touchOnly) stageBtn.hidden = true;
     else {
       stageBtn.hidden = false;
-      // A named window: a second click brings the same one forward.
+      // noopener: the stage gets a browsing context group of its own, so
+      // (normally) its own process and main thread: its drawing cannot stall
+      // this page and this page's work cannot stall it. The channel still
+      // joins them. Each click opens another stage (two screens, two stages).
       stageBtn.addEventListener("click", function () {
-        var w = window.open(cfg.stage, "asobi-stage", "popup,width=1280,height=720");
-        if (w && w.focus) w.focus();
+        window.open(cfg.stage, "_blank", "popup,noopener,width=1280,height=720");
       });
     }
   }
@@ -180,6 +194,7 @@
       reelOnShow = reel;
       reelSeq = reelPrefix + "-" + (++reelCount);
       postReel();
+      if (stageAlive()) attach(); // watch the picture only when it is mirrored
     }
   }
   (function readout() {
@@ -234,6 +249,7 @@
   // checker nothing from the engine is shown.
   function fromEngine(json, code) {
     var reel = window.AsobiSafeReel ? AsobiSafeReel.parse(json) : null;
+    if (reel && rawJson) rawJson.set(reel, json); // the stage gets this text as it came (no second JSON.stringify)
     return reel || { error: U.blocked, code: code };
   }
 

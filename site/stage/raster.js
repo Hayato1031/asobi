@@ -1,5 +1,7 @@
-// Turns the newest picture (svg markup from the playground) into pixels for
-// the 3D art panel: an ImageBitmap (or, where that is missing, a canvas).
+// Turns the newest mirrored picture (svg markup from the playground, for a
+// Reel with reacting parts) into pixels for the 3D art: an ImageBitmap (or,
+// where that is missing, a canvas). Reels without parts are drawn ahead of
+// time instead (frames.js).
 //
 // The markup is untrusted: it is only ever loaded as an IMAGE (a blob: URL of
 // type image/svg+xml), never put into the page. An svg image runs no scripts
@@ -38,9 +40,10 @@ export class Raster {
   // The long side of the drawn picture for the panel's size on screen.
   aim(px) { this.side = Math.max(MIN_SIDE, Math.min(MAX_SIDE, Math.round(px))); }
 
-  push(svg, view) {
+  // grain: asobi's grain strength, taken out of svg (drawn by the GPU instead).
+  push(svg, view, grain = 0) {
     if (this.next) this.stats.skipped++;
-    this.next = { svg, view };
+    this.next = { svg, view, grain };
     if (!this.busy) this.run();
   }
 
@@ -50,7 +53,7 @@ export class Raster {
   async run() {
     this.busy = true;
     while (this.next) {
-      const { svg, view } = this.next;
+      const { svg, view, grain } = this.next;
       this.next = null;
       const aspect = view[2] / view[3];
       const long = Math.max(MIN_SIDE * 0.5, this.side * this.scale);
@@ -76,7 +79,7 @@ export class Raster {
         URL.revokeObjectURL(url);
       }
       this.last = 0;
-      const kept = this.onDraw(source, { width: w, height: h, aspect });
+      const kept = this.onDraw(source, { width: w, height: h, aspect, grain });
       if (kept === false && source.close) source.close();
       const ms = performance.now() - t0;
       const s = this.stats;
@@ -96,7 +99,7 @@ export class Raster {
   async draw(img, w, h) {
     if (this.bitmaps) {
       try {
-        return await createImageBitmap(img, { imageOrientation: "flipY", premultiplyAlpha: "none" });
+        return await createImageBitmap(img, { imageOrientation: "flipY", premultiplyAlpha: "premultiply" });
       } catch {
         this.bitmaps = false; // not for svg here: use a canvas from now on
       }

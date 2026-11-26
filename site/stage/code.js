@@ -11,13 +11,13 @@
 // only its text and class names are read, never put into the page.
 
 export const MAX_ROWS = 96;
-const FLASH_TIME = 1.2;
+export const FLASH_TIME = 1.2;
 const LINE = 1.42;          // line height, in font sizes
-const COLORS = {
+export const COLORS = {
   "t-c": "#8f8f9c", "t-s": "#a6e3a1", "t-y": "#ffc58a", "t-n": "#ffd479",
   "t-k": "#ff8fab", "t-t": "#cdb4ff", "t-w": "#89d9ff",
 };
-const INK = "#f1f1f4";
+export const INK = "#f1f1f4";
 const SIGNAL = "#ff5470";
 const MONO = `ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Hiragino Sans", monospace`;
 
@@ -58,32 +58,13 @@ export class CodeCanvas {
   // the end of the last changed line. The first code after a quiet time
   // (fresh = true) just appears.
   setCode(code, now, fresh) {
-    const lines = String(code).replace(/\r\n?/g, "\n").replace(/\t/g, "  ").split("\n");
-    const old = this.lines;
-    if (old && old.length === lines.length && old.every((l, i) => l === lines[i])) return;
-    const flashAt = new Float64Array(lines.length).fill(-1e9);
-    // Same lines at the start and at the end are kept; what is between changed.
-    let a = 0, b = 0;
-    if (old) {
-      while (a < old.length && a < lines.length && old[a] === lines[a]) a++;
-      while (b < old.length - a && b < lines.length - a && old[old.length - 1 - b] === lines[lines.length - 1 - b]) b++;
-    }
-    // Most of it new (another example opened, say): show it from the top, quietly.
-    const whole = !old || (lines.length - a - b) > Math.max(3, lines.length * 0.6);
-    if (!fresh && !whole) {
-      for (let i = 0; i < lines.length; i++) {
-        if (i < a) flashAt[i] = this.flashAt[i] ?? -1e9;
-        else if (i >= lines.length - b) flashAt[i] = this.flashAt[i - lines.length + old.length] ?? -1e9;
-        else flashAt[i] = now;
-      }
-      const last = lines.length - b - 1;
-      this.focus = last >= a ? last : Math.max(0, Math.min(lines.length - 1, a - 1));
-    } else {
-      this.focus = -1;
-      this.start = 0;
-    }
+    const lines = splitCode(code);
+    const d = diffCode(this.lines, lines, this.flashAt, now, fresh);
+    if (!d) return;
+    this.focus = d.focus;
+    if (d.focus < 0) this.start = 0;
     this.lines = lines;
-    this.flashAt = flashAt;
+    this.flashAt = d.flashAt;
     this.typedAt = now;
     this.dirty = true;
   }
@@ -238,23 +219,60 @@ export class CodeCanvas {
   tint(line) {
     let runs = this.tints.get(line);
     if (runs) return runs;
-    runs = [];
-    if (self.AsobiTint) {
-      const doc = this.parser.parseFromString(`<p>${self.AsobiTint(line, this.words)}</p>`, "text/html");
-      const p = doc.body.firstChild;
-      for (const node of p ? p.childNodes : []) {
-        const text = node.textContent;
-        if (!text) continue;
-        const color = (node.nodeType === 1 && COLORS[node.getAttribute("class")]) || INK;
-        runs.push([text, color]);
-      }
-    } else {
-      runs.push([line, INK]);
-    }
+    runs = tintRuns(line, this.words, this.parser);
     if (this.tints.size > 4000) this.tints.clear();
     this.tints.set(line, runs);
     return runs;
   }
+
+}
+
+// The code as lines (tabs as two spaces).
+export function splitCode(code) {
+  return String(code).replace(/\r\n?/g, "\n").replace(/\t/g, "  ").split("\n");
+}
+
+// What changed between two versions of the code: same lines at the start and
+// at the end are kept, what is between changed. Answers null when nothing
+// changed, else { flashAt (per new line: when it last changed), focus (the
+// last changed line, the caret's; -1 when the code is shown fresh) }. Most of
+// it new (another example opened, say), or fresh: shown from the top, quietly.
+export function diffCode(old, lines, oldFlashAt, now, fresh) {
+  if (old && old.length === lines.length && old.every((l, i) => l === lines[i])) return null;
+  const flashAt = new Float64Array(lines.length).fill(-1e9);
+  let a = 0, b = 0;
+  if (old) {
+    while (a < old.length && a < lines.length && old[a] === lines[a]) a++;
+    while (b < old.length - a && b < lines.length - a && old[old.length - 1 - b] === lines[lines.length - 1 - b]) b++;
+  }
+  const whole = !old || (lines.length - a - b) > Math.max(3, lines.length * 0.6);
+  if (fresh || whole) return { flashAt, focus: -1 };
+  for (let i = 0; i < lines.length; i++) {
+    if (i < a) flashAt[i] = oldFlashAt[i] ?? -1e9;
+    else if (i >= lines.length - b) flashAt[i] = oldFlashAt[i - lines.length + old.length] ?? -1e9;
+    else flashAt[i] = now;
+  }
+  const last = lines.length - b - 1;
+  return { flashAt, focus: last >= a ? last : Math.max(0, Math.min(lines.length - 1, a - 1)) };
+}
+
+// The site's tint (AsobiTint) of one line as coloured runs [text, colour].
+// AsobiTint answers HTML: it is parsed in an inert document and only its
+// text and class names are read, never put into a page.
+export function tintRuns(line, words, parser) {
+  const runs = [];
+  if (self.AsobiTint) {
+    const doc = parser.parseFromString(`<p>${self.AsobiTint(line, words)}</p>`, "text/html");
+    const p = doc.body.firstChild;
+    for (const node of p ? p.childNodes : []) {
+      const text = node.textContent;
+      if (!text) continue;
+      runs.push([text, (node.nodeType === 1 && COLORS[node.getAttribute("class")]) || INK]);
+    }
+  } else {
+    runs.push([line, INK]);
+  }
+  return runs;
 }
 
 // Runs split after +at+ characters.
