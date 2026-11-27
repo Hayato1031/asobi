@@ -110,6 +110,20 @@
   </div>
 </section>
 <%- end -%>
+<%- unless home["articles"].empty? -%>
+
+<section class="band press-band articles-band" id="articles" aria-labelledby="articles-title">
+  <h2 class="label" id="articles-title"><span class="n">✎</span> <%= ui(:articles_label) %></h2>
+  <div class="press-more">
+    <ul>
+<%- home["articles"].each do |item| -%>
+<%- other = item["lang"] != lang -%>
+      <li><span class="press-date"><%= h(t(item["date"])) %></span><span><a href="<%= h(item["url"]) %>" hreflang="<%= item["lang"] %>"<%= %( lang="#{item["lang"]}") if other %>><%= h(item["name"]) %><span aria-hidden="true"> ↗</span></a> <span class="press-site"><%= h(item["site"]) %><%= " · #{h(ui(:"written_in_#{item["lang"]}"))}" if other %></span></span></li>
+<%- end -%>
+    </ul>
+  </div>
+</section>
+<%- end -%>
 
 <section class="band" aria-labelledby="beliefs-title">
   <div class="band-head"><p class="label"><span class="n"><%= next_sec.call %></span> / <%= ui(:philosophy) %></p><h2 id="beliefs-title" class="visually-hidden"><%= ui(:philosophy) %></h2></div>

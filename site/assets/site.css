@@ -300,6 +300,10 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 .press-more .press-date { font: 500 13px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .press-more a { font-size: 17px; color: var(--ink); text-decoration: none; }
 .press-more a:hover { color: var(--signal); }
+/* What the author wrote: the same list, right under the press. */
+.articles-band { padding-top: var(--s7); }
+.articles-band .press-more ul { border-top: 1px solid var(--rule); }
+.press-more .press-site { margin-left: var(--s2); font: 500 13px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
 @media (max-width: 600px) {
   .press-band { grid-template-columns: 1fr; gap: var(--s2); }
   .press-band > h2 { padding-top: 0; }
