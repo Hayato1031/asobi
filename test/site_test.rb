@@ -897,6 +897,21 @@ class SiteTest < Minitest::Test
     assert_includes read("guide.html"), 'class="doc-next"'
   end
 
+  # The design article on Qiita is linked from both home pages (a plain link
+  # search engines follow; GitHub marks the README's link nofollow), from
+  # their Markdown, and from llms.txt.
+  def test_home_links_the_design_article
+    url = AsobiSite::DESIGN_ARTICLE_URL
+    %w[index.html ja/index.html].each do |file|
+      html = read(file)
+      assert_includes html, %(<a class="btn" href="#{url}" hreflang="ja">), file
+      refute_match(/<a[^>]*#{Regexp.escape(url)}[^>]*nofollow/, html, file)
+    end
+    assert_includes read("index.md"), "](#{url})"
+    assert_includes read("ja/index.md"), "[設計思想の解説記事を読む（Qiita）](#{url})"
+    assert_includes read("llms.txt"), "- Design Article (Japanese, Qiita): #{url}"
+  end
+
   def test_agent_readiness_manifests_markdown_mirrors_and_webmcp
     robots = read("robots.txt")
     assert_includes robots, "Content-Signal: ai-train=yes, search=yes, ai-input=yes"

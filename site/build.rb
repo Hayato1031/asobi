@@ -65,6 +65,8 @@ module AsobiSite
   SITE_URL = "https://asobi.myura.me"
   RUBYGEMS_URL = "https://rubygems.org/gems/asobi"
   GITHUB_URL = "https://github.com/Hayato1031/asobi"
+  # The long read on why asobi is built this way (in Japanese).
+  DESIGN_ARTICLE_URL = "https://qiita.com/Myura/items/2b672011114817439ac5"
   AUTHOR_NAME = "Hayato1031"
   AUTHOR_URL = "https://github.com/Hayato1031"
   # The same person under other names, for the structured data (no real name).
@@ -167,6 +169,7 @@ module AsobiSite
       show_code: "Code", now_playing: "Now playing", live: "live", still: "still", reacts: "reacts", frame: "frame",
       every: "every %ss", frames: "%d frames", stage_label: "A piece playing, with its code",
       philosophy: "What asobi believes",
+      design_article: "Why asobi is designed this way (an article on Qiita, in Japanese)",
       cycle_label: "Object ⇄ Art",
       cycle_title: "The two-way loop",
       cycle_lead: "Unlike imperative canvas tools, asobi turns Ruby values into pictures and returns every picture as an immutable Ruby object.",
@@ -256,6 +259,7 @@ module AsobiSite
       show_code: "コード", now_playing: "再生中", live: "再生中", still: "静止画", reacts: "反応する", frame: "コマ",
       every: "%s秒で1周", frames: "%dコマ", stage_label: "作品とそのコード",
       philosophy: "asobi の考え",
+      design_article: "設計思想の解説記事を読む（Qiita）",
       cycle_label: "Object ⇄ Art",
       cycle_title: "オブジェクトと絵の往復",
       cycle_lead: "キャンバスへ命令して終わる描画ツールとは異なり、asobi は Ruby の値を絵に変え、返ってきた絵も不変の Ruby オブジェクトとして扱えます。",
@@ -1341,6 +1345,7 @@ module AsobiSite
         - AI Catalog (ARD): #{SITE_URL}/.well-known/ai-catalog.json
         - Source Code: #{GITHUB_URL}
         - RubyGems: #{RUBYGEMS_URL}
+        - Design Article (Japanese, Qiita): #{DESIGN_ARTICLE_URL}
 
         ## Core Concept: Object to Art. Art to Object.
 
@@ -1417,6 +1422,8 @@ module AsobiSite
         lines << "## #{ui_lang[:philosophy]}"
         lines << ""
         home["philosophy"].each_with_index { |p, i| lines << "#{i + 1}. #{p[lang]}" }
+        lines << ""
+        lines << "[#{ui_lang[:design_article]}](#{DESIGN_ARTICLE_URL})"
         lines << ""
         lines << "```ruby"
         lines << AsobiSite.display_code(home["hero_code"]).rstrip
