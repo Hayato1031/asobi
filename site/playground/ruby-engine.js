@@ -31,6 +31,10 @@
  *       { done: false } while the whole Reel is not ready yet,
  *       { done: true, json } at the end (json: null when nothing was waiting).
  *   AsobiRubyEngine.drop() -> forgets the half-made whole Reel.
+ *
+ * A song file the person chose on the page, by its name and id (see
+ * Asobi::Web.offer_song in runner.rb; the file itself never reaches Ruby):
+ *   AsobiRubyEngine.offerSong(name, id) -> true when Ruby took it
  */
 (function (g) {
   "use strict";
@@ -101,6 +105,11 @@
     dropper.call("call");
   }
 
-  g.AsobiRubyEngine = { boot: boot, run: run, start: start, finish: finish, step: step, drop: drop };
+  function offerSong(name, id) {
+    ready();
+    return vm.eval("Asobi::Web.offer_song(" + rubyString(name) + ", " + rubyString(id) + ")").toString() === "true";
+  }
+
+  g.AsobiRubyEngine = { boot: boot, run: run, start: start, finish: finish, step: step, drop: drop, offerSong: offerSong };
   if (typeof module !== "undefined" && module.exports) module.exports = { rubyString: rubyString, rubyLang: rubyLang };
 })(typeof self !== "undefined" ? self : this);

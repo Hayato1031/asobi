@@ -127,9 +127,18 @@
     return typeof v === "string" && v.length <= 64 && /^[#A-Za-z0-9(),.%\s-]+$/.test(v) && parensOk(v);
   }
 
+  // A song is the site's own ("assets/<file>") or one the person chose on
+  // the playground page ("user/<its id>", with that same id). Never a URL:
+  // only the page turns "user/<id>" into a file, and only for a file it was
+  // given (see playground.js).
+  var SITE_SONG = /^assets\/[A-Za-z0-9._-]+$/;
+  var USER_SONG = /^user\/([0-9a-f]{12})$/;
+
   function song(s) {
-    if (!plain(s) || typeof s.src !== "string" || !/^assets\/[A-Za-z0-9._-]+$/.test(s.src)) return null;
+    if (!plain(s) || typeof s.src !== "string") return null;
     var id = String(own(s, "id") ? s.id : "");
+    var user = USER_SONG.exec(s.src);
+    if (user ? id !== user[1] : !SITE_SONG.test(s.src)) return null;
     if (!/^[A-Za-z0-9._-]{1,64}$/.test(id)) return null;
     var out = { id: id, src: s.src };
     if (own(s, "volume") && s.volume !== undefined && s.volume !== null) {
@@ -167,7 +176,7 @@
     }
     if (value.song !== undefined && value.song !== null) {
       var s = song(value.song);
-      if (s) out.song = s; // a song that is not the site's own is left out; the picture still shows
+      if (s) out.song = s; // any other song is left out; the picture still shows
     }
     return out;
   }

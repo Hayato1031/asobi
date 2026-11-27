@@ -1,0 +1,193 @@
+/* The stage window. Same colours and labels as the site (site/assets/site.css):
+ * near-black stage, grey ink, one accent, mono uppercase labels. Nothing shows
+ * by default; the picture (and in 3D, the world) is the whole window. */
+:root {
+  --stage: #0b0b0f;
+  --stage-3: #1b1b23;
+  --rule-2: #3a3a46;
+  --ink: #f1f1f4;
+  --ink-2: #b6b6c1;
+  --ink-3: #8f8f9c;
+  --signal: #ff5470;
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Hiragino Sans", monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--ink); }
+body { font: 15px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+body.idle, body.idle * { cursor: none !important; }
+
+#world { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#world.off { visibility: hidden; }
+
+/* Flat: the picture alone, contained, over its own background colour. Either
+   the stage's own player (.live, like the live view) or mirrored pictures (.pics:
+   two images that take turns, so a new frame only shows once it is ready). */
+.flat { position: fixed; inset: 0; background: #000; }
+.flat[hidden], .flat [hidden] { display: none; }
+.flat .art { position: absolute; inset: 0; }
+.flat .pics, .flat .live { position: absolute; inset: 0; background: #fff; }
+.flat .live { pointer-events: none; } /* reacting parts rest here: the playground has the pointer */
+.flat .pic { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; visibility: hidden; }
+.flat .pic.front { visibility: visible; }
+/* asobi's grain, taken out of the picture and laid once over the whole window
+   (grain.js): above the art, below the code. A layer of its own, painted once. */
+.flat .grain { position: absolute; inset: 0; pointer-events: none; background-repeat: repeat; will-change: transform; }
+
+/* The code over the flat picture, like subtitles: each line on its own tight backing. */
+.subs {
+  position: absolute; left: 0; top: 0; bottom: 0; max-width: 56vw; padding: 4vh 2.6vw;
+  display: flex; flex-direction: column; justify-content: center; pointer-events: none;
+  font: 500 clamp(13px, 1.28vw, 26px)/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
+  transition: opacity .35s;
+}
+.subs.off { opacity: 0; }
+.subs .lines { display: flex; flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.62; }
+.subs .line { display: block; min-height: 1.5em; color: var(--ink); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.subs .text { padding: .12em .45em; background: rgba(11, 11, 15, .72); border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.subs .text.blank { background: none; }
+.subs .lines.cut-top { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 4.5em); mask-image: linear-gradient(to bottom, transparent, #000 4.5em); }
+.subs .lines.cut-bottom { -webkit-mask-image: linear-gradient(to top, transparent, #000 4.5em); mask-image: linear-gradient(to top, transparent, #000 4.5em); }
+.subs .lines.cut-top.cut-bottom { -webkit-mask-image: linear-gradient(transparent, #000 4.5em, #000 calc(100% - 4.5em), transparent); mask-image: linear-gradient(transparent, #000 4.5em, #000 calc(100% - 4.5em), transparent); }
+.subs .caret { display: inline-block; width: .12em; height: 1.15em; margin-left: .12em; vertical-align: -.2em; background: var(--signal); animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.subs .err { margin-top: .6em; padding: .1em .5em; align-self: flex-start; color: var(--signal); background: rgba(11, 11, 15, .82); border-radius: 2px; white-space: pre-wrap; }
+
+/* Side (3): the code on the left, the art on the right (in a tall window: the
+   art on top, the code under it), on one plain colour: the picture's own
+   background, set on .flat from main.js (--ground). The art's own boxes go
+   see-through, so nothing marks where the picture ends. The paper is fitted
+   in the art box; the art box keeps its size; C glides it to the middle with
+   a transform (never a resize: re-laying out a big SVG every frame stutters). */
+/* Whole pixels throughout (round()): a browser snaps an inline svg's box to
+   the pixel grid, so the mirrored picture (flat.js does the same sums) only
+   lands on the player's pixels if nothing needs snapping; and a glide that
+   ends half a pixel off would blur the art. */
+.flat.side { --m: round(max(6vmin, 24px), 1px); --code: round(46vw, 1px); --fade: 7vmin; --glide: round((var(--code) - var(--m)) / 2, 1px); }
+.flat.side .art {
+  inset: auto; left: var(--code); top: var(--m);
+  width: calc(100vw - var(--code) - var(--m)); height: calc(100vh - 2 * var(--m));
+  /* No will-change: a layer of its own rasterises the svg with other edges than
+     the mirrored image gets; the glide gets a layer while it runs anyway. */
+  transition: transform .6s cubic-bezier(.45, 0, .2, 1);
+}
+.flat.side.nocode .art { transform: translateX(calc(-1 * var(--glide))); }
+.flat.still .art { transition: none; }
+.flat.side .pics, .flat.side .live, .flat.side .asobi-root { background: transparent !important; }
+/* The player's svg is the paper's size (--shape: its width / height, set per
+   Reel), fitted in the art box; whatever was drawn past the paper still shows,
+   as in the playground, out to the window's edges: the svg and the player's
+   root let it out (overflow is paint only: the svg keeps its size). */
+.flat.side .live { container-type: size; }
+.flat.side .live svg.asobi-svg {
+  --pw: round(min(100cqw, 100cqh * var(--shape, 1)), 1px);
+  --ph: round(min(100cqh, 100cqw / var(--shape, 1)), 1px);
+  inset: auto; left: round(down, (100cqw - var(--pw)) / 2, 1px); top: round(down, (100cqh - var(--ph)) / 2, 1px);
+  width: var(--pw); height: var(--ph); overflow: visible;
+}
+.flat.side .asobi-root { overflow: visible; }
+/* A mirrored picture is an image, and an image never paints past its box: so
+   its box is the window as the art sees it after the glide, and flat.js widens
+   the picture's viewBox to that box, its paper exactly where the player puts it. */
+.flat.side .pics { inset: auto; left: calc(var(--glide) - var(--code)); top: calc(-1 * var(--m)); width: 100vw; height: 100vh; }
+/* Toward the code the art fades out: a band of the window's own colour over
+   it, solid under the code, so a drawing that reaches far left never runs
+   under the text. It goes (opacity only) as C glides the art to the middle. */
+.flat .fade { display: none; }
+.flat.side .fade {
+  display: block; position: absolute; inset: 0; pointer-events: none; will-change: opacity;
+  background: linear-gradient(to right, var(--ground, #fff) calc(var(--code) - var(--fade)), transparent var(--code));
+  transition: opacity .6s cubic-bezier(.45, 0, .2, 1);
+}
+.flat.side.nocode .fade { opacity: 0; }
+.flat.still .fade { transition: none; }
+.flat.side .subs, .beside { display: none; }
+.flat.side .beside {
+  position: absolute; left: 0; top: 0; bottom: 0; width: var(--code); padding: var(--m) var(--fade) var(--m) var(--m);
+  display: flex; flex-direction: column; justify-content: center; align-items: flex-start; pointer-events: none;
+  font: 500 24px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
+  transition: opacity .35s;
+}
+.flat.side.nocode .beside { opacity: 0; }
+.beside .lines { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; }
+/* A wrapped line's later rows sit four characters further in than the line
+   (side.js sets --lead, the line's own indent), so they never look like a
+   nested line of their own. */
+.beside .line { --in: calc((var(--lead, 0) + 4) * 1ch); min-height: 1.5em; padding-left: var(--in); text-indent: calc(-1 * var(--in)); }
+/* No backing: the padding only gives the flash's band some room (the margin keeps the text in place). */
+.beside .text { padding: .04em .3em; margin: 0 -.3em; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.beside .c { font-style: italic; }
+.beside .caret { display: inline-block; width: .12em; height: 1.15em; margin-left: .12em; vertical-align: -.2em; background: var(--accent, var(--signal)); animation: caret 1s steps(1) infinite; }
+.beside .err { margin-top: .8em; max-width: 100%; white-space: pre-wrap; }
+.beside .lines.cut-top { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 4.5em); mask-image: linear-gradient(to bottom, transparent, #000 4.5em); }
+.beside .lines.cut-bottom { -webkit-mask-image: linear-gradient(to top, transparent, #000 4.5em); mask-image: linear-gradient(to top, transparent, #000 4.5em); }
+.beside .lines.cut-top.cut-bottom { -webkit-mask-image: linear-gradient(transparent, #000 4.5em, #000 calc(100% - 4.5em), transparent); mask-image: linear-gradient(transparent, #000 4.5em, #000 calc(100% - 4.5em), transparent); }
+@media (orientation: portrait) {
+  .flat.side { --art: round(50vh, 1px); --glide: round((100vh - var(--art) - var(--m)) / 2, 1px); }
+  .flat.side .art { left: var(--m); width: calc(100vw - 2 * var(--m)); height: calc(var(--art) - var(--m)); }
+  .flat.side.nocode .art { transform: translateY(var(--glide)); }
+  .flat.side .pics { left: calc(-1 * var(--m)); top: calc(-1 * var(--m) - var(--glide)); }
+  .flat.side .fade { background: linear-gradient(to bottom, transparent var(--art), var(--ground, #fff) calc(var(--art) + var(--fade))); }
+  .flat.side .beside { top: var(--art); right: 0; width: auto; padding: var(--fade) 7vw var(--m); }
+}
+
+/* The quiet note while no playground is talking to this window. */
+.note {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(560px, calc(100% - 48px)); padding: 28px 32px;
+  background: rgba(11, 11, 15, .8); border: 1px solid rgba(58, 58, 70, .7); border-radius: 14px;
+  text-align: center;
+}
+/* No backdrop blur here or on the bar: blurring a WebGL canvas every frame costs frames. */
+.note[hidden] { display: none; }
+.note p { margin: 0 0 8px; }
+.note.small {
+  top: 22px; transform: translate(-50%, 0); width: auto; max-width: calc(100% - 32px);
+  display: flex; align-items: center; gap: 16px; padding: 10px 12px 10px 20px; border-radius: 999px; text-align: left;
+}
+.note.small[hidden] { display: none; }
+.note.small p { margin: 0; }
+.note.small .label, .note.small .how { display: none; }
+.note.small .say { font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.note.small .say::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 10px; border-radius: 50%; background: var(--signal); vertical-align: 1px; animation: breathe 2.4s ease-in-out infinite; }
+.note.small .go { margin: 0; }
+.note .label { font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 14px; }
+.note .label::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 9px; border-radius: 50%; background: var(--signal); vertical-align: 1px; animation: breathe 2.4s ease-in-out infinite; }
+.note .say { font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+.note .how { color: var(--ink-2); font-size: 14px; }
+.note .go {
+  display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid var(--rule-2); border-radius: 999px;
+  font: 500 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); text-decoration: none;
+}
+.note .go:hover { border-color: var(--ink-3); background: var(--stage-3); }
+:lang(ja) .note .say { letter-spacing: .02em; }
+:lang(ja) .note .how { word-break: auto-phrase; line-break: strict; }
+.note .how { text-wrap: balance; }
+@keyframes breathe { 50% { opacity: .35; } }
+
+/* The key bar: shows for a moment when the mouse moves. */
+.bar {
+  position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 8px);
+  display: flex; gap: 18px; align-items: center; white-space: nowrap;
+  padding: 9px 18px; border-radius: 999px;
+  background: rgba(11, 11, 15, .82); border: 1px solid rgba(58, 58, 70, .7);
+  font: 500 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  opacity: 0; pointer-events: none; transition: opacity .16s, transform .16s;
+}
+.bar.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.bar b { color: var(--ink); font-weight: 600; margin-right: 6px; }
+.bar .k { cursor: pointer; }
+.bar .k.now { color: var(--ink); box-shadow: 0 2px 0 var(--signal); padding-bottom: 3px; }
+.bar .sep { width: 1px; height: 12px; background: var(--rule-2); }
+.bar .state::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--ink-3); vertical-align: 1px; }
+.bar .state.live::before { background: var(--signal); }
+
+/* Mode changes fade through black. */
+.black { position: fixed; inset: 0; background: #000; opacity: 1; pointer-events: none; transition: opacity .175s ease; }
+.black.clear { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .note .label::before, .note.small .say::before, .subs .caret, .beside .caret { animation: none; }
+  .flat.side .art, .flat.side .fade { transition: none; }
+}

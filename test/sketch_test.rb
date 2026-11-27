@@ -433,6 +433,8 @@ class SketchTest < Minitest::Test
 
   # The playground's own entry point offers beat.wav, with the id of the
   # real file (so the song the pages play and the playground's are one).
+  # Any other song: its own message, naming the songs it has and the button
+  # that adds one (songs chosen on the page: test/site_test.rb).
   def test_the_playground_runner_offers_beat_wav
     script = <<~'RUBY'
       require "asobi"
@@ -448,7 +450,7 @@ class SketchTest < Minitest::Test
                                       "-e", script, runner, chdir: @dir)
     assert status.success?, err
     bad, beat_error, song, good, note = JSON.parse(out)
-    assert_match(/\Aplay\.rb:1 .*only one song to play: "beat\.wav"/, bad)
+    assert_match(/\Aplay\.rb:1 .*no song "song\.mp3"\. It can play "beat\.wav" now, .*“Choose song”/, bad)
     assert_nil beat_error
     wav = File.expand_path("../examples/reactions/beat.wav", __dir__)
     assert_equal({ "id" => Digest::SHA256.file(wav).hexdigest[0, 12], "src" => "assets/beat.wav" }, song)

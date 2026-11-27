@@ -489,6 +489,10 @@ class SiteTest < Minitest::Test
 
     assert_equal({ "kept" => true, "song" => nil }, result["foreignSong"], "a song from elsewhere is dropped, the picture stays")
     assert_equal({ "id" => "3ff79180f05b", "src" => "assets/beat.wav", "volume" => 0.5 }, result["ownSong"])
+    assert_equal({ "id" => "0123456789ab", "src" => "user/0123456789ab", "volume" => 0.5 }, result["userSong"],
+                 "a song chosen on the playground page: user/ and its own id")
+    assert_operator result["userSongRejects"].size, :>=, 15
+    result["userSongRejects"].each { |name, song| assert_nil song, "song dropped (picture kept): #{name}" }
     assert_equal({ "error" => "boom", "code" => "show x" }, result["errorReel"])
     assert_equal %w[background code controls error fps frames parts view], result["partsCopy"]["keys"]
     assert_equal({ "frames" => ["<g/>"], "turn" => "click", "fps" => 30, "sound" => "pop" }, result["partsCopy"]["p1"])
@@ -550,11 +554,32 @@ class SiteTest < Minitest::Test
 
     assert_equal [["api.js", "asobi-ruby.js?v=0a1b", "ruby-engine.js?v=0a1b"]], result["versioned"]["imports"]
     assert_equal [[["api.js", "asobi-ruby.js", "ruby-engine.js"]]] * 3, result["notHex"].map { _1["imports"] }
+
+    song = result["song"]
+    assert_equal ["song my.mp3 0123456789ab", "start still"], song["order"], "a song is offered before the run sent after it"
+    assert_equal [{ "type" => "ready" }, { "id" => 1, "json" => "whole:still" }], song["out"], "a song gets no answer"
+    building = result["songWhileBuilding"]
+    assert_equal ["start motion a", "song b.mp3 bbbbbbbbbbbb"], building["order"]
+    refute_includes building["log"], "drop", "a song offered during a build does not stop it"
+    assert_equal [[1, "pending"], [1, "json"]], building["out"].map { [_1["id"], _1["pending"] ? "pending" : (_1.keys - ["id"]).first] }
   end
 
-  # The page with a pretend worker (test/web/playground-check.js).
+  # The page with a pretend worker (test/web/playground-check.js). It takes
+  # about ten seconds, so it runs once and these tests share its answers.
+  def playground_check
+    self.class.instance_variable_get(:@playground_check) ||
+      self.class.instance_variable_set(:@playground_check,
+                                       node_check("playground-check.js", File.join(@out, "assets", "playground.js"),
+                                                  File.join(@out, "playground.html")))
+  end
+
+  def play_config(file = "playground.html") = JSON.parse(read(file)[%r{id="play-config">(.*?)</script>}m, 1])
+
+  # A UI text with each %s filled in, as playground.js does.
+  def fill(text, *values) = text.gsub("%s") { values.shift.to_s }
+
   def test_playground_recovers_after_ruby_crashes
-    result = node_check("playground-check.js", File.join(@out, "assets", "playground.js"), File.join(@out, "playground.html"))
+    result = playground_check
     crashed = result["crashed"]
 
     version = JSON.parse(read("playground.html")[%r{id="play-config">(.*?)</script>}m, 1]).fetch("workerVersion")
@@ -629,6 +654,194 @@ class SiteTest < Minitest::Test
     assert_includes read("playground.html"), 'id="download"'
     assert_includes read("ja/playground.html"), "HTML を保存"
     assert_includes read("ja/playground.html"), "SVG を保存"
+  end
+
+  # ---- songs chosen on the playground page (play "my-song.mp3") ----------------
+
+  def test_playground_has_a_choose_song_button_in_both_languages
+    { "playground.html" => ["Choose song", "Playing "], "ja/playground.html" => ["曲を選ぶ", "を流します"] }.each do |file, (label, ready)|
+      html = read(file)
+      assert_match(%r{<button type="button" id="song" class="small" title="[^"]+">#{label}</button>}, html, file)
+      assert_includes html, '<input type="file" id="song-file" accept=".mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.webm,audio/*" hidden>'
+      config = play_config(file)
+      assert_equal Asobi::Song::KINDS, config["songKinds"]
+      assert_equal Asobi::Song::EMBED_LIMIT, config["songEmbedLimit"]
+      assert_includes config["ui"]["song_ready"], ready
+      assert_includes config["ui"]["song_kind"], Asobi::Song::KINDS.keys.join(" ")
+      assert_includes config["ui"]["song_too_big"], "20 MB"
+      assert config["ui"]["song_unread"]
+    end
+    assert_match(/\.play\.dropping::after/, read("assets/site.css"))
+  end
+
+  def test_playground_plays_songs_chosen_on_the_page
+    songs = playground_check["songs"]
+    ui = play_config["ui"]
+
+    not_song = songs["notSong"]
+    assert_equal fill(ui["song_kind"], "notes.txt"), not_song["status"]
+    assert_equal 0, not_song["told"], "a file of another kind is not offered"
+    assert_equal 0, not_song["read"], "nor read"
+    assert_equal %(require "asobi"\n\nshow circle\n), not_song["code"]
+
+    # the name as a Ruby string: quotes escaped, #{...} not run; right after require "asobi"
+    assert_equal %(require "asobi"\nplay "my \\"best\\" \\\#{song}.mp3"\n\nshow circle\n), songs["firstCode"]
+    assert_equal({ "type" => "song", "name" => 'my "best" #{song}.mp3', "id" => songs["expectedId"] }, songs["songMessage"]) # rubocop:disable Lint/InterpolationCheck
+    assert songs["toldBeforeRun"], "the worker hears of the song before the run that plays it"
+    assert_match(/\Ablob:/, songs["bestSrc"])
+    assert songs["bestIsTheFile"], "the player plays the chosen File itself"
+    assert_equal fill(ui["song_ready"], 'my "best" #{song}.mp3'), songs["readyStatus"] # rubocop:disable Lint/InterpolationCheck
+
+    assert_equal %(play "beat copy.wav", volume: 0.5\nshow circle\n), songs["secondCode"], "an existing play line keeps its options"
+    assert songs["copyIsBlob"]
+    assert_equal({ "blobs" => 0, "src" => true }, songs["sameAgain"], "the same file again: the same song, still playing")
+
+    assert_equal({ "filename" => "asobi.html", "data" => true, "blob" => false, "user" => false }, songs["html"],
+                 "asobi.html carries the song itself")
+    refute songs["fetchedBlob"]
+    assert_equal ["beat copy.wav"], songs["dataReads"], "read whole only to save it"
+
+    assert_equal ['song:my "best" #{song}.mp3', "song:beat copy.wav"], songs["replay"], # rubocop:disable Lint/InterpolationCheck
+                 "after a crash, the new worker hears every song first (and the code that crashed is not run)"
+    assert_equal songs["bestSrcNow"], songs["againSrc"], "the same song plays from the same file after the crash"
+    refute songs["againPending"], "a motion's preview is not shown over the picture on screen"
+
+    assert_equal({ "song" => nil, "frames" => 1 }, songs["spoofed"], "user/<id> for a file never chosen: no song, the picture shows")
+  end
+
+  # The id: SHA-256 of the size, the first MiB and the last MiB, the same with
+  # or without crypto.subtle; a long file is never read whole.
+  def test_playground_names_a_song_from_a_bounded_sample_of_its_file
+    result = playground_check
+    ids = result["ids"]
+    assert_equal ids["node"], ids["subtle"]
+    assert_equal ids["node"], ids["js"], "the page's own SHA-256 gives the same id"
+    pattern = ->(from, to) { (from...to).map { |i| (i * 31 + (i >> 8)) & 255 }.pack("C*") }
+    mib = 1024 * 1024
+    ids["sizes"].zip(ids["node"]).each do |size, id|
+      sample = size <= 2 * mib ? pattern.(0, size) : pattern.(0, mib) + pattern.(size - mib, size)
+      assert_equal Digest::SHA256.hexdigest(size.to_s + sample)[0, 12], id, "size #{size}"
+    end
+
+    big = result["big"]
+    assert_equal big["expected"], big["id"]
+    assert_equal [{ "name" => "long mix.mp3", "start" => 0, "size" => mib },
+                  { "name" => "long mix.mp3", "start" => big["size"] - mib, "size" => mib }], big["reads"]
+    assert big["playing"]
+    assert_equal fill(play_config["ui"]["song_too_big"], "long mix.mp3", "21.0"), big["status"]
+    assert_equal 0, big["saved"], "a song over 20 MB is not put inside a saved page"
+    assert_equal [], big["dataReads"]
+    assert_equal [], big["fetched"]
+  end
+
+  def test_playground_takes_a_song_file_dropped_on_it
+    drop = playground_check["drop"]
+    assert_equal({ "dropping" => false, "prevented" => [] }, drop["text"], "dragging text is left alone")
+    assert drop["over"], "a drag of files shows where to drop"
+    refute drop["after"]
+    assert_equal %w[dragenter dragover drop], drop["prevented"]
+    assert_equal %(play "dropped.ogg"\nshow circle\n), drop["code"]
+    assert_equal ["dropped.ogg"], drop["told"]
+  end
+
+  # While a motion's whole Reel is made, what is on screen goes on moving,
+  # here and on the stage; saving waits; the stage never gets a song.
+  def test_playground_keeps_the_picture_moving_while_a_motion_is_made
+    pending = playground_check["pending"]
+    ui = play_config["ui"]
+    assert_equal [{ "pending" => false, "frames" => 2 }], pending["moving"]["shown"], "no preview between two pictures"
+    assert_equal [false], pending["moving"]["reels"], "the stage gets only the whole Reel"
+
+    held = pending["held"]
+    assert_equal [{ "pending" => false, "error" => nil, "frames" => 2 }], held["shown"],
+                 "the error goes away; the moving picture stays, not the preview"
+    assert_equal [{ "type" => "code" }, { "type" => "error", "error" => nil }], held["posted"]
+    assert_equal ui["save_html"], held["label"]
+    assert_equal ui["wait_to_save"], held["status"]
+    assert_equal 0, held["downloads"]
+
+    stage = pending["stage"]
+    assert_operator stage["reels"], :>=, 2
+    assert_equal 0, stage["songs"], "no song (nor blob: or user/) goes to the stage"
+    assert_equal %w[assets/beat.wav blob], stage["playerSongs"], "while the page itself plays them"
+
+    assert_equal true, pending["firstLoad"].first, "with nothing on screen, the preview shows at once"
+  end
+
+  def test_playground_offers_songs_to_ruby_on_the_page_too
+    calls = playground_check["pageEngine"]["calls"]
+    play = calls.index(%(start:play "page.mp3"\nshow circle\n))
+    crash = calls.index("start:crash a")
+    assert play && crash, calls.inspect
+    assert_equal "song:page.mp3:ID", calls[play - 1], "offered before the run"
+    assert_equal ["song:page.mp3:ID"], calls[(crash + 1)..], "and again to the fresh Ruby after a crash"
+    assert_match(/\Ablob:/, playground_check["pageEngine"]["src"])
+  end
+
+  # In a plain Ruby: offer_song takes a plain file name of a kind play takes
+  # and 12 hex digits, and a song the playground does not have names the
+  # songs it has and the button.
+  def test_browser_bundle_offers_songs_chosen_on_the_page
+    script = <<~RUBY
+      eval(File.read(ARGV[0], encoding: "UTF-8"), TOPLEVEL_BINDING, "asobi.rb", 1)
+      offered = Asobi::Web.offer_song("my song.mp3", "0123456789ab")
+      refused = [["../x.mp3", "0123456789ab"], ["a/b.mp3", "0123456789ab"], ["a\\\\b.mp3", "0123456789ab"],
+                 ["a\\nb.mp3", "0123456789ab"], ["x.txt", "0123456789ab"], [".mp3", "0123456789ab"], ["", "0123456789ab"],
+                 ["x.mp3", "0123456789AB"], ["x.mp3", "0123456789a"], ["x.mp3", "0123456789ab\\n"], ["x.mp3", "../../x"]]
+                .map { |name, id| Asobi::Web.offer_song(name, id) }
+      mine = JSON.parse(Asobi::Web.run(%(play "my song.mp3", volume: 0.5\\nshow circle\\n), "en"))["song"]
+      beat = JSON.parse(Asobi::Web.run(%(play "beat.wav"\\nshow circle\\n), "en"))["song"]
+      Asobi::Web.offer_song("other.ogg", "bbbbbbbbbbbb")
+      still = JSON.parse(Asobi::Web.run(%(play "my song.mp3"\\nshow circle\\n), "en"))["song"]
+      en = JSON.parse(Asobi::Web.run(%(play "missing.mp3"\\nshow circle\\n), "en"))["error"]
+      ja = JSON.parse(Asobi::Web.run(%(play "missing.mp3"\\nshow circle\\n), "ja"))["error"]
+      puts JSON.generate([offered, refused, mine, beat, still, en, ja, Asobi::Sketch.playground.frozen?])
+    RUBY
+    out, err, status = Open3.capture3({ "ASOBI_LIVE" => nil }, RbConfig.ruby, "-e", script, File.join(@out, "assets", "asobi.rb"))
+    assert status.success?, err
+    offered, refused, mine, beat, still, en, ja, frozen = JSON.parse(out.force_encoding(Encoding::UTF_8))
+    assert offered
+    assert_equal [false] * 11, refused
+    assert_equal({ "id" => "0123456789ab", "src" => "user/0123456789ab", "volume" => 0.5 }, mine)
+    assert_equal({ "id" => AsobiSite.song_id, "src" => "assets/beat.wav" }, beat, "the site's song stays")
+    assert_equal "user/0123456789ab", still["src"], "an earlier song stays when another is offered"
+    assert frozen
+    assert_includes en, 'play.rb:1  The playground has no song "missing.mp3". It can play "beat.wav", "my song.mp3", "other.ogg" now'
+    assert_includes en, "“Choose song”"
+    assert_includes en, "drop it on the playground"
+    refute_includes en, "on your computer"
+    assert_includes ja, '遊び場に "missing.mp3" という曲はありません。いま流せる曲は "beat.wav", "my song.mp3", "other.ogg" です。'
+    assert_includes ja, "「曲を選ぶ」"
+  end
+
+  def test_build_stops_when_the_runner_does_not_name_the_choose_song_button
+    original = AsobiSite::PLAYGROUND
+    Dir.mktmpdir do |dir|
+      FileUtils.cp_r(Dir.glob(File.join(original, "*")), dir)
+      edit(File.join(dir, "runner.rb")) { _1.sub("「曲を選ぶ」", "「曲」") }
+      AsobiSite.send(:remove_const, :PLAYGROUND)
+      AsobiSite.const_set(:PLAYGROUND, dir)
+      error = assert_raises(AsobiSite::BuildError) { AsobiSite::Bundle.source }
+      assert_includes error.message, "曲を選ぶ"
+    ensure
+      AsobiSite.send(:remove_const, :PLAYGROUND)
+      AsobiSite.const_set(:PLAYGROUND, original)
+    end
+  end
+
+  def test_ruby_engine_offers_songs_as_hex_ruby_literals
+    engine = read("assets/ruby-engine.js")
+    assert_includes engine, %("Asobi::Web.offer_song(" + rubyString(name) + ", " + rubyString(id) + ")")
+    assert_includes read("assets/ruby-worker.js"), 'msg.type === "song"'
+  end
+
+  # Editing in the 3D worlds keeps the stage's clock running (as the flat
+  # view and the player do): a new Reel does not send a motion back to t = 0.
+  def test_stage_clock_goes_on_across_reels
+    frames = File.read(File.join(AsobiSite::STAGE, "frames.js"), encoding: "UTF-8")
+    set_reel = frames[/^  setReel\(reel\) \{\n.*?^  \}\n/m]
+    assert set_reel
+    refute_includes set_reel, "this.time = 0"
   end
 
   # The player's reacting parts and sound analysis, without a browser (test/web/player-check.js).
@@ -1281,6 +1494,216 @@ class SiteTest < Minitest::Test
       faq.each do |item|
         assert_includes text, "**Q: #{item["q"][lang]}**\n\n#{item["a"][lang]}\n", "#{name}: FAQ differs from the site's"
       end
+    end
+  end
+
+  # ---- the stage window ------------------------------------------------------
+
+  def test_stage_page_is_written_and_loads_only_the_sites_own_scripts
+    html = read("stage.html")
+    scripts = html.scan(%r{<script\b([^>]*)>(.*?)</script>}m)
+    scripts.each do |attrs, body|
+      assert_empty body.strip, "no inline script (the site's policy forbids it)"
+      src = attrs[/\bsrc="([^"]*)"/, 1]
+      assert src, "every script has a src"
+      refute_match(%r{\A(?:[a-z][a-z0-9+.-]*:)?//}i, src, "a script from another host: #{src}")
+      refute_match(/\A[a-z][a-z0-9+.-]*:/i, src, "a script with a scheme: #{src}")
+    end
+    assert_match(/noindex/, html)
+    # It plays the Reel itself while the playground is hidden: with the site's
+    # own checker and player, the same files the playground uses.
+    %w[assets/safe-reel.js assets/player.js].each do |src|
+      assert_includes scripts.map { |attrs, _| attrs[/\bsrc="([^"]*)"/, 1] }, src
+      assert File.file?(File.join(@out, src)), "#{src} is not in the site"
+    end
+  end
+
+  def test_stage_files_import_only_relative_paths
+    files = Dir.glob(File.join(@out, "assets", "stage", "**", "*.{js,mjs}"))
+    files.each do |file|
+      # Block comments go first: three.js's own doc comments show imports
+      # from "three/addons/..." as usage examples.
+      source = File.read(file, encoding: "UTF-8").gsub(%r{/\*.*?\*/}m, "")
+      specifiers = source.scan(/\b(?:import|export)\b[^'"`;]*?\bfrom\s*["']([^"']+)["']/m).flatten +
+                   source.scan(/\bimport\s*["']([^"']+)["']/).flatten +
+                   source.scan(/\bimport\s*\(\s*["']([^"']+)["']/).flatten
+      specifiers.each do |spec|
+        assert_match(%r{\A\.{1,2}/}, spec, "#{file.delete_prefix(@out)} imports #{spec.inspect}: only relative paths work without an import map")
+      end
+    end
+  end
+
+  def test_stage_files_keep_their_folders_and_the_page_is_not_a_listed_page
+    assert File.file?(File.join(@out, "stage.html"))
+    Dir.glob(File.join(AsobiSite::STAGE, "**", "*")).select { File.file?(_1) }.each do |file|
+      rel = file.delete_prefix("#{AsobiSite::STAGE}/")
+      next if rel == "stage.html"
+
+      assert File.file?(File.join(@out, "assets", "stage", rel)), "#{rel} was not copied"
+    end
+    refute_includes read("sitemap.xml"), "stage"
+    %w[llms.txt llms-full.txt].each { |f| refute_match(%r{/stage\b}, read(f), f) if File.exist?(File.join(@out, f)) }
+    refute File.exist?(File.join(@out, "stage.md"))
+  end
+
+  def test_build_stops_when_the_stage_page_is_missing
+    original = AsobiSite::STAGE
+    Dir.mktmpdir do |dir|
+      AsobiSite.send(:remove_const, :STAGE)
+      AsobiSite.const_set(:STAGE, dir)
+      error = assert_raises(AsobiSite::BuildError) do
+        AsobiSite::Builder.new(data: FIXTURES, out: File.join(dir, "out"), log: nil).build
+      end
+      assert_includes error.message, "stage.html"
+    ensure
+      AsobiSite.send(:remove_const, :STAGE)
+      AsobiSite.const_set(:STAGE, original)
+    end
+  end
+
+  # The stage's SVG tools on real asobi output: the grain (SVG.grain) comes out
+  # of a frame whole (the stage draws it on the GPU), a frame without grain is
+  # left as it is, reacting parts rest at their first frame, and "background
+  # off" removes the background <rect> and nothing else.
+  def test_stage_svg_tools_take_out_the_grain_and_only_the_background
+    skip "node is not installed" unless node
+    result = stage_check
+    assert_in_delta 0.12, result["grain"]["strength"], 1e-6
+    refute result["grain"]["turbulenceLeft"], "the grain filter is still in the frame"
+    assert result["grain"]["keptRest"]
+    assert_equal({ "strength" => 0, "same" => true }, result["plain"])
+    assert_equal({ "markersLeft" => false, "firstFrameIn" => true }, result["rest"])
+    assert_equal({ "withRect" => true, "withoutRect" => true, "contentKept" => true }, result["background"])
+  end
+
+  # The flat and side views lay the grain over the whole window instead: it
+  # comes out of a Reel (as a copy) and of a mirrored picture, found from the
+  # end of the frame, where SVG.grain puts it.
+  def test_stage_flat_views_take_the_grain_from_the_end_of_a_frame
+    skip "node is not installed" unless node
+    tail = stage_check["tail"]
+    assert_in_delta 0.12, tail["strength"], 1e-6
+    assert tail["sameAsStrip"], "the copy's frames differ from stripGrain's"
+    assert tail["copied"], "the checked Reel was changed"
+    assert_in_delta 0.12, tail["mirrored"]["strength"], 1e-6
+    refute tail["mirrored"]["turbulenceLeft"]
+    assert tail["mirrored"]["closed"]
+    assert tail["notAtEnd"], "a fragment that is not at the end was taken"
+    assert_equal 0, tail["none"]
+  end
+
+  # The side view's code on the picture's own background: light backgrounds
+  # get the light set (every colour at least 4.5:1 on white), dark ones the
+  # site's dark set, a mid-tone whichever ink stands out more; on any of them
+  # no colour is left fainter than 3:1 (those fall back to the ink).
+  def test_stage_side_view_picks_a_readable_code_palette
+    skip "node is not installed" unless node
+    palette = stage_check["palette"]
+    assert_equal({ "white" => "light", "paper" => "light", "black" => "dark", "night" => "dark",
+                   "red" => "light", "blue" => "dark", "grey" => "light" }, palette["pick"])
+    assert_operator palette["lightOnWhite"], :>=, 4.5
+    assert_operator palette["darkOnBlack"], :>=, 4.5
+    palette["kept"].each { |on, worst| assert_operator worst, :>=, 3, "a colour too faint on #{on}" }
+  end
+
+  # The 3D art is drawn over the picture's extent: the paper and what was
+  # drawn past it, measured by pixels (extent.js). Its pure part, in Node.
+  def test_stage_3d_extent_keeps_the_paper_and_widens_only_for_a_spill
+    skip "node is not installed" unless node
+    x = stage_check["extent"]
+    assert_equal [-720, -405, 1440, 810], x["probe"]["view"]
+    assert_equal [384, 216], [x["probe"]["pw"], x["probe"]["ph"]]
+    refute x["none"], "nothing drawn: the paper"
+    refute x["inside"], "drawn on the paper: the paper"
+    refute x["edge"], "edge smoothing past the paper is not a spill"
+    # The disc (radius 240) reaches 105 past a 270-tall paper, up and down:
+    # padded by 3% of its size (14.4) and two probe pixels (7.5), and only
+    # those sides fade.
+    assert_equal [-240, -261.9, 480, 523.8], x["galaxy"]["box"]
+    assert_equal [0, 0, 14.4, 14.4], x["galaxy"]["bands"]
+    refute x["galaxy"]["touches"]
+    assert x["touches"], "a drawing at the probe's edge asks for a bigger probe"
+    assert_equal [-1440, -810, 2880, 1620], x["capped"], "never more than 6 papers"
+    assert_equal [3, 2, 7, 5], x["alpha"]
+    assert_equal 12, x["samples"][0].size
+    assert_equal 0, x["samples"][0].first
+    assert_equal [[0], [0, 1, 2, 3, 4]], x["samples"][1..2]
+    assert x["sheet"], "with B on the background covers the whole extent"
+    assert_equal '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-177.4 -45 354.8 108.65">' \
+                 '<rect x="-177.4" y="-45" width="354.8" height="108.65" fill="#1b2a4a"></rect>' \
+                 '<g><rect rx="2" x="1" width="5"/></g></svg>', x["mirrored"]
+  end
+
+  # The flat and side views' player reads frames from one buffer handed over
+  # by the stage's worker (no big strings on the stage's main thread).
+  def test_stage_player_frames_come_packed_without_grain
+    skip "node is not installed" unless node
+    assert_equal({ "isArray" => true, "length" => 2, "first" => true, "second" => "<g>あ</g>", "beyond" => true,
+                   "grain" => 0.12, "grainless" => true, "code" => "c", "parts" => 1, "original" => true }, stage_check["pack"])
+  end
+
+  def stage_check
+    grain = Asobi::Reel.of(Asobi.circle(10).colored(:white), on: :black, grain: true)
+    plain = Asobi::Reel.of(Asobi.circle(10).colored(:white), on: :black)
+    reacting = Asobi::Reel.of(Asobi.circle(10).pulse(every: 0.5).when_clicked)
+    Dir.mktmpdir do |dir|
+      data = File.join(dir, "frames.json")
+      File.write(data, JSON.generate("grain" => grain["frames"][0], "plain" => plain["frames"][0],
+                                     "parts" => { "frame" => reacting["frames"][0], "parts" => reacting["parts"] }))
+      out, err, status = Open3.capture3(node, File.expand_path("web/stage-check.mjs", __dir__), File.join(AsobiSite::STAGE, "svgframe.js"), data)
+      assert status.success?, err
+      JSON.parse(out)
+    end
+  end
+
+  # A big Reel's text (tens of MB) never reaches the stage's main thread: the
+  # playground posts it on a channel of its own, which the stage's worker
+  # hears; the worker checks it (AsobiSafeReel) and hands frames over as svg
+  # Blobs. The main thread hears that channel only when there is no worker.
+  def test_stage_reel_text_goes_to_the_stages_worker_only
+    play = read("assets/playground.js")
+    worker = read("assets/stage/reel-worker.js")
+    main = read("assets/stage/main.js")
+    assert_includes play, 'new BroadcastChannel("asobi-stage-reel")'
+    assert_match(/\(reelChannel \|\| channel\)\.postMessage\(m\)/, play)
+    assert_includes worker, 'new BroadcastChannel("asobi-stage-reel")'
+    assert_includes worker, 'import "../safe-reel.js";'
+    assert_match(/AsobiSafeReel\.parse\(m\.json\)/, worker)
+    assert_match(/function hearReelsHere\(\)/, main)
+    assert_equal 1, main.scan('new BroadcastChannel("asobi-stage-reel")').size, "the main thread listens only as a fallback"
+  end
+
+  # The 3D frames are rasterised in a sandboxed iframe (scripts only, an
+  # opaque origin), which Chrome runs in a process of its own: the svg image
+  # documents and their garbage collection never stop the stage. Its page
+  # loads only the site's own script, and an svg only becomes an image there.
+  def test_stage_rasteriser_is_a_sandboxed_page_with_only_its_own_script
+    html = read("assets/stage/raster-frame.html")
+    scripts = html.scan(%r{<script\b([^>]*)>(.*?)</script>}m)
+    assert_equal [['src="raster-frame.js"', ""]], scripts.map { |a, b| [a.strip, b.strip] }
+    assert_match(/noindex/, html)
+    far = read("assets/stage/far-raster.js")
+    assert_includes far, 'f.setAttribute("sandbox", "allow-scripts");'
+    refute_includes far, "allow-same-origin"
+    frame = read("assets/stage/raster-frame.js")
+    assert_includes frame, 'd.blob.type !== "image/svg+xml"'
+    assert_includes frame, "URL.createObjectURL(d.blob)"
+    refute_match(/innerHTML|insertAdjacentHTML|document\.write/, frame)
+  end
+
+  def test_playground_opens_the_stage_in_a_window_of_its_own
+    js = read("assets/playground.js")
+    # noopener: its own browsing context group (and so, normally, its own
+    # process): neither window's work can stall the other.
+    assert_match(/window\.open\(cfg\.stage, "_blank", "popup,noopener,/, js)
+  end
+
+  def test_playground_has_the_stage_window_button_and_its_address
+    { "playground.html" => ["Stage window", "stage"], "ja/playground.html" => ["別ウィンドウ", "../stage?lang=ja"] }.each do |file, (label, url)|
+      html = read(file)
+      assert_match(%r{<button type="button" id="stage-window" class="small" title="[^"]+" hidden>#{label}</button>}, html, file)
+      config = JSON.parse(html[%r{id="play-config">(.*?)</script>}m, 1])
+      assert_equal url, config["stage"], file
     end
   end
 

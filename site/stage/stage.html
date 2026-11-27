@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>asobi stage</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/stage/stage.css">
+<!-- The stage window: a mirror of the playground (see assets/stage/main.js).
+     The site's own classic scripts first (deferred ones run before the module):
+     tint.js colours the code; safe-reel.js checks a Reel and player.js plays
+     it here, by this window's own clock, as the playground does. -->
+<script src="assets/tint.js" defer></script>
+<script src="assets/safe-reel.js" defer></script>
+<script src="assets/player.js" defer></script>
+<script type="module" src="assets/stage/main.js"></script>
+</head>
+<body>
+<canvas id="world" aria-hidden="true"></canvas>
+<div id="flat" class="flat" hidden>
+  <div class="art">
+    <div class="pics" hidden><img alt="" class="pic"><img alt="" class="pic"></div>
+    <div class="live" hidden></div>
+  </div>
+  <div class="fade"></div>
+  <div class="grain" hidden></div>
+  <div id="subs" class="subs" aria-hidden="true"><div class="lines"></div><div class="err" hidden></div></div>
+  <div id="beside" class="beside" aria-hidden="true"><div class="lines"></div><div class="err" hidden></div></div>
+</div>
+<div id="note" class="note" role="status" hidden>
+  <p class="label">asobi stage</p>
+  <p class="say"></p>
+  <p class="how"></p>
+  <a class="go" href="playground"></a>
+</div>
+<div id="bar" class="bar" aria-hidden="true"></div>
+<div id="black" class="black"></div>
+</body>
+</html>

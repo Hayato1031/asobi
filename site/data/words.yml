@@ -1500,7 +1500,7 @@
 
       The sound starts after the first click on the picture. `by(:music)` and `on_beat(:music)` follow the song.
 
-      Here and in the playground there is one song to try: `"beat.wav"`, a short drum loop. Your own songs work when you run asobi on your computer.
+      On this page there is one song to try: `"beat.wav"`, a short drum loop. The playground has it too, and plays your own songs as well: choose the file with “Choose song”, or drop it on the playground. The file stays in your browser; nothing is uploaded.
     ja: |-
       `show` と同じように、1行で書きます。ファイルはスケッチと同じフォルダに置きます。使える種類は .mp3、.wav、.m4a、.aac、.ogg、.opus、.flac、.webm です。`volume:` は 0 から 1 です。
 
@@ -1508,7 +1508,7 @@
 
       音は、絵を最初にクリックしたあとで鳴ります。`by(:music)` と `on_beat(:music)` が曲についていきます。
 
-      このページと遊び場で試せる曲は `"beat.wav"`(短いドラムのループ)の1つです。自分の曲は、asobi を自分のパソコンで動かすと流せます。
+      このページで試せる曲は `"beat.wav"`(短いドラムのループ)の1つです。遊び場ではこの曲に加えて、自分の曲も流せます。「曲を選ぶ」でファイルを選ぶか、ファイルを遊び場にドロップしてください。ファイルはブラウザの中だけで使い、アップロードはしません。
   examples:
     - code: |
         play "beat.wav"

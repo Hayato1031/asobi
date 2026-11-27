@@ -525,8 +525,14 @@ button.small:hover, .small:hover { color: var(--ink); border-color: var(--ink-2)
 /* ---- playground ----------------------------------------------------------------------- */
 .page-playground .foot { margin-top: var(--s7); }
 .play {
+  position: relative;
   display: grid; grid-template-columns: minmax(340px, 5fr) minmax(0, 7fr); grid-template-rows: auto minmax(0, 1fr);
   height: calc(100svh - 58px); min-height: 520px; border-bottom: 1px solid var(--rule);
+}
+/* A song file dragged over the playground: a quiet frame says it can be dropped. */
+.play.dropping::after {
+  content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  border: 2px dashed var(--signal); background: rgba(255, 84, 112, .06);
 }
 .play-bar {
   grid-column: 1 / -1; display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;

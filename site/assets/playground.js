@@ -5,6 +5,8 @@
  * The code lives in the address (#code=<base64url>), so a link shares it.
  * Anyone can write that code, so whatever an engine answers is untrusted:
  * it goes through AsobiSafeReel (safe-reel.js) before the player sees it.
+ * A song file the person chooses ("Choose song", or dropped on the page)
+ * stays in this tab: see "songs chosen on this page" below.
  */
 (function () {
   "use strict";
@@ -19,10 +21,176 @@
   var player = AsobiPlayer.mount(stage, { controls: true, keys: true, language: cfg.lang });
   var playerT0 = performance.now(); // the player's own clock starts at mount and never resets
 
+  // ---- the stage window: a second window that shows code and picture big ----
+  // It only receives (BroadcastChannel "asobi-stage"); Ruby, sound and
+  // reactions stay here. While no stage window is listening this costs
+  // nothing. A stage counts as alive while its hello / here was heard within
+  // the last 6 s (they come as messages, which a hidden page still gets).
+  // The stage gets the code as typed, the error, and the Reel on show
+  // (without the song, which plays here). It checks the Reel with
+  // AsobiSafeReel as this page does and plays it by its own clock, so this
+  // page does no work per frame for it. Only a Reel with reacting parts is
+  // mirrored: then this page also sends a snapshot of its player's <svg>
+  // whenever it changes (at most once per frame), so a click here shows
+  // there; while this page is hidden (no animation frames), the stage plays
+  // that Reel itself too, its parts at rest. Every shown Reel gets a seq
+  // (this page's own prefix, then a count); a hello names the seq the stage
+  // has, so a big Reel goes over once, not with every hello. visibility
+  // tells the stage when to play by itself and when to mirror again.
+  // The Reel itself goes on a channel of its own ("asobi-stage-reel"), which
+  // only the stage's worker listens to: its text (tens of MB for a big Reel)
+  // never reaches the stage's main thread, where its copies and their garbage
+  // collection would stop the picture for a moment.
+  var channel = null, reelChannel = null, aliveUntil = 0, observer = null, observed = null;
+  var sendQueued = false, watchTimer = 0, stageError = null;
+  var reelPrefix = Math.random().toString(36).slice(2, 8), reelCount = 0, reelSeq = null, reelOnShow = null;
+  var rawJson = typeof WeakMap === "function" ? new WeakMap() : null; // Reel -> the engine's JSON for it
+  try { if (window.BroadcastChannel) channel = new BroadcastChannel("asobi-stage"); } catch (e) { channel = null; }
+  try { if (channel) reelChannel = new BroadcastChannel("asobi-stage-reel"); } catch (e) { reelChannel = null; }
+
+  function stageAlive() { return !!channel && performance.now() < aliveUntil; }
+  function post(message) { try { channel.postMessage(message); } catch (e) { /* a closed channel: nothing to tell */ } }
+
+  function postCode() { if (stageAlive()) post({ type: "code", code: editor.value }); }
+  function postError() { if (stageAlive()) post({ type: "error", error: stageError }); }
+
+  // The player's svg as standalone markup for the stage (which draws it as an image only).
+  function serialisePicture() {
+    var svg = stage.querySelector("svg.asobi-svg");
+    var box = svg && svg.getAttribute("viewBox");
+    if (!svg || !box) return null;
+    var view = box.trim().split(/[\s,]+/).map(Number);
+    if (view.length !== 4 || view.some(function (n) { return !isFinite(n); })) return null;
+    var copy = svg.cloneNode(true);
+    copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    copy.removeAttribute("class");
+    copy.removeAttribute("width");
+    copy.removeAttribute("height");
+    var rect = svg.querySelector("rect");
+    return {
+      type: "picture",
+      svg: new XMLSerializer().serializeToString(copy),
+      view: view,
+      background: (rect && rect.getAttribute("fill")) || ""
+    };
+  }
+
+  // The song as asobi writes it in a Reel's JSON (after "error", before
+  // "parts"), to take out of the text the stage gets.
+  var SONG_JSON = /,"song":\{"id":"[A-Za-z0-9._-]{1,64}","src":"(?:assets\/[A-Za-z0-9._-]+|user\/[0-9a-f]{12})"(?:,"volume":-?[0-9][0-9.eE+-]*)?\}/;
+
+  // The Reel on show, for the stage to play. A Reel from the engine goes as
+  // the JSON text it came in (a big one is tens of MB: making it again would
+  // stop this page), without its song: sound stays here, and nothing about
+  // a song chosen on this page goes to the stage (the stage checks the Reel
+  // again and drops any song that is left).
+  function postReel() {
+    if (!stageAlive() || !reelOnShow) return;
+    var r = reelOnShow, json = rawJson && rawJson.get(r);
+    if (json && json.indexOf('"song":{') !== -1) {
+      json = json.replace(SONG_JSON, "");
+      rawJson.set(r, json); // once per Reel, not with every hello
+    }
+    if (!json) {
+      var copy = {};
+      for (var k in r) if (k !== "song") copy[k] = r[k];
+      json = JSON.stringify(copy);
+    }
+    var m = { type: "reel", seq: reelSeq, json: json, frames: r.frames.length, fps: Number(r.fps) || 1, parts: !!r.parts, at: Date.now() };
+    try { (reelChannel || channel).postMessage(m); } catch (e) { /* a closed channel: nothing to tell */ }
+  }
+
+  // At most one picture per animation frame; the newest state wins.
+  function queuePicture() {
+    if (sendQueued) return;
+    sendQueued = true;
+    requestAnimationFrame(function () {
+      sendQueued = false;
+      if (!stageAlive()) { detach(); return; }
+      var m = serialisePicture();
+      if (m) post(m);
+    });
+  }
+
+  // Pictures go to the stage only for a Reel with reacting parts (it plays the rest itself).
+  function mirrored() { return !!(reelOnShow && reelOnShow.parts); }
+
+  function attach() {
+    if (!mirrored()) { detach(); return; }
+    var svg = stage.querySelector("svg.asobi-svg");
+    if (!svg || (observer && observed === svg)) return;
+    detach();
+    observer = new MutationObserver(queuePicture);
+    observer.observe(svg, { subtree: true, childList: true, attributes: true, characterData: true });
+    observed = svg;
+  }
+  function detach() {
+    if (observer) observer.disconnect();
+    observer = observed = null;
+  }
+
+  // Every 2 s (the stage's heartbeat) check the stage is still there; once it
+  // has been silent for 6 s, stop watching the picture.
+  function watchStage() {
+    if (stageAlive()) { watchTimer = setTimeout(watchStage, 2000); return; }
+    watchTimer = 0;
+    detach();
+  }
+
+  function hearStage() {
+    aliveUntil = performance.now() + 6000;
+    attach();
+    if (!watchTimer) watchTimer = setTimeout(watchStage, 2000);
+  }
+
+  if (channel) {
+    channel.onmessage = function (e) {
+      var m = e.data;
+      if (!m || typeof m !== "object") return;
+      if (m.type === "here") { hearStage(); return; }
+      if (m.type === "bye") { aliveUntil = 0; detach(); return; }
+      if (m.type !== "hello") return;
+      hearStage();
+      post({ type: "setup", lang: cfg.lang, words: cfg.words, playground: location.href.split("#")[0], hidden: !!document.hidden });
+      postCode();
+      postError();
+      if (m.seq !== reelSeq) postReel();
+      var picture = mirrored() ? serialisePicture() : null;
+      if (picture) post(picture);
+    };
+    window.addEventListener("pagehide", function () { post({ type: "bye" }); });
+    if (document.addEventListener) {
+      document.addEventListener("visibilitychange", function () {
+        if (!stageAlive()) return;
+        post({ type: "visibility", hidden: !!document.hidden });
+        if (!document.hidden) attach();
+      });
+    }
+  }
+  var stageBtn = document.getElementById("stage-window");
+  // A phone or tablet without a pointer has no second window to put it in.
+  var touchOnly = !!(window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches);
+  if (stageBtn) {
+    if (!channel || touchOnly) stageBtn.hidden = true;
+    else {
+      stageBtn.hidden = false;
+      // noopener: the stage gets a browsing context group of its own, so
+      // (normally) its own process and main thread: its drawing cannot stall
+      // this page and this page's work cannot stall it. The channel still
+      // joins them. Each click opens another stage (two screens, two stages).
+      stageBtn.addEventListener("click", function () {
+        window.open(cfg.stage, "_blank", "popup,noopener,width=1280,height=720");
+      });
+    }
+  }
+
   // A small truthful readout in the bar: which frame is on screen, how long a loop is.
   var fcEl = document.getElementById("play-fc");
   var downloadBtn = document.getElementById("download");
   var onScreen = null;
+  // A motion's whole Reel is on its way while something else stays on
+  // screen (its quick preview was not shown: see show).
+  var pendingBuild = false;
   function isDynamic(reel) {
     return !!(reel && (reel.frames.length > 1 || reel.parts || reel.song));
   }
@@ -30,20 +198,71 @@
     if (!downloadBtn) return;
     if (!onScreen) { downloadBtn.disabled = true; return; }
     downloadBtn.disabled = false;
-    downloadBtn.textContent = (onScreen.pending || isDynamic(onScreen)) ? U.save_html : U.save_svg;
+    downloadBtn.textContent = (pendingBuild || onScreen.pending || isDynamic(onScreen)) ? U.save_html : U.save_svg;
   }
-  function show(reel) {
-    // The song the site ships (play "beat.wav") has a src from the site's
-    // root: put this page's assets folder in front, so it plays from /ja/ too.
+
+  // ---- songs chosen on this page (play "my-song.mp3") --------------------
+  // A song file chosen with "Choose song" or dropped on the playground never
+  // leaves this tab: nothing is uploaded or stored. Ruby is told only its
+  // name and an id made from the file (Asobi::Web.offer_song), and a Reel
+  // names it "user/<id>". Only this page turns that into the file (a blob:
+  // URL made from the File itself), and only for a file it was given: a
+  // link's code can write "user/<any id>", but then nothing plays. The
+  // blob: URL never goes to Ruby, into the address, or to the stage.
+  var userSongs = Object.create(null); // id -> { blobUrl, file, mime, userSrc, name }, for this tab
+  var offered = [];                    // [{ name, id }], oldest first: told to every new engine
+
+  // A song in a Reel, made playable here. The site's own ("assets/...") has
+  // a src from the site's root: put this page's assets folder in front, so
+  // it plays from /ja/ too. One chosen on this page ("user/<id>") plays from
+  // its file; for an id this page was not given, the song is left out.
+  function playable(reel) {
     var s = reel && reel.song;
-    if (s && typeof s.src === "string" && /^assets\//.test(s.src)) s.src = cfg.assets + s.src.slice(7);
+    if (!s || typeof s.src !== "string") return;
+    if (/^assets\//.test(s.src)) { s.src = cfg.assets + s.src.slice(7); return; }
+    var user = /^user\/([0-9a-f]{12})$/.exec(s.src);
+    if (!user) return; // a src this page made already
+    var mine = s.id === user[1] ? userSongs[user[1]] : null;
+    if (mine) s.src = mine.blobUrl;
+    else delete reel.song;
+  }
+
+  function show(reel) {
+    // While something is on screen, a motion's quick preview (one still
+    // frame, "pending") is not shown: the picture here and on the stage
+    // goes on moving until the whole Reel comes, so an edit never freezes
+    // it. (Before anything is on screen, the preview shows at once.)
+    if (reel && !reel.error && reel.frames && reel.pending === true && onScreen !== null) {
+      pendingBuild = true;
+      updateDownloadButton();
+      if (stageError !== null) {
+        // The code works again: the error goes away, and the picture on
+        // screen is shown once more (it goes on from the same moment).
+        stageError = null;
+        postError();
+        player.update(onScreen);
+      }
+      return;
+    }
+    pendingBuild = false;
+    playable(reel);
     player.update(reel);
-    if (reel && !reel.error && reel.frames) { onScreen = reel; updateDownloadButton(); }
+    stageError = reel && reel.error ? String(reel.error) : null;
+    postError();
+    if (stageAlive()) attach();
+    if (reel && !reel.error && reel.frames) {
+      onScreen = reel;
+      updateDownloadButton();
+      reelOnShow = reel;
+      reelSeq = reelPrefix + "-" + (++reelCount);
+      postReel();
+      if (stageAlive()) attach(); // watch the picture only when it is mirrored
+    }
   }
   (function readout() {
     if (onScreen && fcEl) {
       var n = onScreen.frames.length, text;
-      if (onScreen.pending) text = "…"; // a motion's preview: the frames are on their way
+      if (pendingBuild || onScreen.pending) text = "…"; // a motion's frames are on their way
       else if (n < 2) text = onScreen.parts || onScreen.song ? U.reacts : U.still;
       else {
         var f = window.AsobiSite ? AsobiSite.pad(AsobiSite.frameAt(playerT0, Number(onScreen.fps), n, performance.now()), n) : "";
@@ -59,7 +278,13 @@
   function status(text, linger) {
     clearTimeout(statusTimer);
     statusEl.textContent = text || "";
-    if (text && linger) statusTimer = setTimeout(function () { statusEl.textContent = ""; }, linger);
+    statusEl.title = text || ""; // a long one is cut off in the bar
+    if (text && linger) statusTimer = setTimeout(function () { statusEl.textContent = statusEl.title = ""; }, linger);
+  }
+  // A UI text with each %s filled in, in order (a value is taken as it is).
+  function fill(text) {
+    var values = Array.prototype.slice.call(arguments, 1);
+    return String(text).replace(/%s/g, function () { return values.length ? String(values.shift()) : "%s"; });
   }
 
   // ---- the first picture, before Ruby is here ---------------------------
@@ -92,6 +317,7 @@
   // checker nothing from the engine is shown.
   function fromEngine(json, code) {
     var reel = window.AsobiSafeReel ? AsobiSafeReel.parse(json) : null;
+    if (reel && rawJson) rawJson.set(reel, json); // the stage gets this text as it came (no second JSON.stringify)
     return reel || { error: U.blocked, code: code };
   }
 
@@ -145,6 +371,11 @@
             worker.postMessage(onFirst ? { id: id, code: code, lang: lang, preview: true } : { id: id, code: code, lang: lang });
             watch();
           });
+        },
+        // A song chosen on this page, for play "name". No answer: the worker
+        // takes messages in order, so every run sent after this can play it.
+        offer: function (name, id) {
+          if (!dead) worker.postMessage({ type: "song", name: name, id: id });
         }
       };
       try {
@@ -251,6 +482,10 @@
                 }, 50);
               }, 0);
             });
+          },
+          offer: function (name, id) {
+            if (dead) return;
+            try { R.offerSong(name, id); } catch (e) { /* not a run: if Ruby itself broke, the next run says so */ }
           }
         };
       });
@@ -270,6 +505,9 @@
         });
     start.then(function (e) {
       engine = e;
+      // A new engine (the first, or one after a crash or a stop) knows no
+      // song chosen on this page yet: tell it every one, before any run.
+      offered.forEach(function (s) { e.offer(s.name, s.id); });
       status(U.ruby_ready, 2500);
       if (selftest || editor.value !== shownFor) request();
     }, function (err) {
@@ -350,6 +588,11 @@
       return { error: message };
     }).then(function (reel) {
       quiet();
+      if (!reel && run === newestRun && pendingBuild) {
+        // No whole Reel is coming for the newest run: stop saying one is.
+        pendingBuild = false;
+        updateDownloadButton();
+      }
       return reel;
     });
   }
@@ -391,6 +634,7 @@
 
   editor.addEventListener("input", function () {
     retint();
+    postCode();
     replaceHash(sketchHash());
     clearTimeout(debounce);
     debounce = setTimeout(request, 350);
@@ -398,7 +642,7 @@
 
   window.addEventListener("hashchange", function () {
     var code = CodeURL.fromHash(location.hash);
-    if (code !== null && code !== editor.value) { editor.value = code; retint(); request(); }
+    if (code !== null && code !== editor.value) { editor.value = code; retint(); postCode(); request(); }
     // Jumping to the word list changes the fragment. Keep the edited sketch in the translation link.
     if (code === null && editor.value !== cfg.defaultCode) AsobiSite.setLanguageHash(sketchHash());
   });
@@ -439,10 +683,240 @@
   document.getElementById("reset").addEventListener("click", function () {
     editor.value = cfg.defaultCode;
     retint();
+    postCode();
     replaceHash("");
     if (engine) request(); else { shownFor = null; showPrebuilt(cfg.defaultCode); }
     editor.focus();
   });
+
+  // ---- choosing a song: the button, or a file dropped on the playground ----
+  // (What happens to the file: see "songs chosen on this page" above.)
+
+  // The file's own name as play takes it: the last part only (no folders),
+  // without line breaks or other control characters (Asobi::Web.offer_song
+  // refuses the same).
+  function songName(file) {
+    var name = String((file && file.name) || "").replace(/[\u0000-\u001f\u007f]/g, "");
+    return name.split(/[\/\\]/).pop().trim();
+  }
+
+  // The kind of a song file by its name (".mp3", ...: one play takes), or
+  // null. Like Ruby's File.extname: dots at the start are not a kind.
+  function songKind(name) {
+    if (!name || name.length > 255) return null;
+    var m = /^\.*[^.][\s\S]*(\.[^.]+)$/.exec(name);
+    var kind = m ? m[1].toLowerCase() : "";
+    return Object.prototype.hasOwnProperty.call(cfg.songKinds, kind) ? kind : null;
+  }
+
+  // The name as a Ruby string literal: "..." with \ and " escaped, and #
+  // before { $ @ too (in "..." Ruby would run #{...} as code).
+  function rubyQuoted(name) {
+    return '"' + name.replace(/[\\"]|#(?=[{$@])/g, "\\$&") + '"';
+  }
+
+  // The code with its play line naming +name+: the first play "..." (or
+  // play '...') gets the new name and keeps the rest (", volume: 0.5");
+  // without one, a play line goes right after require "asobi", or first.
+  var PLAY_LINE = /^([ \t]*play[ \t]*\(?[ \t]*)("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*')/m;
+  var REQUIRE_LINE = /^[ \t]*require[ \t(]*["']asobi["'][ \t)]*(\r?\n|$)/m;
+  function withSong(code, name) {
+    var literal = rubyQuoted(name);
+    if (PLAY_LINE.test(code)) return code.replace(PLAY_LINE, function (all, head) { return head + literal; });
+    var req = REQUIRE_LINE.exec(code);
+    if (!req) return "play " + literal + "\n" + code;
+    var at = req.index + req[0].length;
+    return code.slice(0, at) + (req[1] ? "" : "\n") + "play " + literal + "\n" + code.slice(at);
+  }
+
+  // The bytes of a Blob (a File, or a slice of one).
+  function readBytes(blob) {
+    if (typeof blob.arrayBuffer === "function") {
+      return blob.arrayBuffer().then(function (b) { return new Uint8Array(b); });
+    }
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(new Uint8Array(reader.result)); };
+      reader.onerror = function () { reject(reader.error || new Error("could not read the file")); };
+      reader.readAsArrayBuffer(blob);
+    });
+  }
+
+  // A song's id: the first 12 hex digits of the SHA-256 of its size (as
+  // decimal digits), its first MiB and its last MiB (the whole file up to
+  // 2 MiB). The same file always gets the same id, so the song goes on
+  // while the code changes, and an hour-long file is not read whole just
+  // to name it.
+  var MIB = 1024 * 1024;
+  function songId(file) {
+    var size = file.size;
+    var pieces = size <= 2 * MIB ? [file] : [file.slice(0, MIB), file.slice(size - MIB, size)];
+    return Promise.all(pieces.map(readBytes)).then(function (chunks) {
+      var digits = String(size), total = digits.length, at = 0, i;
+      chunks.forEach(function (c) { total += c.length; });
+      var bytes = new Uint8Array(total);
+      for (i = 0; i < digits.length; i++) bytes[at++] = digits.charCodeAt(i);
+      chunks.forEach(function (c) { bytes.set(c, at); at += c.length; });
+      return sha256(bytes);
+    }).then(function (hex) { return hex.slice(0, 12); });
+  }
+
+  function hexOf(bytes) {
+    var out = "";
+    for (var i = 0; i < bytes.length; i++) out += (bytes[i] < 16 ? "0" : "") + bytes[i].toString(16);
+    return out;
+  }
+
+  // SHA-256 as hex. The browser's own (crypto.subtle) where there is one;
+  // a page that is not a secure context (http:// on a home network, say)
+  // has none, so the same SHA-256 is written out below: both give the same
+  // id for the same bytes.
+  function sha256(bytes) {
+    var subtle = window.crypto && window.crypto.subtle;
+    if (!subtle || typeof subtle.digest !== "function") return Promise.resolve(sha256Js(bytes));
+    return Promise.resolve().then(function () { return subtle.digest("SHA-256", bytes); }).then(
+      function (buf) { return hexOf(new Uint8Array(buf)); },
+      function () { return sha256Js(bytes); }
+    );
+  }
+
+  // SHA-256 (FIPS 180-4) of a Uint8Array, as hex.
+  var SHA_K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ];
+  function sha256Js(data) {
+    var h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    var n = data.length, end = Math.ceil((n + 9) / 64) * 64, p = new Uint8Array(end), w = new Int32Array(64);
+    var hi = Math.floor(n / 0x20000000), lo = (n * 8) >>> 0, i, t, j;
+    p.set(data);
+    p[n] = 0x80;
+    for (i = 0; i < 4; i++) {                // the length in bits, big-endian, in the last 8 bytes
+      p[end - 1 - i] = (lo >>> (8 * i)) & 255;
+      p[end - 5 - i] = (hi >>> (8 * i)) & 255;
+    }
+    for (var off = 0; off < end; off += 64) {
+      for (t = 0; t < 16; t++) {
+        j = off + 4 * t;
+        w[t] = (p[j] << 24) | (p[j + 1] << 16) | (p[j + 2] << 8) | p[j + 3];
+      }
+      for (t = 16; t < 64; t++) {
+        var x = w[t - 15], y = w[t - 2];
+        w[t] = (((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3)) +
+               (((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10)) + w[t - 16] + w[t - 7] | 0;
+      }
+      var a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], k = h[7];
+      for (t = 0; t < 64; t++) {
+        var t1 = k + (((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7))) +
+                 ((e & f) ^ (~e & g)) + SHA_K[t] + w[t] | 0;
+        var t2 = (((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10))) +
+                 ((a & b) ^ (a & c) ^ (b & c)) | 0;
+        k = g; g = f; f = e; e = d + t1 | 0; d = c; c = b; b = a; a = t1 + t2 | 0;
+      }
+      h[0] = h[0] + a | 0; h[1] = h[1] + b | 0; h[2] = h[2] + c | 0; h[3] = h[3] + d | 0;
+      h[4] = h[4] + e | 0; h[5] = h[5] + f | 0; h[6] = h[6] + g | 0; h[7] = h[7] + k | 0;
+    }
+    var out = "";
+    for (i = 0; i < 8; i++) out += ("0000000" + (h[i] >>> 0).toString(16)).slice(-8);
+    return out;
+  }
+
+  // Tell Ruby (now, and every engine after this one) that play "name"
+  // plays the song with this id. A newer file under the same name wins.
+  function offerSong(name, id) {
+    offered = offered.filter(function (s) { return s.name !== name; });
+    offered.push({ name: name, id: id });
+    if (engine) engine.offer(name, id);
+  }
+
+  // Keep a chosen file for this tab (the same file twice is kept once, so
+  // the song that plays from it goes on) and offer it to Ruby.
+  function keepSong(file) {
+    var name = songName(file), kind = songKind(name);
+    return songId(file).then(function (id) {
+      if (!userSongs[id]) {
+        // A blob: URL of the File itself: the bytes stay in the file, not
+        // in memory, so it lasts the tab and the code can switch back.
+        userSongs[id] = { blobUrl: URL.createObjectURL(file), file: file, mime: cfg.songKinds[kind], userSrc: "user/" + id, name: name };
+      }
+      offerSong(name, id);
+      return { name: name, id: id };
+    });
+  }
+
+  // Files chosen with the button or dropped: every one of a kind play takes
+  // is kept and offered; the code plays the first, and runs at once.
+  function chooseSongs(files) {
+    var list = Array.prototype.slice.call(files || []);
+    if (!list.length) return;
+    var good = list.filter(function (f) { return songKind(songName(f)) !== null; });
+    if (!good.length) { status(fill(U.song_kind, songName(list[0]) || "?"), 8000); return; }
+    Promise.all(good.map(keepSong)).then(function (songs) {
+      var name = songs[0].name, code = withSong(editor.value, name);
+      if (code !== editor.value) {
+        editor.value = code;
+        retint();
+        postCode();
+        replaceHash(sketchHash());
+      }
+      status(fill(U.song_ready, name), 6000);
+      clearTimeout(debounce);
+      request();
+    }, function (err) {
+      status(fill(U.song_unread, songName(good[0])), 6000);
+      if (window.console) console.error("asobi playground:", err);
+    });
+  }
+
+  var songBtn = document.getElementById("song");
+  var songFile = document.getElementById("song-file");
+  if (songBtn && songFile) {
+    songBtn.addEventListener("click", function () { songFile.click(); });
+    songFile.addEventListener("change", function () {
+      chooseSongs(songFile.files);
+      songFile.value = ""; // so choosing the same file again is a change too
+    });
+  }
+
+  // Dropping a song file anywhere on the playground. Only a drag that
+  // carries files is taken: dragging selected text in the code works as usual.
+  var playEl = document.querySelector ? document.querySelector(".play") : null;
+  var dragDepth = 0; // dragenter / dragleave come for every element inside
+  function carriesFiles(e) {
+    var types = e.dataTransfer && e.dataTransfer.types;
+    return !!types && Array.prototype.indexOf.call(types, "Files") !== -1;
+  }
+  if (playEl) {
+    playEl.addEventListener("dragenter", function (e) {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      dragDepth++;
+      playEl.classList.add("dropping");
+    });
+    playEl.addEventListener("dragover", function (e) {
+      if (!carriesFiles(e)) return;
+      e.preventDefault(); // or the browser would open the file instead
+      e.dataTransfer.dropEffect = "copy";
+    });
+    playEl.addEventListener("dragleave", function (e) {
+      if (!carriesFiles(e)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) playEl.classList.remove("dropping");
+    });
+    playEl.addEventListener("drop", function (e) {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      dragDepth = 0;
+      playEl.classList.remove("dropping");
+      chooseSongs(e.dataTransfer.files);
+    });
+  }
 
   // ---- saving: build SVG or standalone HTML strictly from the checked Reel ----
   // Never ask Ruby for the file: onScreen has already passed AsobiSafeReel, so
@@ -529,6 +1003,24 @@
       });
     }).catch(function (e) { delete songDataCache[src]; throw e; });
   }
+  // A song chosen on this page, whole, as a data URI (read from its file
+  // only when a page is saved; the type is the one play gives its kind).
+  function fileDataUri(file, mime) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var text = String(reader.result), comma = text.indexOf(",");
+        resolve("data:" + mime + ";base64," + (comma < 0 ? "" : text.slice(comma + 1)));
+      };
+      reader.onerror = function () { reject(reader.error || new Error("could not read the song")); };
+      reader.readAsDataURL(file);
+    });
+  }
+  // The song chosen on this page that a Reel on screen plays, or null.
+  function userSongOf(reel) {
+    var s = reel && reel.song, mine = s ? userSongs[s.id] : null;
+    return mine && mine.blobUrl === s.src ? mine : null;
+  }
   function triggerDownload(content, mime, filename) {
     var blob = new Blob([content], { type: mime });
     var url = URL.createObjectURL(blob);
@@ -544,13 +1036,21 @@
     downloadBtn.addEventListener("click", function () {
       var reel = onScreen;
       if (!reel) return;
-      if (reel.pending) { status(U.wait_to_save, 3000); return; }
+      // A motion's whole Reel is still coming: saving now would save the picture before it.
+      if (pendingBuild || reel.pending) { status(U.wait_to_save, 3000); return; }
       if (!isDynamic(reel)) {
         triggerDownload(buildSvg(reel), "image/svg+xml;charset=utf-8", "asobi.svg");
         status(U.saved_svg, 3000);
         return;
       }
-      var songPromise = reel.song && reel.song.src ? fetchSongDataUri(reel.song.src) : Promise.resolve(null);
+      var mine = userSongOf(reel), songPromise;
+      if (mine && mine.file.size > cfg.songEmbedLimit) {
+        // Like Asobi::Song#data_uri: a saved page takes a song up to the limit inside it.
+        status(fill(U.song_too_big, mine.name, (mine.file.size / MIB).toFixed(1)), 8000);
+        return;
+      }
+      if (mine) songPromise = fileDataUri(mine.file, mine.mime);
+      else songPromise = reel.song && reel.song.src ? fetchSongDataUri(reel.song.src) : Promise.resolve(null);
       Promise.all([fetchPlayerJs(), songPromise]).then(function (both) {
         triggerDownload(buildHtml(reel, both[0], both[1]), "text/html;charset=utf-8", "asobi.html");
         status(U.saved_html, 3000);
@@ -607,6 +1107,7 @@
           if (!code.trim()) return textResult({ error: "code is required" }, true);
           editor.value = code;
           retint();
+          postCode();
           replaceHash(sketchHash());
           return waitForEngine(20000).then(function () {
             return runAndShow(code); // shows a motion's preview first; answers with the whole Reel
