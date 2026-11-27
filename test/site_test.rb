@@ -897,21 +897,6 @@ class SiteTest < Minitest::Test
     assert_includes read("guide.html"), 'class="doc-next"'
   end
 
-  # The design article on Qiita is linked from both home pages (a plain link
-  # search engines follow; GitHub marks the README's link nofollow), from
-  # their Markdown, and from llms.txt.
-  def test_home_links_the_design_article
-    url = AsobiSite::DESIGN_ARTICLE_URL
-    %w[index.html ja/index.html].each do |file|
-      html = read(file)
-      assert_includes html, %(<a class="btn" href="#{url}" hreflang="ja">), file
-      refute_match(/<a[^>]*#{Regexp.escape(url)}[^>]*nofollow/, html, file)
-    end
-    assert_includes read("index.md"), "](#{url})"
-    assert_includes read("ja/index.md"), "[設計思想の解説記事を読む（Qiita）](#{url})"
-    assert_includes read("llms.txt"), "- Design Article (Japanese, Qiita): #{url}"
-  end
-
   def test_agent_readiness_manifests_markdown_mirrors_and_webmcp
     robots = read("robots.txt")
     assert_includes robots, "Content-Signal: ai-train=yes, search=yes, ai-input=yes"
@@ -1017,6 +1002,17 @@ class SiteTest < Minitest::Test
           - name: "Older Blog"
             url: "https://example.com/blog/older"
             date: { en: "Nov 12, 2026", ja: "2026年11月12日" }
+        articles:
+          - name: "なぜ絵を値にしたか"
+            site: Qiita
+            url: "https://example.com/ja-article"
+            date: { en: "Nov 24, 2026", ja: "2026年11月24日" }
+            lang: ja
+          - name: "Pictures as values"
+            site: Dev
+            url: "https://example.com/en-article"
+            date: { en: "Nov 20, 2026", ja: "2026年11月20日" }
+            lang: en
       YAML
       edit(File.join(data, "home.yml")) { _1 + extra }
       AsobiSite::Builder.new(data:, out:, log: nil).build
@@ -1049,6 +1045,17 @@ class SiteTest < Minitest::Test
           assert_includes rendered, "Nov 19, 2026"
         end
         refute_match(%r{<div class="stage-copy">(?:(?!</div>).)*press}m, rendered, "#{file}: not on the stage")
+        # What the author wrote: a list right under the press, plain links
+        # (search engines follow them), the language said where it differs.
+        refute_includes html, 'id="articles"' # fixture base has none
+        assert_match(%r{id="press".*?</section>\s*<section class="band press-band articles-band" id="articles".*?id="beliefs-title"}m, rendered)
+        ja_page = file.start_with?("ja/")
+        assert_includes rendered, %(<a href="https://example.com/ja-article" hreflang="ja"#{ja_page ? "" : ' lang="ja"'}>なぜ絵を値にしたか<span aria-hidden="true"> ↗</span></a> <span class="press-site">Qiita#{ja_page ? "" : " · in Japanese"}</span>)
+        assert_includes rendered, %(<a href="https://example.com/en-article" hreflang="en"#{ja_page ? ' lang="en"' : ""}>Pictures as values<span aria-hidden="true"> ↗</span></a> <span class="press-site">Dev#{ja_page ? " · 英語" : ""}</span>)
+        assert_includes rendered, ja_page ? "作者が書いた記事" : "Written by the author"
+        refute_match(/<a[^>]*example\.com\/(?:ja|en)-article[^>]*nofollow/, rendered)
+        md = File.read(File.join(out, file.sub(".html", ".md")), encoding: "UTF-8")
+        assert_includes md, ja_page ? "- 2026年11月24日 · Qiita: [なぜ絵を値にしたか](https://example.com/ja-article)\n" : "- Nov 24, 2026 · Qiita: [なぜ絵を値にしたか](https://example.com/ja-article) (in Japanese)\n"
         # Only the first one is a large quote; the rest is a list under it.
         assert_equal 1, rendered.scan("<blockquote").size
         older_date = file.start_with?("ja/") ? "2026年11月12日" : "Nov 12, 2026"
@@ -1063,6 +1070,15 @@ class SiteTest < Minitest::Test
         assert_equal [q_text], faq_schema.fetch("mainEntity").map { _1["name"] }
       end
       assert_includes File.read(File.join(out, "llms-full.txt"), encoding: "UTF-8"), "## Frequently Asked Questions"
+      llms = File.read(File.join(out, "llms.txt"), encoding: "UTF-8")
+      assert_includes llms, "- Article (Japanese, Qiita): なぜ絵を値にしたか — https://example.com/ja-article\n"
+      assert_includes llms, "- Article (English, Dev): Pictures as values — https://example.com/en-article\n"
+      refute_includes read("llms.txt"), "- Article ("
+
+      edit(File.join(data, "home.yml")) { _1.sub(%(url: "https://example.com/en-article"), %(url: "http://example.com/en-article")) }
+      error = assert_raises(AsobiSite::BuildError) { AsobiSite::Builder.new(data:, out:, log: nil).build }
+      assert_includes error.message, "home.yml, articles 2: url should start with https://"
+      edit(File.join(data, "home.yml")) { _1.sub(%(url: "http://example.com/en-article"), %(url: "https://example.com/en-article")) }
 
       quote_line = %(    quote: "A bit like a sketchbook."\n)
       edit(File.join(data, "home.yml")) { _1.sub(quote_line, "") }

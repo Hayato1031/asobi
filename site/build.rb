@@ -65,8 +65,6 @@ module AsobiSite
   SITE_URL = "https://asobi.myura.me"
   RUBYGEMS_URL = "https://rubygems.org/gems/asobi"
   GITHUB_URL = "https://github.com/Hayato1031/asobi"
-  # The long read on why asobi is built this way (in Japanese).
-  DESIGN_ARTICLE_URL = "https://qiita.com/Myura/items/2b672011114817439ac5"
   AUTHOR_NAME = "Hayato1031"
   AUTHOR_URL = "https://github.com/Hayato1031"
   # The same person under other names, for the structured data (no real name).
@@ -169,7 +167,7 @@ module AsobiSite
       show_code: "Code", now_playing: "Now playing", live: "live", still: "still", reacts: "reacts", frame: "frame",
       every: "every %ss", frames: "%d frames", stage_label: "A piece playing, with its code",
       philosophy: "What asobi believes",
-      design_article: "Why asobi is designed this way (an article on Qiita, in Japanese)",
+      articles_label: "Written by the author", written_in_en: "in English", written_in_ja: "in Japanese",
       cycle_label: "Object ⇄ Art",
       cycle_title: "The two-way loop",
       cycle_lead: "Unlike imperative canvas tools, asobi turns Ruby values into pictures and returns every picture as an immutable Ruby object.",
@@ -259,7 +257,7 @@ module AsobiSite
       show_code: "コード", now_playing: "再生中", live: "再生中", still: "静止画", reacts: "反応する", frame: "コマ",
       every: "%s秒で1周", frames: "%dコマ", stage_label: "作品とそのコード",
       philosophy: "asobi の考え",
-      design_article: "設計思想の解説記事を読む（Qiita）",
+      articles_label: "作者が書いた記事", written_in_en: "英語", written_in_ja: "日本語",
       cycle_label: "Object ⇄ Art",
       cycle_title: "オブジェクトと絵の往復",
       cycle_lead: "キャンバスへ命令して終わる描画ツールとは異なり、asobi は Ruby の値を絵に変え、返ってきた絵も不変の Ruby オブジェクトとして扱えます。",
@@ -613,6 +611,7 @@ module AsobiSite
           "quote" => pr["quote"].to_s, "quote_lang" => quote_lang.to_sym,
           "translation" => text(pr["translation"], "#{ph}, translation", required: false) }
       end
+      articles = check_articles(raw["articles"], here)
       films = check_films(raw["films"], here)
       ids = ->(key) { raw[key].nil? ? nil : Array(raw[key]).map(&:to_s) }
       { "tagline" => text(raw["tagline"], "#{here}, tagline"),
@@ -627,7 +626,24 @@ module AsobiSite
         "comparison" => comparison,
         "faq" => faq,
         "press" => press,
+        "articles" => articles,
         "films" => films }
+    end
+
+    # What the author wrote about asobi elsewhere (newest first): only a link,
+    # the text stays where it was published. lang is the article's language.
+    def check_articles(value, here)
+      list_of("home", value).each_with_index.filter_map do |ar, i|
+        ah = "#{here}, articles #{i + 1}"
+        next unless require_keys(ar, %w[name site url date lang], ah)
+
+        url = ar["url"].to_s
+        @errors << "#{ah}: url should start with https://, got #{url.inspect}" unless url.start_with?("https://")
+        article_lang = ar["lang"].to_s
+        @errors << "#{ah}: lang should be en or ja, got #{article_lang.inspect}" unless %w[en ja].include?(article_lang)
+        { "name" => ar["name"].to_s, "site" => ar["site"].to_s, "url" => url,
+          "date" => text(ar["date"], "#{ah}, date"), "lang" => article_lang.to_sym }
+      end
     end
 
     # The films of the home page, newest first; each needs its two files in site/assets.
@@ -1329,6 +1345,9 @@ module AsobiSite
         "- **#{g}** (#{list.size}): #{list.map { "`#{_1["word"]}`" }.join(", ")}"
       end.join("\n")
       tagline = home ? home["tagline"][:en] : "Object to Art. Art to Object."
+      articles = (home ? home["articles"] : []).map do |a|
+        "\n- Article (#{a["lang"] == :ja ? "Japanese" : "English"}, #{a["site"]}): #{a["name"]} — #{a["url"]}"
+      end.join
       lead = home && home["lead"] ? home["lead"][:en].delete("`") : "Turn Ruby numbers, arrays, and your own classes into SVG pictures and looping animations with to_art."
       <<~MD
         # asobi
@@ -1344,8 +1363,7 @@ module AsobiSite
         - Agent Skill: #{SITE_URL}/.well-known/agent-skills/asobi/SKILL.md
         - AI Catalog (ARD): #{SITE_URL}/.well-known/ai-catalog.json
         - Source Code: #{GITHUB_URL}
-        - RubyGems: #{RUBYGEMS_URL}
-        - Design Article (Japanese, Qiita): #{DESIGN_ARTICLE_URL}
+        - RubyGems: #{RUBYGEMS_URL}#{articles}
 
         ## Core Concept: Object to Art. Art to Object.
 
@@ -1419,11 +1437,18 @@ module AsobiSite
         lines << ""
         lines << "#{ui_lang[:install]}: `gem install asobi`"
         lines << ""
+        unless home["articles"].empty?
+          lines << "## #{ui_lang[:articles_label]}"
+          lines << ""
+          home["articles"].each do |a|
+            note = a["lang"] == lang ? "" : " (#{ui_lang[:"written_in_#{a["lang"]}"]})"
+            lines << "- #{a["date"][lang]} · #{a["site"]}: [#{a["name"].gsub(/[\[\]]/) { "\\#{_1}" }}](#{a["url"]})#{note}"
+          end
+          lines << ""
+        end
         lines << "## #{ui_lang[:philosophy]}"
         lines << ""
         home["philosophy"].each_with_index { |p, i| lines << "#{i + 1}. #{p[lang]}" }
-        lines << ""
-        lines << "[#{ui_lang[:design_article]}](#{DESIGN_ARTICLE_URL})"
         lines << ""
         lines << "```ruby"
         lines << AsobiSite.display_code(home["hero_code"]).rstrip

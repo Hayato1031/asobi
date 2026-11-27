@@ -70,6 +70,21 @@ press:
     translation:
       ja: "asobi は p5.js や Processing にちょっと似ている。でも、Ruby ならではのひとひねりがある！"
 
+# What the author wrote about asobi elsewhere, newest first: listed under the
+# press on the home page, in its Markdown and in llms.txt. Only a link: the
+# text stays where it was published. lang is the article's language.
+articles:
+  - name: "Ruby クリエイティブコーディング gem「asobi」の設計思想：p5.js の移植を作らず不変の絵にした理由"
+    site: "Qiita"
+    url: "https://qiita.com/Myura/items/2b672011114817439ac5"
+    date: { en: "Nov 24, 2026", ja: "2026年11月24日" }
+    lang: ja
+  - name: "Object to Art. Art to Object. — Ruby のクリエイティブコーディング gem「asobi」を作った話"
+    site: "Wantedly"
+    url: "https://www.wantedly.com/users/180786572/post_articles/1107659"
+    date: { en: "Nov 23, 2026", ja: "2026年11月23日" }
+    lang: ja
+
 # The two-way loop: Object -> Art and Art -> Object, with real Ruby -> SVG examples.
 cycle:
   sides:
