@@ -118,6 +118,28 @@ result.foreignSong = foreign ? { kept: true, song: foreign.song || null } : { ke
 const own = Safe.reel(withBad({ song: { id: "3ff79180f05b", src: "assets/beat.wav", volume: 0.5 } }));
 result.ownSong = own ? own.song || null : null;
 
+// a song chosen on the playground page: "user/<id>" with that same id, nothing else
+const songOf = (song) => { const r = Safe.reel(withBad({ song })); return r ? r.song || null : "reel rejected"; };
+result.userSong = songOf({ id: "0123456789ab", src: "user/0123456789ab", volume: 0.5 });
+result.userSongRejects = {
+  otherId: songOf({ id: "0123456789ac", src: "user/0123456789ab" }),
+  noId: songOf({ src: "user/0123456789ab" }),
+  notHex: songOf({ id: "0123456789ag", src: "user/0123456789ag" }),
+  upperHex: songOf({ id: "0123456789AB", src: "user/0123456789AB" }),
+  short: songOf({ id: "0123456789a", src: "user/0123456789a" }),
+  long: songOf({ id: "0123456789abc", src: "user/0123456789abc" }),
+  traversal: songOf({ id: "..", src: "user/../x" }),
+  traversalAfter: songOf({ id: "0123456789ab", src: "user/0123456789ab/../x" }),
+  newline: songOf({ id: "0123456789ab", src: "user/0123456789ab\n" }),
+  blob: songOf({ id: "0123456789ab", src: "blob:https://asobi.myura.me/0123456789ab" }),
+  https: songOf({ id: "0123456789ab", src: "https://example.com/user/0123456789ab" }),
+  protocolRelative: songOf({ id: "0123456789ab", src: "//example.com/user/0123456789ab" }),
+  data: songOf({ id: "0123456789ab", src: "data:audio/wav;base64,UklGRg==" }),
+  javascript: songOf({ id: "0123456789ab", src: "javascript:alert(1)" }),
+  rooted: songOf({ id: "0123456789ab", src: "/user/0123456789ab" }),
+  notString: songOf({ id: "0123456789ab", src: ["user/0123456789ab"] })
+};
+
 // (e) an error Reel keeps only error and code
 result.errorReel = Safe.reel({ error: "boom", code: "show x", frames: ["<script>x</script>"], song: { src: "assets/a.wav" }, extra: 1 });
 

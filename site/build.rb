@@ -136,6 +136,14 @@ module AsobiSite
       reset: "Start again",
       stage_window: "Stage window",
       stage_window_hint: "Opens a window that mirrors the code and the picture, to put on a projector.",
+      choose_song: "Choose song",
+      choose_song_hint: "Play a song file from your computer: choose it here or drop it on the playground, and the code plays it " \
+                        "with play \"…\". The file stays in this browser tab; nothing is uploaded.",
+      song_ready: "Playing %s (click the picture if you hear nothing)",
+      song_kind: "play can't play %s. Choose a file of one of these kinds: #{Asobi::Song::KINDS.keys.join(" ")}",
+      song_unread: "Could not read %s.",
+      song_too_big: "%s is %s MB, too big to save inside the page (#{Asobi::Song::EMBED_LIMIT / 1024 / 1024} MB at most). " \
+                    "Use a shorter or more compressed file.",
       footer_playground: "Your sketch runs in your browser. Use “Copy link” to share it.",
       footer_license: "MIT License",
       view_gem: "View on RubyGems",
@@ -227,6 +235,14 @@ module AsobiSite
       reset: "最初に戻す",
       stage_window: "別ウィンドウ",
       stage_window_hint: "コードと絵をそのまま映すウィンドウを開きます。プロジェクター用です。",
+      choose_song: "曲を選ぶ",
+      choose_song_hint: "パソコンにある曲のファイルを流します。ここで選ぶか遊び場にドロップすると、コードの play \"…\" で流れます。" \
+                        "ファイルはこのタブの中だけで使い、アップロードはしません。",
+      song_ready: "%s を流します（聞こえないときは絵をクリックしてください）",
+      song_kind: "%s は流せません。play で流せるファイルの種類は #{Asobi::Song::KINDS.keys.join(" ")} です。",
+      song_unread: "%s を読み込めませんでした。",
+      song_too_big: "%s は %s MB あり、ページに入れて保存するには大きすぎます（#{Asobi::Song::EMBED_LIMIT / 1024 / 1024} MB まで）。" \
+                    "短いファイルか、もっと圧縮したファイルにしてください。",
       footer_playground: "スケッチはブラウザで動きます。「リンクをコピー」で共有できます。",
       footer_license: "MIT ライセンス",
       view_gem: "RubyGems で見る",
@@ -762,6 +778,14 @@ module AsobiSite
       unless runner.include?(%("beat.wav" => Song.new(path: "beat.wav", id: "#{AsobiSite.song_id}", src: "#{SONG_SRC}")))
         raise BuildError, "site/playground/runner.rb must offer beat.wav with its id #{AsobiSite.song_id} and src #{SONG_SRC} " \
                           "(the id is the first 12 characters of the SHA-256 of #{SONG.delete_prefix("#{ROOT}/")})"
+      end
+      # Its message for a song the playground does not have names the button that adds one.
+      { en: "“%s”", ja: "「%s」" }.each do |lang, quoted|
+        button = format(quoted, UI.fetch(lang).fetch(:choose_song))
+        next if runner.include?(button)
+
+        raise BuildError, "site/playground/runner.rb: the :play_choose_song message (#{lang}) must name the button " \
+                          "as #{button} (UI[:#{lang}][:choose_song])"
       end
       text = prelude + parts.join("\n") + "\n" + epilogue + "\n" + runner
       check(text)
@@ -1998,7 +2022,8 @@ module AsobiSite
 
     def play_config
       ui_keys = %i[loading_ruby ruby_ready running ruby_failed crashed blocked copied copy_failed
-                   save_svg save_html saved_svg saved_html wait_to_save save_failed every still reacts]
+                   save_svg save_html saved_svg saved_html wait_to_save save_failed every still reacts
+                   song_ready song_kind song_unread song_too_big]
       {
         "lang" => @lang.to_s,
         "ui" => ui_keys.to_h { [_1.to_s, ui(_1)] }.merge("too_slow" => ui(:too_slow, PLAY_TIMEOUT),
@@ -2012,7 +2037,9 @@ module AsobiSite
         "workerVersion" => @builder.worker_version,
         "defaultCode" => default_play_code,
         "defaultKey" => result_for(default_play_code).key,
-        "words" => word_list
+        "words" => word_list,
+        "songKinds" => Asobi::Song::KINDS,           # the files "Choose song" takes, and their MIME types
+        "songEmbedLimit" => Asobi::Song::EMBED_LIMIT # the biggest song a saved asobi.html takes inside it
       }
     end
 

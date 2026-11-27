@@ -5,6 +5,10 @@
  *
  * Messages in:  { id, code, lang }                 one step: answers the whole Reel
  *               { id, code, lang, preview: true }  two steps: a motion's preview first
+ *               { type: "song", name, id }         a song file chosen on the page, for
+ *                                                  play "name" (no answer). Taken in the
+ *                                                  order it came, so a run sent after it
+ *                                                  can play it; it does not stop a build.
  * Messages out: { type: "ready" } | { type: "failed", message }
  *               { id, json }                 the whole Reel (the last answer for this id)
  *               { id, json, pending: true }  a motion's quick preview; { id, json } follows
@@ -92,8 +96,15 @@ function twoSteps(msg) {
   });
 }
 
+function offerSong(msg) {
+  try {
+    self.AsobiRubyEngine.offerSong(msg.name, msg.id);
+  } catch (e) { /* not a run: if Ruby itself broke, the next run says so */ }
+}
+
 self.onmessage = function (event) {
   var msg = event.data;
+  if (msg && msg.type === "song") { ready.then(function () { offerSong(msg); }, function () {}); return; }
   if (msg.id > newest) newest = msg.id;
   ready.then(function () {
     stopBuilding(); // anything newer ends the build of an older whole Reel

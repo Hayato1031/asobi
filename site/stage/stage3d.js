@@ -4,6 +4,21 @@
 // toward you. The camera sits low over the water, looking slightly up, with
 // the horizon in the lower third, and drifts slowly so the depth shows.
 // Only the world on show is drawn; nothing is drawn while the page is flat.
+//
+// The art is the picture's EXTENT (extent.js): its paper and whatever the
+// sketch drew past it, fitted whole into the art's place, so nothing drawn is
+// cut. A Reel's extent is measured once, from a few of its frames, BEFORE its
+// frames are drawn (meanwhile the Reel before goes on playing): every frame is
+// drawn once, over the right extent. Drawing a Reel's frames twice (once over
+// a guessed extent, again over the measured one) doubled the SVG documents
+// made, and their garbage collection stopped the page for 0.2-0.5 s. When the
+// extent differs from the one on show, the art eases to it over 0.4 s.
+//
+// The frames are drawn into bitmaps in a process of its own (far-raster.js),
+// so the hundreds of svg documents a Reel's frames make, and their garbage
+// collection, never stop this one. A new Reel pre-rolls in a second frame
+// cache while the one on show goes on playing, and takes over once its frame
+// for the moment is ready: the art never stops at a switch.
 import * as THREE from "./vendor/three/build/three.module.js";
 import { EffectComposer } from "./vendor/three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "./vendor/three/addons/postprocessing/RenderPass.js";
@@ -12,6 +27,8 @@ import { ShaderPass } from "./vendor/three/addons/postprocessing/ShaderPass.js";
 import { Pieces } from "./pieces.js";
 import { FrameCache, BUDGET } from "./frames.js";
 import { CodeCanvas } from "./code.js";
+import { measureExtent, plainExtent } from "./extent.js";
+import { far } from "./far-raster.js";
 import { Uyuni } from "./uyuni.js";
 import { Fog } from "./fog.js";
 
@@ -70,6 +87,8 @@ const FinishShader = {
 };
 
 const ease = (k) => k * k * (3 - 2 * k);
+const EXTENT_EASE = 0.4;  // s: the art growing (or shrinking) to a newly measured extent
+const sameBox = (a, b) => !!a && !!b && a.length === b.length && a.every((n, i) => n === b[i]);
 
 // When the art on screen changed (for checking its rhythm): the last 4096 times.
 export const artTimes = [];
@@ -107,6 +126,26 @@ export class Stage3D {
     this.withBackground = true; // the `b` key turns it off
     this.source = "none";    // "reel": played here by its own clock; "mirror": pictures from the playground
     this.frames = new FrameCache(renderer, this.anisotropy);
+    // A new Reel is drawn in a second cache while the one on show goes on
+    // playing; it takes over once its frame for the moment is ready, so the
+    // art never stops at a switch (startReel, swapFrames).
+    this.nextFrames = new FrameCache(renderer, this.anisotropy);
+    this.prerollSince = 0;
+    far.start(); // the rasteriser's own process, ready before the first frame is drawn
+    // The extent (extent.js) of what is on show, and the box the art stands
+    // for now (user units), easing from one extent to the next.
+    this.extent = null;
+    this.shownBox = null;
+    this.boxFrom = null;
+    this.boxTo = null;
+    this.boxK = 1;
+    this.extents = new WeakMap();   // checked Reel -> its measured extent
+    this.measuring = new WeakMap();  // checked Reel -> the measuring under way
+    this.mirrorReel = null;          // the Reel behind mirrored pictures (it has reacting parts)
+    this.onExtent = null;            // called when the mirrored Reel's extent arrives
+    this.probing = 0;                // measurings under way
+    this.pendingReel = null;         // a Reel being measured before it plays
+    this.extentStats = { measured: 0, ms: 0, busyMs: 0, probes: 0, across: 0, spills: false, box: null, frames: 0, slowFrames: 0, worstMs: 0 };
     this.sizeArt();
 
     // No MSAA: every pass would pay for a resolve. Nothing here has hard edges anyway.
@@ -200,19 +239,115 @@ export class Stage3D {
 
   // A Reel to play here, by this window's own clock (checked by AsobiSafeReel).
   playReel(reel) {
-    this.source = "reel";
-    this.frames.setReel(reel);
-    this.setAspect(reel.view[2] / reel.view[3]);
-    this.pieces.setGrain(this.frames.grain, this.artAspect);
     this.hasArt = true;
+    const known = this.extents.get(reel);
+    if (known) { this.pendingReel = null; this.startReel(reel, known); return; }
+    // Measured first; what is on show stays (and plays) until then.
+    this.pendingReel = reel;
+    this.measure(reel).then((e) => {
+      if (this.pendingReel !== reel) return;
+      if (!e && !this.running) return; // the 3D view was left: measured again when it is back
+      this.pendingReel = null;
+      this.startReel(reel, e || plainExtent(reel.view));
+    });
+  }
+
+  // Plays a Reel whose extent is known: its frames are drawn over it. When
+  // another Reel is playing, the new one pre-rolls (see nextFrames).
+  startReel(reel, extent) {
+    const now = this.frames;
+    this.useExtent(extent);
+    if (this.source === "reel" && now.reel && now.reel !== reel && now.textures.size > 0) {
+      const next = this.nextFrames;
+      next.setBackground(this.withBackground);
+      next.setReel(reel);
+      next.setExtent(extent);
+      this.prerollSince = performance.now();
+      return;
+    }
+    this.nextFrames.clear();
+    this.source = "reel";
+    now.setReel(reel);
+    now.setExtent(extent);
+    this.pieces.setGrain(now.grain, this.artAspect);
+  }
+
+  // The pre-rolled Reel takes over; the one before goes (its texture on show
+  // stays until replaced).
+  swapFrames() {
+    const old = this.frames;
+    this.frames = this.nextFrames;
+    this.nextFrames = old;
+    old.clear();
+    this.pieces.setGrain(this.frames.grain, this.artAspect);
+  }
+
+  // Measures a Reel's extent (once; in idle time, between frames). Gives up
+  // when the 3D view is left or another Reel came (then it is measured again
+  // when it is played again). Answers the extent, or null.
+  measure(reel) {
+    if (this.extents.has(reel)) return Promise.resolve(this.extents.get(reel));
+    let run = this.measuring.get(reel);
+    if (run) return run;
+    const stats = {};
+    this.probing++;
+    run = measureExtent(reel, () => this.running && (this.pendingReel === reel || this.frames.reel === reel || this.nextFrames.reel === reel || this.mirrorReel === reel), stats)
+      .catch(() => null)
+      .then((e) => {
+        this.probing--;
+        this.measuring.delete(reel);
+        if (!e) return null;
+        this.extents.set(reel, e);
+        const s = this.extentStats;
+        s.measured++; s.ms = stats.ms; s.busyMs = stats.busyMs; s.probes = stats.probes; s.across = stats.across;
+        s.spills = e.spills; s.box = e.box;
+        return e;
+      });
+    this.measuring.set(reel, run);
+    return run;
+  }
+
+  // The Reel behind the mirrored pictures (a Reel with reacting parts: the
+  // stage has it too): its extent widens the pictures once measured.
+  watchMirrorReel(reel) {
+    if (this.mirrorReel === reel) return;
+    this.mirrorReel = reel;
+    if (this.extents.has(reel)) return;
+    this.measure(reel).then((e) => { if (e && this.mirrorReel === reel && this.onExtent) this.onExtent(); });
+  }
+
+  // The extent for a mirrored picture of this paper (the paper alone until measured).
+  mirrorExtent(view) {
+    const e = this.mirrorReel && this.extents.get(this.mirrorReel);
+    return e && sameBox(e.paper, view) ? e : plainExtent(view);
+  }
+
+  // The art stands for this extent from now on: eased to it when the paper
+  // is the same (a newly measured extent), at once for another paper.
+  useExtent(e) {
+    const same = this.extent && sameBox(this.extent.paper, e.paper);
+    this.extent = e;
+    if (!this.shownBox || !same) {
+      this.shownBox = e.box.slice();
+      this.boxTo = e.box.slice();
+      this.boxK = 1;
+      this.setAspect(e.box[2] / e.box[3]);
+      return;
+    }
+    if (sameBox(e.box, this.boxTo)) return;
+    this.boxFrom = this.shownBox.slice();
+    this.boxTo = e.box.slice();
+    this.boxK = 0;
   }
 
   // From now on the pictures come from the playground (setPicture).
   mirror() {
+    this.pendingReel = null; // a Reel still being measured does not take over now
     if (this.source === "mirror") return;
     this.source = "mirror";
     this.mirrorReady = false; // what is on the art stays until the playground's next picture is drawn
     this.frames.clear();
+    this.nextFrames.clear();
   }
 
   // A picture from the playground, drawn by Raster: an ImageBitmap (this
@@ -237,8 +372,12 @@ export class Stage3D {
       if (bitmap && old && old !== source) old.close();
     }
     t.needsUpdate = true;
+    const ext = info.extent || plainExtent([0, 0, info.aspect, 1]);
+    t.userData.box = ext.box;
+    t.userData.paper = ext.paper;
+    t.userData.bands = ext.bands;
     this.mirrorReady = true;
-    this.setAspect(info.aspect);
+    this.useExtent(ext);
     this.pieces.setGrain(info.grain, this.artAspect);
     this.hasArt = true;
     if (!this.running) return 0;
@@ -252,7 +391,7 @@ export class Stage3D {
   }
 
   setAspect(a) {
-    if (Math.abs(a - this.artAspect) < 1e-3) return;
+    if (a === this.artAspect) return;
     this.artAspect = a;
     this.sizeArt();
   }
@@ -264,6 +403,7 @@ export class Stage3D {
   setBackgroundOn(on) {
     this.withBackground = on;
     this.frames.setBackground(on);
+    this.nextFrames.setBackground(on);
   }
 
   setCode(code, fresh) {
@@ -288,8 +428,16 @@ export class Stage3D {
   loop(now) {
     if (!this.running) return;
     requestAnimationFrame(this.loop);
-    const dt = Math.min(0.1, Math.max(0, (now - this.last) / 1000));
+    const gap = now - this.last;
+    const dt = Math.min(0.1, Math.max(0, gap / 1000));
     this.last = now;
+    // While an extent is measured: how many frames came late (for the stats).
+    if (this.probing > 0) {
+      const s = this.extentStats;
+      s.frames++;
+      if (gap > 25) s.slowFrames++;
+      s.worstMs = Math.max(s.worstMs, gap);
+    }
     this.frame(dt);
     this.watch(dt);
   }
@@ -304,10 +452,25 @@ export class Stage3D {
     p.codeWanted = this.hasCode && this.codeOn ? 1 : 0;
     p.artWanted = this.hasArt ? 1 : 0;
     p.update(dt, this.code, this.time);
+    // Easing to a newly measured extent: the art's shape follows.
+    if (this.boxK < 1) {
+      this.boxK = Math.min(1, this.boxK + dt / EXTENT_EASE);
+      const k = ease(this.boxK);
+      this.shownBox = this.boxTo.map((b, i) => (this.boxK >= 1 ? b : mix(this.boxFrom[i], b, k)));
+      this.setAspect(this.shownBox[2] / this.shownBox[3]);
+    }
     this.layout(dt);
     // The art: this window's own frame for this moment, or the newest picture from the playground.
     if (this.source === "reel") {
-      this.frames.aim(this.artPixels());
+      const aim = this.artPixels();
+      this.frames.aim(aim);
+      // A new Reel pre-rolling: it takes over once its frame for this moment
+      // is drawn (or after 2 s, then it waits for its frames as before).
+      const next = this.nextFrames;
+      if (next.reel) {
+        next.aim(aim);
+        if (next.prepare(this.frames.time, dt) || performance.now() - this.prerollSince > 2000) this.swapFrames();
+      }
       this.showArt(this.frames.tick(dt));
     } else if (this.source === "mirror" && this.mirrorReady) {
       this.showArt(this.mirrorTexture, this.mirrorTexture && this.mirrorTexture.version);
@@ -318,9 +481,19 @@ export class Stage3D {
     this.composer.render(dt);
   }
 
-  // Puts a texture on the art; notes the moment the art changed.
+  // Puts a texture on the art; notes the moment the art changed. Each
+  // texture is placed by the extent it was drawn with.
   showArt(texture, version) {
     if (!texture) return;
+    const d = texture.userData || {};
+    if (this.shownBox && d.box) {
+      // A texture of another paper (the Reel before, until the new one's first
+      // frame is ready) fills the art as it is.
+      const here = this.extent && sameBox(d.paper, this.extent.paper) ? this.shownBox : d.box;
+      // With its background (B on) the sheet is the whole picture, its edge
+      // crisp; without, the outer band fades.
+      this.pieces.setArtPlace(here, d.box, d.paper || d.box, this.withBackground ? null : d.bands);
+    }
     if (texture !== this.artTexture) {
       this.pieces.setArtTexture(texture);
       // A frame left over from a Reel no longer played goes once replaced.
@@ -411,19 +584,25 @@ export class Stage3D {
   frameStats() {
     const f = this.frames, s = f.stats;
     return { source: this.source, side: s.side, ring: s.ring, whole: s.whole, cached: f.textures.size, budgetMB: BUDGET / 1048576,
-      drawn: s.drawn, drawAvgMs: s.drawn ? s.drawMs / s.drawn : 0, drawMaxMs: s.drawMax, held: s.held, scale: f.scale };
+      drawn: s.drawn, drawAvgMs: s.drawn ? s.drawMs / s.drawn : 0, drawMaxMs: s.drawMax, held: s.held, scale: f.scale,
+      extent: { ...this.extentStats, shown: this.shownBox, paper: this.extent && this.extent.paper },
+      raster: { far: far.ready, drawn: far.stats.drawn, here: far.stats.fallback, avgMs: far.stats.drawn ? far.stats.ms / far.stats.drawn : 0 } };
   }
 
   // How often frames are slow lately (0..1): the raster draws smaller then.
   pressure() { return this.slowSeen; }
 
   // The art's longer side on screen, in device pixels (to size the raster).
+  // For the extent being shown (its shape, not the one easing on screen now:
+  // frames drawn while the art eases would otherwise be drawn again after).
   artPixels() {
     const w = this.world;
     const tanV = Math.tan(THREE.MathUtils.degToRad(CAM.fov / 2));
     const dist = w ? Math.max(3, w.camera.position.distanceTo(this.pieces.art.position)) : 8;
-    const h = Math.max(this.artWithCode[1], this.artSolo[1]);
+    const a = this.extent ? this.extent.box[2] / this.extent.box[3] : this.artAspect;
+    const tall = (h, maxW) => (h * a > maxW ? maxW / a : h);
+    const h = Math.max(tall(ART.h, ART.maxW), tall(SOLO.h, SOLO.maxW));
     const frac = h / (2 * tanV * dist);
-    return frac * innerHeight * this.ratio * Math.max(1, this.artAspect);
+    return frac * innerHeight * this.ratio * Math.max(1, a);
   }
 }

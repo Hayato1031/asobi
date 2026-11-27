@@ -14,8 +14,20 @@
 // it is shown, and leaving them out saves a quarter of the memory and their
 // making). When the whole loop fits in BUDGET it is all kept (after one pass
 // nothing is drawn again); otherwise a ring of the frames coming next is kept.
+//
+// Each frame is drawn over the Reel's extent (extent.js): the paper and what
+// the sketch drew past it. Each texture keeps the extent it was drawn with
+// (userData), so the stage maps it right while a new extent eases in, and a
+// new extent redraws the frames in place: the old ones stay on show until
+// their replacements are ready, so the art never stops for it.
+//
+// The Reel here is its source (reel-tools.js): the frames' text stays in the
+// stage's worker, and each frame comes from there as a standalone svg Blob,
+// which the rasteriser (far-raster.js) turns into a bitmap in a process of
+// its own.
 import * as THREE from "./vendor/three/build/three.module.js";
-import { stripGrain, restFrame, frameSvg } from "./svgframe.js";
+import { plainExtent } from "./extent.js";
+import { far, drawHere } from "./far-raster.js";
 
 export const BUDGET = 256 * 1024 * 1024;
 const MAX_SIDE = 1600;     // the longest side drawn, in pixels
@@ -27,6 +39,7 @@ export class FrameCache {
     this.renderer = renderer;
     this.anisotropy = anisotropy;
     this.reel = null;
+    this.extent = null;        // what is drawn: the paper and what lies past it (extent.js)
     this.n = 0;                // frames in the Reel
     this.grain = 0;
     this.withBackground = true;
@@ -42,21 +55,28 @@ export class FrameCache {
     this.stats = { drawn: 0, drawMs: 0, drawMax: 0, held: 0, ring: 0, whole: false, side: 0 };
   }
 
-  // A checked Reel (AsobiSafeReel) to play. Its clock starts at 0. Each
-  // frame's body (parts at rest, grain out) is made when it is first drawn.
+  // A checked Reel (AsobiSafeReel; its source, reel-tools.js) to play. The
+  // clock goes on from where it is (as in the flat view and the playground's
+  // player), so an edit never sends a motion back to its start. Each frame
+  // (parts at rest, grain out) is made by the worker when it is first drawn.
+  // The extent stays when the paper is the same, else it is the paper's.
   setReel(reel) {
     this.reel = reel;
-    this.n = reel.frames.length;
-    this.grain = stripGrain(reel.frames[0]).grain;
+    if (!this.extent || !sameBox(this.extent.paper, reel.view)) this.extent = plainExtent(reel.view);
+    this.n = reel.n;
+    this.grain = reel.grain;
     this.restart();
-    this.time = 0;
   }
 
-  // A frame's body, made when it is drawn and not kept (a big Reel's frames
-  // are tens of MB; a second copy would only be more to collect later).
-  body(i) {
-    return stripGrain(restFrame(this.reel.frames[i], this.reel.parts)).markup;
+  // Another extent for the Reel on show (once measured): every frame is drawn
+  // again over it, in place; until then the frames drawn before stay in use.
+  setExtent(extent) {
+    if (!this.reel || sameBox(extent.box, this.extent.box)) { if (this.reel) this.extent = extent; return; }
+    this.extent = extent;
+    this.gen++;
+    this.busy.clear();
   }
+
 
   // With the picture's own background (true), or without it (the B key).
   setBackground(on) {
@@ -93,7 +113,7 @@ export class FrameCache {
   // makes thousands of SVG documents a minute, and their garbage collection
   // stops the page for a few hundred ms now and then.)
   size() {
-    const v = this.reel.view, a = v[2] / v[3];
+    const v = this.extent.box, a = v[2] / v[3];
     let long = Math.max(MIN_SIDE, this.side * this.scale);
     const dims = (l) => (a >= 1 ? [Math.round(l), Math.max(1, Math.round(l / a))] : [Math.max(1, Math.round(l * a)), Math.round(l)]);
     const [w, h] = dims(long);
@@ -111,6 +131,18 @@ export class FrameCache {
     const n = this.n;
     const fit = Math.floor(BUDGET / (w * h * 4));
     return Math.max(2, Math.min(n, fit));
+  }
+
+  // For a Reel that is about to replace the one on show (its pre-roll): the
+  // clock is the one on show; draw what is needed from now on, and answer
+  // whether the frame for the next moment (time + dt) is ready, so it can
+  // take over now.
+  prepare(time, dt) {
+    this.time = time;
+    if (!this.reel) return false;
+    const idx = Math.floor((time + dt) * this.reel.fps) % this.n;
+    this.produce(idx);
+    return this.textures.has(idx);
   }
 
   // Per animation frame: advance the clock by dt (s) and answer the texture
@@ -185,23 +217,17 @@ export class FrameCache {
     const gen = this.gen;
     this.busy.add(i);
     const t0 = performance.now();
-    const svg = frameSvg(this.body(i), this.reel.view, this.reel.background, this.withBackground, w, h);
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-    let bitmap = null;
-    try {
-      const img = new Image();
-      img.decoding = "async";
-      img.src = url;
-      await img.decode();
-      if (gen !== this.gen) return;
-      // Upside down, as WebGL wants it; premultiplied, so the mipmaps blend edges right.
-      bitmap = await createImageBitmap(img, { imageOrientation: "flipY", premultiplyAlpha: "premultiply" });
-    } catch {
-      return;
-    } finally {
-      URL.revokeObjectURL(url);
-      if (gen === this.gen) this.busy.delete(i);
-    }
+    const ext = this.extent;
+    let blob = null;
+    try { blob = await this.reel.frameBlob(i, ext.box, this.withBackground, w, h); } catch { blob = null; }
+    if (!blob || gen !== this.gen) { if (gen === this.gen) this.busy.delete(i); return; }
+    // Drawn in the rasteriser's own process (far-raster.js: the svg documents
+    // and their garbage collection stay there); here only when it is not there.
+    // Upside down, as WebGL wants it; premultiplied, so edges blend right.
+    let bitmap = await far.bitmap(blob, true);
+    if (!bitmap && gen === this.gen) bitmap = await drawHere(blob, true);
+    if (gen === this.gen) this.busy.delete(i);
+    if (!bitmap) return;
     if (gen !== this.gen) { bitmap.close(); return; }
     const texture = new THREE.Texture(bitmap);
     texture.colorSpace = THREE.NoColorSpace; // sRGB values, decoded in the shader (premultiplied)
@@ -209,6 +235,7 @@ export class FrameCache {
     texture.premultiplyAlpha = false;
     texture.generateMipmaps = false;
     texture.minFilter = THREE.LinearFilter;
+    texture.userData = { box: ext.box, paper: ext.paper, bands: ext.bands };
     texture.needsUpdate = true;
     this.renderer.initTexture(texture); // to the GPU now, between frames
     bitmap.close();
@@ -225,3 +252,5 @@ export class FrameCache {
     }
   }
 }
+
+function sameBox(a, b) { return a.length === b.length && a.every((n, i) => n === b[i]); }

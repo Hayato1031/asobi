@@ -19,7 +19,52 @@ export const COLORS = {
 };
 export const INK = "#f1f1f4";
 const SIGNAL = "#ff5470";
-const MONO = `ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Hiragino Sans", monospace`;
+export const MONO = `ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Hiragino Sans", monospace`;
+
+// The code's colours on a plain background (the side view, where the window
+// is the picture's own colour): the site's dark-background set above, or this
+// set for light backgrounds. Same hues, darker, each at least 4.5:1 on white
+// (contrast on white: c 5.25, s 5.33, y 5.30, n 5.51, k 5.87, t 6.49, w 5.84,
+// ink 17.85, signal 5.50; on the site's paper #f7f5ef all stay above 4.7).
+// The signal (flash, caret, error) is a deeper pink there.
+export const DARK = { name: "dark", colors: COLORS, ink: INK, signal: SIGNAL };
+export const LIGHT = {
+  name: "light",
+  colors: {
+    "t-c": "#6b6b78", "t-s": "#2f7a2a", "t-y": "#b04f00", "t-n": "#896200",
+    "t-k": "#c2185b", "t-t": "#6a3fd0", "t-w": "#0b6aa2",
+  },
+  ink: "#17171d",
+  signal: "#d0103c",
+};
+// Below this against the background a tint is not worth its colour: that
+// part of the code takes the ink instead (the code is big: WCAG's large text).
+const LEGIBLE = 3;
+
+// The palette for code on a background [r, g, b] (0..255): the set whose ink
+// stands out more (so a mid-tone such as red gets the one that reads better),
+// with any colour that would still be too faint there turned to ink.
+export function paletteOn(rgb) {
+  const base = contrast(DARK.ink, rgb) >= contrast(LIGHT.ink, rgb) ? DARK : LIGHT;
+  const colors = {};
+  for (const [kind, color] of Object.entries(base.colors)) colors[kind] = contrast(color, rgb) >= LEGIBLE ? color : base.ink;
+  const signal = contrast(base.signal, rgb) >= LEGIBLE;
+  return { name: base.name, ink: base.ink, colors, accent: signal ? base.signal : base.ink, signal };
+}
+
+// WCAG contrast ratio of two colours, each "#rrggbb" or [r, g, b].
+export function contrast(a, b) {
+  const la = luminance(a), lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+export function luminance(color) {
+  const rgb = typeof color === "string" ? hexRgb(color) : color;
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+}
+
+export function hexRgb(hex) { return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)); }
 
 export class CodeCanvas {
   constructor(width, height) {
@@ -256,7 +301,8 @@ export function diffCode(old, lines, oldFlashAt, now, fresh) {
   return { flashAt, focus: last >= a ? last : Math.max(0, Math.min(lines.length - 1, a - 1)) };
 }
 
-// The site's tint (AsobiTint) of one line as coloured runs [text, colour].
+// The site's tint (AsobiTint) of one line as coloured runs [text, colour,
+// kind] (kind: the tint's class, such as "t-c", or "" for plain text).
 // AsobiTint answers HTML: it is parsed in an inert document and only its
 // text and class names are read, never put into a page.
 export function tintRuns(line, words, parser) {
@@ -267,10 +313,11 @@ export function tintRuns(line, words, parser) {
     for (const node of p ? p.childNodes : []) {
       const text = node.textContent;
       if (!text) continue;
-      runs.push([text, (node.nodeType === 1 && COLORS[node.getAttribute("class")]) || INK]);
+      const kind = node.nodeType === 1 && COLORS[node.getAttribute("class")] ? node.getAttribute("class") : "";
+      runs.push([text, COLORS[kind] || INK, kind]);
     }
   } else {
-    runs.push([line, INK]);
+    runs.push([line, INK, ""]);
   }
   return runs;
 }

@@ -16,6 +16,8 @@
 // the one waiting. Nothing queues up and nothing waits inside a frame.
 // If drawing gets slow (a heavy picture), the next ones are drawn smaller.
 
+import { far } from "./far-raster.js";
+
 const MIN_SIDE = 768;
 const MAX_SIDE = 1800;
 
@@ -41,9 +43,11 @@ export class Raster {
   aim(px) { this.side = Math.max(MIN_SIDE, Math.min(MAX_SIDE, Math.round(px))); }
 
   // grain: asobi's grain strength, taken out of svg (drawn by the GPU instead).
-  push(svg, view, grain = 0) {
+  // view: the rectangle the svg's viewBox shows (its extent's box: extent.js);
+  // extent: handed on with the picture.
+  push(svg, view, grain = 0, extent = null) {
     if (this.next) this.stats.skipped++;
-    this.next = { svg, view, grain };
+    this.next = { svg, view, grain, extent };
     if (!this.busy) this.run();
   }
 
@@ -53,7 +57,7 @@ export class Raster {
   async run() {
     this.busy = true;
     while (this.next) {
-      const { svg, view, grain } = this.next;
+      const { svg, view, grain, extent } = this.next;
       this.next = null;
       const aspect = view[2] / view[3];
       const long = Math.max(MIN_SIDE * 0.5, this.side * this.scale);
@@ -62,24 +66,31 @@ export class Raster {
       const markup = sized(svg, w, h);
       if (!markup) { this.stats.failed++; continue; }
       const t0 = performance.now();
-      const url = URL.createObjectURL(new Blob([markup], { type: "image/svg+xml" }));
-      const img = new Image();
-      img.decoding = "async";
-      img.src = url;
-      let source = null;
-      try {
-        await img.decode();
-        // A newer picture came while this one loaded: skip straight to it.
-        if (this.next) { this.stats.skipped++; continue; }
-        source = await this.draw(img, w, h);
-      } catch {
-        this.stats.failed++;
-        continue;
-      } finally {
-        URL.revokeObjectURL(url);
+      const blob = new Blob([markup], { type: "image/svg+xml" });
+      // Drawn in the rasteriser's own process (far-raster.js: every picture is
+      // a document of its own, and their garbage collection stays there).
+      let source = await far.bitmap(blob, true);
+      if (source && this.next) { source.close(); this.stats.skipped++; continue; } // a newer picture came: skip to it
+      if (!source) {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.decoding = "async";
+        img.src = url;
+        try {
+          await img.decode();
+          // A newer picture came while this one loaded: skip straight to it.
+          if (this.next) { this.stats.skipped++; continue; }
+          source = await this.draw(img, w, h);
+        } catch {
+          this.stats.failed++;
+          continue;
+        } finally {
+          URL.revokeObjectURL(url);
+          img.src = ""; // its document goes now, not when the element is collected
+        }
       }
       this.last = 0;
-      const kept = this.onDraw(source, { width: w, height: h, aspect, grain });
+      const kept = this.onDraw(source, { width: w, height: h, aspect, grain, extent });
       if (kept === false && source.close) source.close();
       const ms = performance.now() - t0;
       const s = this.stats;

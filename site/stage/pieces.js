@@ -96,6 +96,14 @@ function glyphMaterial() {
 // values; asobi's grain is drawn here (see svgframe.js), only where the
 // picture is, never on the air around it. Lit a little by the world, and kept
 // under the bloom threshold so white paper never blows out.
+//
+// The sheet is the picture's extent (extent.js): the paper and what was drawn
+// past it. uMap takes the sheet's place (vUv) to the texture's (st): a texture
+// keeps the extent it was drawn with while a new one eases in, and outside it
+// nothing shows. Where the extent reaches past the paper, its outermost band
+// fades (uBands: left, right, top, bottom, in the texture's units; 0: none),
+// so a spill the measuring missed fades instead of being cut. For a picture
+// that stays on its paper, uMap is (0, 0, 1, 1) and uBands 0: as before.
 function artMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
@@ -104,6 +112,9 @@ function artMaterial() {
       uSheen: { value: new THREE.Color(0, 0, 0) },
       uGrain: { value: 0 },
       uCells: { value: new THREE.Vector2(540, 540) },
+      uMap: { value: new THREE.Vector4(0, 0, 1, 1) },
+      uGrainAt: { value: new THREE.Vector2(0, 0) },
+      uBands: { value: new THREE.Vector4(0, 0, 0, 0) },
       uOpacity: { value: 0 },
     }]),
     vertexShader: VERT,
@@ -112,7 +123,8 @@ function artMaterial() {
       uniform sampler2D map;
       uniform vec3 uLight, uSheen;
       uniform float uGrain, uOpacity;
-      uniform vec2 uCells;
+      uniform vec2 uCells, uGrainAt;
+      uniform vec4 uMap, uBands;
       varying vec2 vUv;
       ${FOG_KEEP}
       vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + .055) / 1.055, vec3(2.4)), step(.04045, c)); }
@@ -123,13 +135,14 @@ function artMaterial() {
         return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
       }
       void main() {
-        vec4 t = texture2D(map, vUv);
+        vec2 st = uMap.xy + vUv * uMap.zw;
+        vec4 t = texture2D(map, st);
         float a = t.a;
         if (a <= .002) discard;
         vec3 c = t.rgb / a;                                  // as the browser drew it (sRGB)
         // asobi's grain: fractal noise, dark specks where it is high, light where it is low.
         if (uGrain > 0.) {
-          vec2 p = vUv * uCells;
+          vec2 p = st * uCells + uGrainAt;               // held to the paper, whatever extent the texture has
           float n = .66 * vnoise(p) + .34 * vnoise(p * 2.03 + 17.);
           float k = uGrain * 4.;
           c *= 1. - clamp(k * (n - .5), 0., 1.);
@@ -138,10 +151,16 @@ function artMaterial() {
         vec3 col = toLinear(c) * uLight;
         // A faint sheen from the sky above, so a dark sheet still reads as a sheet.
         col += uSheen * smoothstep(.15, 1., vUv.y) * (1. - dot(c, vec3(.3333)));
-        // Smooth edges (there is no MSAA).
-        vec2 px = fwidth(vUv) * 1.2;
-        vec2 e = smoothstep(vec2(0.), px, vUv) * smoothstep(vec2(0.), px, 1. - vUv);
-        a *= e.x * e.y * uOpacity * fogKeep();
+        // Smooth edges (there is no MSAA); nothing outside the texture's extent.
+        vec2 px = fwidth(st) * 1.2;
+        vec2 e = smoothstep(vec2(0.), px, st) * smoothstep(vec2(0.), px, 1. - st);
+        // The outer band of an extent wider than the paper (y up: top is 1).
+        float f = 1.;
+        if (uBands.x > 0.) f *= smoothstep(0., uBands.x, st.x);
+        if (uBands.y > 0.) f *= smoothstep(0., uBands.y, 1. - st.x);
+        if (uBands.z > 0.) f *= smoothstep(0., uBands.z, 1. - st.y);
+        if (uBands.w > 0.) f *= smoothstep(0., uBands.w, st.y);
+        a *= e.x * e.y * f * uOpacity * fogKeep();
         gl_FragColor = vec4(col * a, a);
       }`,
     transparent: true, depthWrite: false, premultipliedAlpha: true, fog: true, side: THREE.DoubleSide,
@@ -171,6 +190,22 @@ export class Pieces {
 
   setCodeTexture(texture) { this.codeMesh.material.uniforms.map.value = texture; }
   setArtTexture(texture) { this.artMesh.material.uniforms.map.value = texture; }
+
+  // Where the texture on show lies in the sheet (shown: the extent the sheet
+  // stands for now; drawn: the extent the texture was drawn with; paper: the
+  // picture's paper; bands: the fading widths, user units), and the grain's
+  // cells (about 540 along the paper's longer side, wherever the sheet ends).
+  setArtPlace(shown, drawn, paper, bands) {
+    const u = this.artMesh.material.uniforms;
+    const [dx, dy, dw, dh] = shown, [bx, by, bw, bh] = drawn;
+    if (dx === bx && dy === by && dw === bw && dh === bh) u.uMap.value.set(0, 0, 1, 1);
+    else u.uMap.value.set((dx - bx) / bw, 1 - (dy + dh - by) / bh, dw / bw, dh / bh);
+    const b = bands || [0, 0, 0, 0];
+    u.uBands.value.set(b[0] / bw, b[1] / bw, b[2] / bh, b[3] / bh);
+    const long = Math.max(paper[2], paper[3]), k = 540 / long;
+    u.uCells.value.set(k * bw, k * bh);
+    u.uGrainAt.value.set(k * (bx - paper[0]), k * (paper[1] + paper[3] - by - bh));
+  }
 
   setCodeSize(w, h) {
     this.codeSize.set(w, h);

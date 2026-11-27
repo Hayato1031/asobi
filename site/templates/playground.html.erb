@@ -6,6 +6,8 @@
     <span class="fc" id="play-fc" aria-hidden="true"></span>
     <a class="small" href="#words-title"><%= ui(:words_jump) %></a>
     <button type="button" id="reset" class="small"><%= ui(:reset) %></button>
+    <button type="button" id="song" class="small" title="<%= h(ui(:choose_song_hint)) %>"><%= ui(:choose_song) %></button>
+    <input type="file" id="song-file" accept="<%= h((Asobi::Song::KINDS.keys + ["audio/*"]).join(",")) %>" hidden>
     <button type="button" id="copy" class="small"><%= ui(:copy_link) %></button>
     <button type="button" id="stage-window" class="small" title="<%= h(ui(:stage_window_hint)) %>" hidden><%= ui(:stage_window) %></button>
     <button type="button" id="download" class="small" disabled><%= ui(:save_html) %></button>
